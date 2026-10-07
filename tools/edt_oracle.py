@@ -33,6 +33,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EDT = os.path.join(ЭТАЛОНЫ, "edt")
 ЗАДАНИЯ = os.path.join(EDT, "задания")
 
+#: Профиль заданий: приставка «мой_» и схема атомарных ролей.
+ПРОФИЛЬ = os.path.join(ROOT, "meta", "tests", "профиль-тестов.json")
+
 #: Зерно uuid: тесты пользуются тем же, и uuid новых объектов совпадают.
 ORACLE_SEED = 20261007
 
@@ -84,7 +87,7 @@ def apply_jobs(repo, main):
         with open(временный, "w", encoding="utf-8") as f:
             json.dump(задание, f, ensure_ascii=False)
         try:
-            код = main([временный, "--apply"])
+            код = main([временный, "--apply", "--профиль", ПРОФИЛЬ])
         finally:
             os.remove(временный)
         if код:

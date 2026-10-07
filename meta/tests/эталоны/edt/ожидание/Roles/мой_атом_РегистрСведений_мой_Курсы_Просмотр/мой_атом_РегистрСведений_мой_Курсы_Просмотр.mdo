@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mdclass:Role xmlns:mdclass="http://g5.1c.ru/v8/dt/metadata/mdclass" uuid="488e66df-006a-4998-aa96-3d290fdb20bc">
+  <name>мой_атом_РегистрСведений_мой_Курсы_Просмотр</name>
+  <synonym>
+    <key>ru</key>
+    <value>(Мой) Атом. Регистр сведений - Курсы - Просмотр</value>
+  </synonym>
+</mdclass:Role>

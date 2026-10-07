@@ -1213,4 +1213,16 @@ def forms_from_node(node):
     состав = _по_тегам(карточка).get("ChildObjects")
     if состав is None:
         return []
-    return [c.text for c in состав.children if _хвост_тега(c.tag) == "Form" and c.text]
+    имена = []
+    for c in состав.children:
+        if _хвост_тега(c.tag) != "Form":
+            continue
+        if c.text:
+            имена.append(c.text)
+        else:
+            # Форма целиком — так её отдаёт карточка проекта EDT: имя в свойствах.
+            свойства = _по_тегам(c).get("Properties")
+            имя = _по_тегам(свойства).get("Name") if свойства is not None else None
+            if имя is not None and имя.text:
+                имена.append(имя.text)
+    return имена

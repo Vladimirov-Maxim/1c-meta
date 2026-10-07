@@ -40,6 +40,9 @@
   <roles>Role.мой_атом_Документ_мой_ПробаСДвижениями_Просмотр</roles>
   <roles>Role.мой_атом_Документ_мой_ПробаСДвижениями_Изменение</roles>
   <roles>Role.мой_Пользователь</roles>
+  <roles>Role.мой_атом_Документ_мой_Заявка_Просмотр</roles>
+  <roles>Role.мой_атом_Документ_мой_Заявка_Изменение</roles>
+  <roles>Role.мой_атом_РегистрСведений_мой_Курсы_Просмотр</roles>
   <commonModules>CommonModule.мой_ПесочницаСервер</commonModules>
   <commonModules>CommonModule.мой_Сервер</commonModules>
   <commonModules>CommonModule.мой_СерверВызовСервера</commonModules>
