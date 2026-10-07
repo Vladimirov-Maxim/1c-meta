@@ -1,0 +1,42 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<MetaDataObject xmlns="http://v8.1c.ru/8.3/MDClasses" xmlns:app="http://v8.1c.ru/8.2/managed-application/core" xmlns:cfg="http://v8.1c.ru/8.1/data/enterprise/current-config" xmlns:cmi="http://v8.1c.ru/8.2/managed-application/cmi" xmlns:ent="http://v8.1c.ru/8.1/data/enterprise" xmlns:lf="http://v8.1c.ru/8.2/managed-application/logform" xmlns:pal="http://v8.1c.ru/8.1/data/ui/colors/palette" xmlns:style="http://v8.1c.ru/8.1/data/ui/style" xmlns:sys="http://v8.1c.ru/8.1/data/ui/fonts/system" xmlns:v8="http://v8.1c.ru/8.1/data/core" xmlns:v8ui="http://v8.1c.ru/8.1/data/ui" xmlns:web="http://v8.1c.ru/8.1/data/ui/colors/web" xmlns:win="http://v8.1c.ru/8.1/data/ui/colors/windows" xmlns:xen="http://v8.1c.ru/8.3/xcf/enums" xmlns:xpr="http://v8.1c.ru/8.3/xcf/predef" xmlns:xr="http://v8.1c.ru/8.3/xcf/readable" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="2.21">
+	<Enum uuid="06b81215-2b05-4b4d-b515-85bccfaaf427">
+		<InternalInfo>
+			<xr:GeneratedType name="EnumRef.мой_ЭталонПеречисление" category="Ref">
+				<xr:TypeId>20021778-93bb-4647-99ed-1062f72d2fd7</xr:TypeId>
+				<xr:ValueId>279d2f7e-e7a7-4da9-8de4-dbdc7106a015</xr:ValueId>
+			</xr:GeneratedType>
+			<xr:GeneratedType name="EnumManager.мой_ЭталонПеречисление" category="Manager">
+				<xr:TypeId>64060edf-b6e5-4405-9b34-7ccd56d597ae</xr:TypeId>
+				<xr:ValueId>6925aaa4-5f93-432f-9826-e463698b0ad1</xr:ValueId>
+			</xr:GeneratedType>
+			<xr:GeneratedType name="EnumList.мой_ЭталонПеречисление" category="List">
+				<xr:TypeId>0b08b639-1bc8-453b-bc70-ebd1688ab96f</xr:TypeId>
+				<xr:ValueId>7d02abd8-8150-4068-adaa-92cf10abf448</xr:ValueId>
+			</xr:GeneratedType>
+		</InternalInfo>
+		<Properties>
+			<Name>мой_ЭталонПеречисление</Name>
+			<Synonym>
+				<v8:item>
+					<v8:lang>ru</v8:lang>
+					<v8:content>Мой эталон перечисление</v8:content>
+				</v8:item>
+			</Synonym>
+			<Comment/>
+			<UseStandardCommands>false</UseStandardCommands>
+			<Characteristics/>
+			<QuickChoice>true</QuickChoice>
+			<ChoiceMode>BothWays</ChoiceMode>
+			<DefaultListForm/>
+			<DefaultChoiceForm/>
+			<AuxiliaryListForm/>
+			<AuxiliaryChoiceForm/>
+			<ListPresentation/>
+			<ExtendedListPresentation/>
+			<Explanation/>
+			<ChoiceHistoryOnInput>Auto</ChoiceHistoryOnInput>
+		</Properties>
+		<ChildObjects/>
+	</Enum>
+</MetaDataObject>

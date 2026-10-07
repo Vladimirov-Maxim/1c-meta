@@ -1,0 +1,43 @@
+[project]
+name = "1c-meta"
+version = "0.1.0"
+description = "Создание и правка метаданных 1С в выгрузке конфигуратора"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+# Единственная зависимость ядра, и она заперта в инфраструктуре
+# (`meta/infra/tree_lxml.py`). Взята не по вкусу, а по замеру: разбор карточки
+# обязан собираться обратно символ в символ, и `xml.etree` из стандартной
+# библиотеки не проходит ни одного файла из двухсот — переименовывает
+# пространства имён. lxml проходит все 22 292 карточки реальной выгрузки
+# крупной типовой конфигурации.
+dependencies = ["lxml>=5.0"]
+
+[project.optional-dependencies]
+# Канал MCP (`meta/api`). Сервер опирается на устройство FastMCP — проверено
+# на mcp 1.29; терминалу эти пакеты не нужны.
+mcp = ["mcp>=1.29", "pydantic>=2"]
+# Проверки: `py -3 check.py`.
+dev = ["pytest", "ruff"]
+
+[tool.pytest.ini_options]
+testpaths = ["meta/tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-ra --strict-markers"
+pythonpath = ["."]
+markers = ["holder: в выгрузке есть карточка, ссылающаяся на цель удаления"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+extend-exclude = ["meta/tests/эталоны"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# Тесты и командная строка правят sys.path до импортов пакета — иначе его
+# не найти, пока инструмент не установлен. Импорты помечены `# noqa: E402`.
+"meta/tests/*" = ["E402"]
+"meta/add.py" = ["E402"]
