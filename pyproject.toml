@@ -15,7 +15,7 @@ dependencies = ["lxml>=5.0"]
 [project.optional-dependencies]
 # Канал MCP (`meta/api`). Сервер опирается на устройство FastMCP — проверено
 # на mcp 1.29; терминалу эти пакеты не нужны.
-mcp = ["mcp>=1.29", "pydantic>=2"]
+mcp = ["mcp>=1.29,<2", "pydantic>=2"]
 # Проверки: `py -3 check.py`.
 dev = ["pytest", "ruff"]
 

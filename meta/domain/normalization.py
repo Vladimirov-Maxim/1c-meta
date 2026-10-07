@@ -1,5 +1,5 @@
-"""Физический формат файла выгрузки: что вернуть файлу задачи, чтобы он был
-таким, каким его пишет конфигуратор.
+"""Физический формат файла исходников: что вернуть файлу задачи, чтобы он был
+таким, каким его пишет конфигуратор или EDT.
 
 Не проверка, а операция. Инструменты записи агентов не умеют писать BOM,
 срезают хвостовые пробелы у любой записываемой строки и не доносят до файла
@@ -9,7 +9,8 @@
 
 Что возвращается, по каждому файлу задачи:
 
-1. BOM — файл выгрузки в UTF-8 с BOM;
+1. BOM — как принято там, где лежат исходники: файл выгрузки конфигуратора
+   в UTF-8 с BOM, файл проекта EDT — без BOM;
 2. переводы строк — принятые там, где лежит выгрузка (в репозитории — как у
    его файлов, у пары каталогов — как у эталона);
 3. хвостовые пробелы — строкам, которые содержательно не менялись, окончание
@@ -128,7 +129,7 @@ def restore_trailing(lines, old_lines, pairs):
     return out, restored
 
 
-def normalized(data, old_data=None, pairs=(), added=None, eol=None, module=False):
+def normalized(data, old_data=None, pairs=(), added=None, eol=None, module=False, bom=True):
     """Байты файла задачи -> (нормализованные байты, [что исправлено словами]).
 
     `old_data` — тот же файл в базе (None — файл новый); `pairs` — кандидаты
@@ -136,13 +137,16 @@ def normalized(data, old_data=None, pairs=(), added=None, eol=None, module=False
     добавленных задачей: только им ставится отступ пустых строк (у нового
     файла — всем); `eol` — «CRLF» или «LF», принятые там, где лежит выгрузка;
     None — свои переводы файла (большинства), их сверять не с чем;
-    `module` — файл модуля: пустым строкам в методах нужен отступ.
+    `module` — файл модуля: пустым строкам в методах нужен отступ;
+    `bom` — нужен ли файлу BOM.
     """
     cur = parse(data)
     lines = list(cur.lines)
     fixes = []
-    if not cur.bom:
+    if bom and not cur.bom:
         fixes.append("BOM")
+    elif not bom and cur.bom:
+        fixes.append("снять BOM")
     цель = eol or cur.eol_word or "CRLF"
     if cur.crlf and cur.lf:
         fixes.append(f"смешанные переводы строк ({cur.crlf} CRLF / {cur.lf} LF)")
@@ -166,5 +170,5 @@ def normalized(data, old_data=None, pairs=(), added=None, eol=None, module=False
             fixes.append(f"отступ пустых строк: {отступов}")
     if not fixes:
         return data, []
-    result = render(lines, цель, True, final)
+    result = render(lines, цель, bom, final)
     return (data, []) if result == data else (result, fixes)
