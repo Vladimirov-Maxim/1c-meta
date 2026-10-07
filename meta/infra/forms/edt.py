@@ -22,8 +22,8 @@ from ...domain import forms as fm
 from ...domain import model as dm
 from ...domain.model import Refuse
 from .. import edt_xml
-from .designer221 import module
-from .designer221 import vocabulary as voc
+from . import module
+from . import platform as voc
 
 FORM = "com._1c.g5.v8.dt.form.model."
 
