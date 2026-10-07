@@ -5,7 +5,7 @@
     <listType typeId="4be03c05-3214-4497-b96c-9c2477746fd3" valueTypeId="13317032-6a71-49d0-a693-cdd5e410389f"/>
     <managerType typeId="59227746-5849-437c-a839-48bdc858dcae" valueTypeId="3b82191f-dfe7-4612-a631-4a45bc1576b6"/>
   </producedTypes>
-  <name>мой_Виды</name>
+  <name>мой_ВидыЗаявок</name>
   <synonym>
     <key>ru</key>
     <value>Виды</value>
@@ -24,6 +24,13 @@
     <synonym>
       <key>ru</key>
       <value>Второй</value>
+    </synonym>
+  </enumValues>
+  <enumValues uuid="e11d60b2-f7d0-4efd-8054-12bfd7182fc8">
+    <name>Третий</name>
+    <synonym>
+      <key>ru</key>
+      <value>Третий</value>
     </synonym>
   </enumValues>
 </mdclass:Enum>

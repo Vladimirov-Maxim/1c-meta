@@ -26,12 +26,15 @@
 import os
 import re
 
+from lxml import etree
+
 from ..acl import edt_card, mapping
 from ..domain.model import Refuse
 from . import edt_xml, serializer
 from .designer import DesignerDump
 from .layout import OBJECT_FOLDERS
 from .repository import Plan, ReferenceSource, _read_bytes
+from .shape import shape_of
 from .tree_lxml import LxmlCardTree
 
 #: Шапка файла прав роли в проекте EDT: те же права, что в `Ext/Rights.xml`
@@ -52,13 +55,32 @@ FORMS_REFUSAL = ("формы проекта EDT (Form.form) инструмент
                  "другой формат, и записать его наугад нельзя")
 
 
+class EdtCardTree(LxmlCardTree):
+    """Дерево карточки в форме выгрузки, прочитанной из проекта EDT.
+
+    EDT не пишет свойство, равное умолчанию, и в карточке, прочитанной
+    переходником, его нет. Правка такого свойства — не «менять нечего», а
+    первое его значение: свойство дописывается в конец раздела свойств. Место
+    здесь не важно — порядок при записи ставит метамодель."""
+
+    def set_property(self, node, tag, described):
+        if self._property(node, tag) is not None:
+            return super().set_property(node, tag, described)
+        holder = shape_of(node.getroottree().getroot()).properties(node)
+        if holder is None:
+            raise Refuse(f"в карточке нет раздела свойств — «{tag}» поставить некуда")
+        new = self._element(described, etree.QName(holder).namespace)
+        holder.append(new)
+        return "по умолчанию"
+
+
 class EdtDump(DesignerDump):
     """Проект EDT по пути `root` — каталог исходников (`…/src`), где лежит
     `Configuration/Configuration.mdo`."""
 
     def __init__(self, root, eol=None, tree=None):
         self.root = os.path.abspath(root)
-        self.tree = tree or LxmlCardTree()
+        self.tree = tree or EdtCardTree()
         self._schemas = {}
         if not os.path.isdir(self.root):
             raise Refuse(f"каталога «{self.root}» не существует")

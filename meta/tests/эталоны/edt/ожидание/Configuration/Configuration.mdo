@@ -47,7 +47,6 @@
   <eventSubscriptions>EventSubscription.мой_ЗаявкаПередЗаписью</eventSubscriptions>
   <scheduledJobs>ScheduledJob.мой_Обмен</scheduledJobs>
   <definedTypes>DefinedType.мой_Значение</definedTypes>
-  <constants>Constant.мой_Флаг</constants>
   <catalogs>Catalog.мой_ПробаСправочник</catalogs>
   <catalogs>Catalog.мой_ДоговорыСРеквизитами</catalogs>
   <catalogs>Catalog.мой_Тестовый</catalogs>
@@ -63,7 +62,7 @@
   <enums>Enum.мой_ЭталонПеречисление</enums>
   <enums>Enum.мой_СостоянияПроба</enums>
   <enums>Enum.мой_ПробаПеречисление</enums>
-  <enums>Enum.мой_Виды</enums>
+  <enums>Enum.мой_ВидыЗаявок</enums>
   <reports>Report.мой_ПробаОтчёт</reports>
   <reports>Report.мой_ПробаСКД</reports>
   <reports>Report.мой_Анализ</reports>

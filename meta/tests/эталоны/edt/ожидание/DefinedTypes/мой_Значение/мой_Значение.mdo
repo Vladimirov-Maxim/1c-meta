@@ -10,6 +10,6 @@
   </synonym>
   <type>
     <types>CatalogRef.мой_Пример</types>
-    <types>EnumRef.мой_Виды</types>
+    <types>EnumRef.мой_ВидыЗаявок</types>
   </type>
 </mdclass:DefinedType>

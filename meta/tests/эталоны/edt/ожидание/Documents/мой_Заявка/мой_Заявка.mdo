@@ -33,7 +33,7 @@
       <value>Вид</value>
     </synonym>
     <type>
-      <types>EnumRef.мой_Виды</types>
+      <types>EnumRef.мой_ВидыЗаявок</types>
     </type>
     <minValue xsi:type="core:UndefinedValue"/>
     <maxValue xsi:type="core:UndefinedValue"/>
@@ -52,6 +52,22 @@
     </type>
     <minValue xsi:type="core:UndefinedValue"/>
     <maxValue xsi:type="core:UndefinedValue"/>
+    <fillValue xsi:type="core:UndefinedValue"/>
+    <fullTextSearch>Use</fullTextSearch>
+    <dataHistory>Use</dataHistory>
+  </attributes>
+  <attributes uuid="dc4d1e84-48f7-4f6f-a677-132c5764d72f">
+    <name>Ответственный</name>
+    <synonym>
+      <key>ru</key>
+      <value>Ответственный</value>
+    </synonym>
+    <type>
+      <types>CatalogRef.мой_Пример</types>
+    </type>
+    <minValue xsi:type="core:UndefinedValue"/>
+    <maxValue xsi:type="core:UndefinedValue"/>
+    <fillChecking>ShowError</fillChecking>
     <fillValue xsi:type="core:UndefinedValue"/>
     <fullTextSearch>Use</fullTextSearch>
     <dataHistory>Use</dataHistory>
@@ -95,8 +111,20 @@
       </type>
       <minValue xsi:type="core:UndefinedValue"/>
       <maxValue xsi:type="core:UndefinedValue"/>
+      <fillChecking>ShowError</fillChecking>
       <dataHistory>Use</dataHistory>
       <fullTextSearch>Use</fullTextSearch>
     </attributes>
+  </tabularSections>
+  <tabularSections uuid="67799939-2972-43b6-b8fa-8c7297184caf">
+    <producedTypes>
+      <objectType typeId="cf58ca8a-a2ba-45fe-a30c-77f164640493" valueTypeId="6a19cd32-1dbc-4103-a4cd-fb48026918f4"/>
+      <rowType typeId="5d06f04a-341c-496c-b625-9d906813348c" valueTypeId="966d48f5-921d-418f-9f30-06c4daf4244d"/>
+    </producedTypes>
+    <name>Исполнители</name>
+    <synonym>
+      <key>ru</key>
+      <value>Исполнители</value>
+    </synonym>
   </tabularSections>
 </mdclass:Document>
