@@ -122,7 +122,8 @@ RENAMED = {"Events": "handlers", "Autofill": "autoFill", "Hiperlink": "hyperlink
            "EqualItemsWidth": "equalElementsWidth"}
 #: Обратное: имя EDT -> тег выгрузки (у неоднозначных — любой из тегов, прямая
 #: перекладка вернёт то же свойство).
-RENAMED_BACK = {edt: тег for тег, edt in RENAMED.items() if edt not in ("handlers", "source")}
+RENAMED_BACK = {edt: тег for тег, edt in RENAMED.items()
+                if edt not in ("handlers", "source", "horizontalAlign")}
 
 #: Где EDT держит обработчик события: у формы и таблицы — в самом элементе,
 #: кроме событий объекта и динамического списка (они в `extInfo`); у поля — в
@@ -181,6 +182,14 @@ def ref_back(word):
 
 def feature_name(tag):
     return RENAMED.get(tag) or tag[:1].lower() + tag[1:]
+
+
+def feature_names(tag):
+    """Кандидаты имени свойства EDT по тегу выгрузки: то же с маленькой буквы,
+    затем переименованное (`HorizontalLocation` — у дополнения так и есть,
+    у командной панели — `horizontalAlign`)."""
+    прямое = tag[:1].lower() + tag[1:]
+    return [прямое] + ([RENAMED[tag]] if tag in RENAMED and RENAMED[tag] != прямое else [])
 
 
 def designer_tag(name):
@@ -406,18 +415,18 @@ class FormTranslation(Translation):
             return
         if self.special(свойство, сб):
             return
-        имя = feature_name(свойство.tag)
-        f = edt_model.feature(сб.cls, имя)
-        if f is not None:
-            сб.specified.add(имя)
-            сб.add(имя, self.form_value(свойство, f, сб.cls, f"{where}.{свойство.tag}"))
-            return
-        f = edt_model.feature(сб.ext_cls, имя) if сб.ext_cls is not None else None
-        if f is not None:
-            сб.specified.add("extInfo/" + имя)
-            сб.add_ext(имя, self.form_value(свойство, f, сб.ext_cls, f"{where}.{свойство.tag}"))
-            return
-        сб.specified.add(имя)
+        for имя in feature_names(свойство.tag):
+            f = edt_model.feature(сб.cls, имя)
+            if f is not None:
+                сб.specified.add(имя)
+                сб.add(имя, self.form_value(свойство, f, сб.cls, f"{where}.{свойство.tag}"))
+                return
+            f = edt_model.feature(сб.ext_cls, имя) if сб.ext_cls is not None else None
+            if f is not None:
+                сб.specified.add("extInfo/" + имя)
+                сб.add_ext(имя, self.form_value(свойство, f, сб.ext_cls, f"{where}.{свойство.tag}"))
+                return
+        сб.specified.add(feature_name(свойство.tag))
         if not self._empty(свойство):
             self.problem(where, f"свойства «{свойство.tag}» нет у {сб.cls.rsplit('.', 1)[-1]}")
 
@@ -654,11 +663,11 @@ class FormTranslation(Translation):
         тип = _by_tag(a, "Type")
         слова = [c.text or "" for c in тип.children] if тип is not None else []
         настройки = _by_tag(a, "Settings")
-        if "cfg:DynamicList" in слова:
+        if any(с.partition(":")[2] == "DynamicList" for с in слова):
             return "DynamicListExtInfo"
         if any(с.endswith(":SpreadsheetDocument") for с in слова):
             return "SpreadsheetDocumentExtInfo"
-        if "v8:ValueListType" in слова and настройки is not None:
+        if any(с.partition(":")[2] == "ValueListType" for с in слова) and настройки is not None:
             return "ValueListExtInfo"
         if any(с.endswith(":FlowchartContextType") for с in слова):
             return "GraphicalSchemeExtInfo"
