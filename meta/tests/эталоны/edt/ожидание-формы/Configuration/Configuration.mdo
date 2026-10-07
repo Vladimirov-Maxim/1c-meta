@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mdclass:Configuration xmlns:mdclass="http://g5.1c.ru/v8/dt/metadata/mdclass" uuid="f02dbb0b-64fd-42c8-a83c-d102640edbc0">
+  <name>Конфигурация</name>
+  <containedObjects classId="9cd510cd-abfc-11d4-9434-004095e12fc7" objectId="479e729d-1302-45c5-95b5-6c1e264aa81a"/>
+  <containedObjects classId="9fcd25a0-4822-11d4-9414-008048da11f9" objectId="4c77a649-7775-4fa7-ab32-e0ba45129883"/>
+  <containedObjects classId="e3687481-0a87-462c-a166-9f34594f9bba" objectId="fc0f8af8-523d-408d-95c6-8eb7ae172396"/>
+  <containedObjects classId="9de14907-ec23-4a07-96f0-85521cb6b53b" objectId="916fb6fd-89b1-43d7-a10f-ef09a5ff840e"/>
+  <containedObjects classId="51f2d5d8-ea4d-4064-8892-82951750031e" objectId="c495d447-3465-4098-9f92-c0b572b28260"/>
+  <containedObjects classId="e68182ea-4237-4383-967f-90c1e3370bc7" objectId="c974814f-d298-4774-893c-059e059bf603"/>
+  <containedObjects classId="fb282519-d103-4dd3-bc12-cb271d631dfc" objectId="496e4f92-5529-4404-8a2e-6bc6afb8dac4"/>
+  <defaultRunMode>ManagedApplication</defaultRunMode>
+  <usePurposes>PersonalComputer</usePurposes>
+  <scriptVariant>Russian</scriptVariant>
+  <usedMobileApplicationFunctionalities>
+    <functionality>
+      <use>true</use>
+    </functionality>
+    <functionality>
+      <functionality>OSBackup</functionality>
+      <use>true</use>
+    </functionality>
+  </usedMobileApplicationFunctionalities>
+  <clientApplicationWindowsOpenVariant>OpenDataInDialogs</clientApplicationWindowsOpenVariant>
+  <defaultLanguage>Language.Русский</defaultLanguage>
+  <dataLockControlMode>Managed</dataLockControlMode>
+  <objectAutonumerationMode>NotAutoFree</objectAutonumerationMode>
+  <modalityUseMode>DontUse</modalityUseMode>
+  <synchronousPlatformExtensionAndAddInCallUseMode>DontUse</synchronousPlatformExtensionAndAddInCallUseMode>
+  <compatibilityMode>8.5.1</compatibilityMode>
+  <languages uuid="2fbe6c63-3b0c-4c2f-9e6b-5b3a8d3f0e11">
+    <name>Русский</name>
+    <synonym>
+      <key>ru</key>
+      <value>Русский</value>
+    </synonym>
+    <languageCode>ru</languageCode>
+  </languages>
+  <subsystems>Subsystem.мой_Раздел</subsystems>
+  <roles>Role.мой_ПробаРоль</roles>
+  <roles>Role.мой_атом_Документ_мой_ПробаСДвижениями_Просмотр</roles>
+  <roles>Role.мой_атом_Документ_мой_ПробаСДвижениями_Изменение</roles>
+  <roles>Role.мой_Пользователь</roles>
+  <roles>Role.мой_атом_Документ_мой_Заявка_Просмотр</roles>
+  <roles>Role.мой_атом_Документ_мой_Заявка_Изменение</roles>
+  <roles>Role.мой_атом_РегистрСведений_мой_Курсы_Просмотр</roles>
+  <commonModules>CommonModule.мой_ПесочницаСервер</commonModules>
+  <commonModules>CommonModule.мой_Сервер</commonModules>
+  <commonModules>CommonModule.мой_СерверВызовСервера</commonModules>
+  <eventSubscriptions>EventSubscription.мой_ЛюбойДокументПередЗаписью</eventSubscriptions>
+  <eventSubscriptions>EventSubscription.мой_ЗаявкаПередЗаписью</eventSubscriptions>
+  <scheduledJobs>ScheduledJob.мой_Обмен</scheduledJobs>
+  <definedTypes>DefinedType.мой_Значение</definedTypes>
+  <catalogs>Catalog.мой_ПробаСправочник</catalogs>
+  <catalogs>Catalog.мой_ДоговорыСРеквизитами</catalogs>
+  <catalogs>Catalog.мой_Тестовый</catalogs>
+  <catalogs>Catalog.мой_ПробаТЧ</catalogs>
+  <catalogs>Catalog.мой_ПробаДерево</catalogs>
+  <catalogs>Catalog.мой_ЭталонПереименованный</catalogs>
+  <catalogs>Catalog.мой_ДоговорыПроба</catalogs>
+  <catalogs>Catalog.мой_Пример</catalogs>
+  <documents>Document.мой_ЭталонДокумент</documents>
+  <documents>Document.мой_ПробаНепроводимый</documents>
+  <documents>Document.мой_ПробаСДвижениями</documents>
+  <documents>Document.мой_Заявка</documents>
+  <enums>Enum.мой_ЭталонПеречисление</enums>
+  <enums>Enum.мой_СостоянияПроба</enums>
+  <enums>Enum.мой_ПробаПеречисление</enums>
+  <enums>Enum.мой_ВидыЗаявок</enums>
+  <reports>Report.мой_ПробаОтчёт</reports>
+  <reports>Report.мой_ПробаСКД</reports>
+  <reports>Report.мой_Анализ</reports>
+  <dataProcessors>DataProcessor.мой_Загрузка</dataProcessors>
+  <informationRegisters>InformationRegister.мой_ЭталонРС</informationRegisters>
+  <informationRegisters>InformationRegister.мой_ПробаРегистр</informationRegisters>
+  <informationRegisters>InformationRegister.мой_Курсы</informationRegisters>
+  <accumulationRegisters>AccumulationRegister.мой_ПробаДвижений</accumulationRegisters>
+  <accumulationRegisters>AccumulationRegister.мой_Остатки</accumulationRegisters>
+</mdclass:Configuration>

@@ -74,13 +74,22 @@ def base_dump(target):
         f.write(LANGUAGE)
 
 
-def jobs():
-    return [os.path.join(ЗАДАНИЯ, имя) for имя in sorted(os.listdir(ЗАДАНИЯ)) if имя.endswith(".json")]
+def is_form_job(путь):
+    """Задание на формы: описание формы EDT площадка пока не пишет, и эталон
+    с формами живёт отдельно (`ожидание-формы`)."""
+    return "-форма-" in os.path.basename(путь)
 
 
-def apply_jobs(repo, main):
+def jobs(forms=None):
+    """Задания по порядку; `forms` — только на формы (True), только без них
+    (False), все (None)."""
+    все = [os.path.join(ЗАДАНИЯ, имя) for имя in sorted(os.listdir(ЗАДАНИЯ)) if имя.endswith(".json")]
+    return [п for п in все if forms is None or is_form_job(п) == forms]
+
+
+def apply_jobs(repo, main, forms=None):
     """Задания по порядку; отказ — остановка: эталон из недописанного не нужен."""
-    for путь in jobs():
+    for путь in jobs(forms):
         with open(путь, encoding="utf-8") as f:
             задание = json.loads(f.read().replace("{repo}", repo.replace("\\", "/")))
         временный = путь + ".tmp"
@@ -151,14 +160,17 @@ def main(argv):
     sys.path.insert(0, ROOT)
     from meta.add import main as tool
 
-    base, cf = os.path.join(work, "base_cf"), os.path.join(work, "cf")
+    base, cf, cf_forms = (os.path.join(work, имя) for имя in ("base_cf", "cf", "cf_forms"))
     base_dump(base)
     shutil.copytree(base, cf)
-    apply_jobs(cf, tool)
-    edt_import(work, [(base, os.path.join(work, "base_edt")), (cf, os.path.join(work, "edt"))])
-    collect(os.path.join(work, "base_edt"), os.path.join(EDT, "база"))
-    collect(os.path.join(work, "edt"), os.path.join(EDT, "ожидание"))
-    print(f"эталоны EDT: {os.path.join(EDT, 'база')}, {os.path.join(EDT, 'ожидание')}")
+    apply_jobs(cf, tool, forms=False)
+    shutil.copytree(cf, cf_forms)
+    apply_jobs(cf_forms, tool, forms=True)
+    edt_import(work, [(base, os.path.join(work, "base_edt")), (cf, os.path.join(work, "edt")),
+                      (cf_forms, os.path.join(work, "edt_forms"))])
+    for проект, эталон in (("base_edt", "база"), ("edt", "ожидание"), ("edt_forms", "ожидание-формы")):
+        collect(os.path.join(work, проект), os.path.join(EDT, эталон))
+    print(f"эталоны EDT: {EDT} (база, ожидание, ожидание-формы)")
 
 
 if __name__ == "__main__":

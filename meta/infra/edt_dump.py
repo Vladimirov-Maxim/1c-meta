@@ -19,8 +19,9 @@
 меняет в файле одну строку. Запись новых объектов сверена с тем, что пишет
 сам EDT при импорте той же выгрузки (`tools/edt_oracle.py`).
 
-Формы проекта EDT (`Form.form`) — другой формат описания формы, и запись
-форм здесь пока не поддерживается: отказ, а не запись наугад.
+Формы проекта EDT (`Form.form`) читаются (`infra.forms.edt`): показ формы и код
+доработки типовой формы работают. Запись описания формы EDT пока не
+поддерживается: отказ, а не запись наугад.
 """
 
 import os
@@ -32,6 +33,7 @@ from ..acl import edt_card, mapping
 from ..domain.model import Refuse
 from . import edt_xml, serializer
 from .designer import DesignerDump
+from .forms.edt import WRITE_REFUSAL
 from .layout import OBJECT_FOLDERS
 from .repository import Plan, ReferenceSource, _read_bytes
 from .shape import shape_of
@@ -51,8 +53,6 @@ SATELLITES = (
 #: Карточка макета выгрузки: в EDT она живёт в карточке хозяина (`templates`).
 TEMPLATE_CARD = re.compile(r"^Templates/([^/]+)\.xml$")
 
-FORMS_REFUSAL = ("формы проекта EDT (Form.form) инструмент пока не пишет: описание формы у EDT — "
-                 "другой формат, и записать его наугад нельзя")
 
 
 class EdtCardTree(LxmlCardTree):
@@ -308,16 +308,25 @@ class EdtDump(DesignerDump):
                 found.append(source.owner)
         return found
 
-    # --- формы: пока не поддерживаются ------------------------------------
+    # --- формы: чтение — да, запись описания формы — пока нет --------------
 
-    def read_form_text(self, owner, name):
-        raise Refuse(FORMS_REFUSAL)
+    def form_paths(self, owner, name):
+        """(карточка, описание, модуль) формы. Карточка формы объекта у EDT —
+        карточка хозяина: форма описана в ней (`forms`)."""
+        if owner is None:
+            base = os.path.join(self.root, "CommonForms", name)
+            return (os.path.join(base, name + ".mdo"), os.path.join(base, "Form.form"),
+                    os.path.join(base, "Module.bsl"))
+        folder = os.path.join(self.root, mapping.container_of(owner[0]), owner[1])
+        base = os.path.join(folder, "Forms", name)
+        return (os.path.join(folder, owner[1] + ".mdo"), os.path.join(base, "Form.form"),
+                os.path.join(base, "Module.bsl"))
 
     def prepare_form_edits(self, items, new_id):
-        raise Refuse(FORMS_REFUSAL)
+        raise Refuse(WRITE_REFUSAL)
 
     def prepare_form_files(self, prepared):
-        raise Refuse(FORMS_REFUSAL)
+        raise Refuse(WRITE_REFUSAL)
 
 
 def satellite_target(folder, rel_path):

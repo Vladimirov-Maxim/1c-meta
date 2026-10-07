@@ -56,7 +56,24 @@
     <fullTextSearch>Use</fullTextSearch>
     <dataHistory>Use</dataHistory>
   </attributes>
-  <attributes uuid="dc4d1e84-48f7-4f6f-a677-132c5764d72f">
+  <attributes uuid="797fafe8-2fd5-48c0-866f-0992761448f7">
+    <name>Комментарий</name>
+    <synonym>
+      <key>ru</key>
+      <value>Комментарий</value>
+    </synonym>
+    <type>
+      <types>String</types>
+      <stringQualifiers/>
+    </type>
+    <multiLine>true</multiLine>
+    <minValue xsi:type="core:UndefinedValue"/>
+    <maxValue xsi:type="core:UndefinedValue"/>
+    <fillValue xsi:type="core:StringValue"/>
+    <fullTextSearch>Use</fullTextSearch>
+    <dataHistory>Use</dataHistory>
+  </attributes>
+  <attributes uuid="966d48f5-921d-418f-9f30-06c4daf4244d">
     <name>Ответственный</name>
     <synonym>
       <key>ru</key>
@@ -72,17 +89,17 @@
     <fullTextSearch>Use</fullTextSearch>
     <dataHistory>Use</dataHistory>
   </attributes>
-  <tabularSections uuid="797fafe8-2fd5-48c0-866f-0992761448f7">
+  <tabularSections uuid="72a9194f-826d-42af-b0e0-059bc2f18eca">
     <producedTypes>
-      <objectType typeId="72a9194f-826d-42af-b0e0-059bc2f18eca" valueTypeId="7bdb947a-7fc8-4a9f-9754-6219b126b2e2"/>
-      <rowType typeId="7775446d-add7-4e8d-b61d-5f1d484b4e0f" valueTypeId="c0adcfb5-3c09-4fb5-acab-6483800ce6b2"/>
+      <objectType typeId="7bdb947a-7fc8-4a9f-9754-6219b126b2e2" valueTypeId="7775446d-add7-4e8d-b61d-5f1d484b4e0f"/>
+      <rowType typeId="c0adcfb5-3c09-4fb5-acab-6483800ce6b2" valueTypeId="f2e63444-0fe6-42ef-be51-a23ffb24ad34"/>
     </producedTypes>
     <name>Товары</name>
     <synonym>
       <key>ru</key>
       <value>Товары</value>
     </synonym>
-    <attributes uuid="f2e63444-0fe6-42ef-be51-a23ffb24ad34">
+    <attributes uuid="672a3e16-2651-45cc-b4e5-4eead8f37fc1">
       <name>Номенклатура</name>
       <synonym>
         <key>ru</key>
@@ -96,7 +113,7 @@
       <dataHistory>Use</dataHistory>
       <fullTextSearch>Use</fullTextSearch>
     </attributes>
-    <attributes uuid="672a3e16-2651-45cc-b4e5-4eead8f37fc1">
+    <attributes uuid="864c3078-8d0c-4177-af07-54f06fe09b24">
       <name>Количество</name>
       <synonym>
         <key>ru</key>
@@ -116,10 +133,56 @@
       <fullTextSearch>Use</fullTextSearch>
     </attributes>
   </tabularSections>
-  <tabularSections uuid="67799939-2972-43b6-b8fa-8c7297184caf">
+  <tabularSections uuid="dda256a6-c497-45a2-a811-9f81cf073851">
     <producedTypes>
-      <objectType typeId="cf58ca8a-a2ba-45fe-a30c-77f164640493" valueTypeId="6a19cd32-1dbc-4103-a4cd-fb48026918f4"/>
-      <rowType typeId="5d06f04a-341c-496c-b625-9d906813348c" valueTypeId="966d48f5-921d-418f-9f30-06c4daf4244d"/>
+      <objectType typeId="69f71bad-7a0e-4bf6-8be9-7bfc240d66c9" valueTypeId="1eefcea4-1068-4f08-a416-a30849a4672d"/>
+      <rowType typeId="c8e525c9-b727-4742-a038-9be880fa6492" valueTypeId="e05e6170-4067-43d5-8b1c-4c6b2cf3d3e0"/>
+    </producedTypes>
+    <name>Статьи</name>
+    <synonym>
+      <key>ru</key>
+      <value>Статьи</value>
+    </synonym>
+    <attributes uuid="96cb762e-3854-4b09-aa4b-480fd23ebf6e">
+      <name>Статья</name>
+      <synonym>
+        <key>ru</key>
+        <value>Статья</value>
+      </synonym>
+      <type>
+        <types>String</types>
+        <stringQualifiers>
+          <length>100</length>
+        </stringQualifiers>
+      </type>
+      <minValue xsi:type="core:UndefinedValue"/>
+      <maxValue xsi:type="core:UndefinedValue"/>
+      <dataHistory>Use</dataHistory>
+      <fullTextSearch>Use</fullTextSearch>
+    </attributes>
+    <attributes uuid="85d150c1-9965-4817-9b19-08b7d2333221">
+      <name>Сумма</name>
+      <synonym>
+        <key>ru</key>
+        <value>Сумма</value>
+      </synonym>
+      <type>
+        <types>Number</types>
+        <numberQualifiers>
+          <precision>15</precision>
+          <scale>2</scale>
+        </numberQualifiers>
+      </type>
+      <minValue xsi:type="core:UndefinedValue"/>
+      <maxValue xsi:type="core:UndefinedValue"/>
+      <dataHistory>Use</dataHistory>
+      <fullTextSearch>Use</fullTextSearch>
+    </attributes>
+  </tabularSections>
+  <tabularSections uuid="1e85975c-5c22-49ac-a29d-2e7c47302275">
+    <producedTypes>
+      <objectType typeId="50cb6495-3cd2-4184-a885-332d10cc89dd" valueTypeId="c75b1f8c-348c-4562-875d-fe4b6289bc19"/>
+      <rowType typeId="9ff81d60-b31d-4540-904b-7eaf89f5b519" valueTypeId="058c3a4d-9d1a-4c34-ac10-4f20a675d3b9"/>
     </producedTypes>
     <name>Исполнители</name>
     <synonym>

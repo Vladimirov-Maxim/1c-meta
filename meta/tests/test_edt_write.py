@@ -48,8 +48,9 @@ def проект(tmp_path, monkeypatch):
 
 
 def применить(src, tmp_path):
+    """Задания без форм: описание формы EDT площадка пока не пишет."""
     for имя in sorted(os.listdir(ЗАДАНИЯ)):
-        if not имя.endswith(".json"):
+        if not имя.endswith(".json") or "-форма-" in имя:
             continue
         with open(os.path.join(ЗАДАНИЯ, имя), encoding="utf-8") as f:
             задание = json.loads(f.read().replace("{repo}", str(src).replace("\\", "/")))
@@ -96,3 +97,35 @@ def test_what_the_edt_platform_writes_verify_accepts(проект, tmp_path):
     коды = {f["код"] for f in данные["находки"]}
     assert коды <= {"ПРАВА-НЕ-ВЫДАНЫ"}, данные["находки"]
     assert данные["источник"].startswith("проект EDT")
+
+
+def test_a_form_read_from_edt_is_the_same_form_as_in_the_dump(tmp_path, monkeypatch):
+    """Каждая форма оракула, прочитанная из `Form.form` проекта EDT, показывает
+    то же, что та же форма из `Form.xml` выгрузки: элементы с видами,
+    родителями, путями, командами и событиями, реквизиты, команды, события."""
+    sys.path.insert(0, os.path.join(ROOT, "tools"))
+    import edt_oracle
+
+    from meta.infra.forms.registry import for_text
+
+    rng = random.Random(ORACLE_SEED)
+    monkeypatch.setattr(uuid, "uuid4", lambda: uuid.UUID(int=rng.getrandbits(128), version=4))
+    cf = tmp_path / "cf"
+    edt_oracle.base_dump(str(cf))
+    edt_oracle.apply_jobs(str(cf), main)
+    формы = os.path.join(EDT, "ожидание-формы", "Documents", "мой_Заявка", "Forms")
+    сверено = 0
+    for имя in sorted(os.listdir(формы)):
+        edt_text = open(os.path.join(формы, имя, "Form.form"), encoding="utf-8").read()
+        xml = open(cf / "Documents" / "мой_Заявка" / "Forms" / имя / "Ext" / "Form.xml",
+                   encoding="utf-8-sig").read().replace("\r\n", "\n")
+        owner = ("Документ", "мой_Заявка")
+        выгрузка = for_text(xml).view(for_text(xml).load(xml), owner, имя)
+        edt = for_text(edt_text).view(for_text(edt_text).load(edt_text), owner, имя)
+        for поле in ("elements", "commands", "events", "main", "assignment",
+                     "dynamic_lists", "commands_actions"):
+            assert getattr(edt, поле) == getattr(выгрузка, поле), (имя, поле)
+        # типы домена сравниваются записью: равенства по значению у них нет
+        assert {k: str(v) for k, v in edt.attributes.items()}             == {k: str(v) for k, v in выгрузка.attributes.items()}, имя
+        сверено += 1
+    assert сверено >= 5
