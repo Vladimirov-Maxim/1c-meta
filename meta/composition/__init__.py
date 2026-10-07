@@ -41,6 +41,8 @@ from ..domain.form_dialect import ДиалектКодаФорм
 from ..domain.model import Refuse
 from ..infra.changes import DirectoryChanges, GitChanges
 from ..infra.designer import DesignerDump
+from ..infra.edt_dump import EdtDump
+from ..infra.layout import layout_of
 from ..infra.modules import DumpModules
 from ..infra.reference import DesignerReference
 from ..jobs import profile
@@ -149,7 +151,9 @@ def platform_factory(roots=None):
     """Фабрика площадки. `roots` — белый список (MCP); `None` — без ограничений."""
     def для(repo):
         _allowed(repo, roots)
-        return DesignerDump(repo)
+        # Формат — по корню: `Configuration/Configuration.mdo` — проект EDT,
+        # иначе выгрузка конфигуратора (она же и отказывает, если корень чужой).
+        return EdtDump(repo) if layout_of(repo).edt else DesignerDump(repo)
     return для
 
 

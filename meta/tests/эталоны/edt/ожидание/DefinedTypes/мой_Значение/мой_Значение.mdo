@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mdclass:DefinedType xmlns:mdclass="http://g5.1c.ru/v8/dt/metadata/mdclass" uuid="86358f88-5c32-4a4e-a4e2-9608f7c6b086">
+  <producedTypes>
+    <containerType typeId="06f79e82-cc32-4c82-80d7-28de828d16fd" valueTypeId="9bb5c35b-6821-4c02-abec-d15b4a09fbdb"/>
+  </producedTypes>
+  <name>мой_Значение</name>
+  <synonym>
+    <key>ru</key>
+    <value>Значение</value>
+  </synonym>
+  <type>
+    <types>CatalogRef.мой_Пример</types>
+    <types>EnumRef.мой_Виды</types>
+  </type>
+</mdclass:DefinedType>

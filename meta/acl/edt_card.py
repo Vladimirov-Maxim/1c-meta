@@ -128,7 +128,8 @@ class Translation:
             кандидаты = {category[1:]}
         else:
             кандидаты = {category[:1].lower() + category[1:] + "Type",
-                         {"TabularSection": "objectType", "TabularSectionRow": "rowType"}.get(category, "")}
+                         {"TabularSection": "objectType", "TabularSectionRow": "rowType",
+                          "DefinedType": "containerType", "Characteristic": "containerType"}.get(category, "")}
         for f in edt_model.features(types_cls) or ():
             if f.name in кандидаты:
                 return f.name
@@ -181,6 +182,8 @@ class Translation:
             return [Node(f.name, text=текст)]
         if self._empty(свойство):
             return []
+        if f.type == MCORE + "Color" and свойство.text == "auto" and not свойство.children:
+            return []                                  # цвет по умолчанию: EDT его не пишет
         self.problem(where, f"вложенный объект {f.type.rsplit('.', 1)[-1]} не перекладывается")
         return []
 
@@ -238,6 +241,12 @@ class Translation:
     # --- дети ---
 
     def child(self, ребёнок, cls, where):
+        if cls == CONFIGURATION and not ребёнок.children and ребёнок.text:
+            f = registry_feature(ребёнок.tag)          # запись реестра: <catalogs>Catalog.X</catalogs>
+            if f is None:
+                self.problem(where, f"в реестре EDT нет списка для вида «{ребёнок.tag}»")
+                return []
+            return [(edt_model.position(cls, f.name), Node(f.name, text=f"{ребёнок.tag}.{ребёнок.text}"))]
         f = child_feature(cls, ребёнок.tag)
         if f is None:
             self.problem(where, f"ребёнка вида «{ребёнок.tag}» нет у {cls.rsplit('.', 1)[-1]}")
@@ -290,6 +299,25 @@ def restore_raw(n):
 def plain(text):
     """Текст переживает дерево выгрузки: не пустой и без пробелов по краям."""
     return bool(text) and text == text.strip()
+
+
+CONFIGURATION = MDCLASS + "Configuration"
+
+
+def registry_features():
+    """Списки объектов в реестре EDT — свойства конфигурации после `languages`:
+    `subsystems`, `roles`, …, `catalogs`, …, каждое — ссылки «Вид.Имя»."""
+    свойства = edt_model.features(CONFIGURATION)
+    начало = [f.name for f in свойства].index("languages") + 1
+    return tuple(f for f in свойства[начало:] if f.kind == "refers" and f.many)
+
+
+def registry_feature(tag):
+    """Список реестра EDT для вида реестра выгрузки (`Catalog` -> `catalogs`)."""
+    for f in registry_features():
+        if f.type.rsplit(".", 1)[-1] == tag:
+            return f
+    return None
 
 
 def item_part(item, tag):
@@ -391,11 +419,26 @@ class Reverse:
             elif f.kind == "contains" and f.many and is_md_object(f.type):
                 for n in узлы:
                     children.children.append(self.element(n, f.type, designer_tag(имя[:-1])))
+            elif cls == CONFIGURATION and f in registry_features() and self.registry_entries(f, узлы):
+                children.children += self.registry_entries(f, узлы)
             else:
                 props.children += self.property(f, узлы)
         attrs = {k: v for k, v in node.attrs.items() if not k.startswith("xmlns:")}
         части = [p for p in (info, props, children) if p.children or p is props] + ещё
         return Node(tag, attrs=attrs, children=части)
+
+    @staticmethod
+    def registry_entries(f, узлы):
+        """`<catalogs>Catalog.X</catalogs>` -> `<Catalog>X</Catalog>` реестра выгрузки;
+        запись не того вида — None (свойство пойдёт переходником)."""
+        вид = f.type.rsplit(".", 1)[-1]
+        записи = []
+        for n in узлы:
+            текст = n.text or ""
+            if n.children or n.attrs or not текст.startswith(вид + ".") or not plain(текст):
+                return None
+            записи.append(Node(вид, text=текст[len(вид) + 1:]))
+        return записи
 
     @staticmethod
     def produced(узел, cls):

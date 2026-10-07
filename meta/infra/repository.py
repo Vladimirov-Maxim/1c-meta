@@ -207,6 +207,25 @@ class Repository(Configuration):
             raise Refuse(f"в «{self.root}» нет Configuration.xml — "
                          "это не выгрузка конфигурации")
 
+    # --- крючки формата: что подменяет площадка другого формата ---------------
+
+    def registry_path(self):
+        """Файл реестра конфигурации."""
+        return os.path.join(self.root, "Configuration.xml")
+
+    def _read_text(self, path):
+        """Текст файла, переводы строк приведены к `\n`. Площадка другого формата
+        отдаёт здесь карточку в форме выгрузки — дальше её читает та же логика."""
+        return _read_text(path)
+
+    def _rights_path(self, role):
+        """Файл прав роли."""
+        return os.path.join(self.root, "Roles", role, "Ext", "Rights.xml")
+
+    def _source_text(self, path, data):
+        """Байты файла-источника ссылок -> текст в форме выгрузки."""
+        return data.decode("utf-8-sig", "replace").replace("\r\n", "\n")
+
     # --- чтение: порт домена -------------------------------------------------
 
     def _module_path(self, name):
@@ -242,7 +261,7 @@ class Repository(Configuration):
         шаблон = re.compile(pattern)
         найдено = {}
         for имя in sorted(os.listdir(папка)):
-            права = os.path.join(папка, имя, "Ext", "Rights.xml")
+            права = self._rights_path(имя)
             if шаблон.fullmatch(имя) and os.path.isfile(права):
                 with open(права, encoding="utf-8-sig", errors="replace") as файл:
                     текст = файл.read().replace("\r\n", "\n")
@@ -328,7 +347,7 @@ class Repository(Configuration):
         if kind == "Роль" and not rest:
             # Права роли — в своём файле рядом с карточкой; без него роль
             # показывалась бы пустой.
-            rights = os.path.join(os.path.splitext(file_path)[0], "Ext", "Rights.xml")
+            rights = self._rights_path(path[0][1])
             if os.path.isfile(rights):
                 text = open(rights, encoding="utf-8-sig").read().replace("\r\n", "\n")
                 spec.fields.update(mapping.rights_from_node(self.tree.to_node(self.tree.parse(text))))
@@ -525,8 +544,8 @@ class Repository(Configuration):
         self._writable()
         plan = Plan()
         taken = set()
-        registry_path = os.path.join(self.root, "Configuration.xml")
-        registry = self.tree.parse(_read_text(registry_path))
+        registry_path = self.registry_path()
+        registry = self.tree.parse(self._read_text(registry_path))
         for card in cards:
             path = self.card_path(card)
             # Два разных случая с разными правками, и объяснять их одинаково
@@ -585,7 +604,7 @@ class Repository(Configuration):
             return None
         if not os.path.isfile(form_path):
             return None
-        return _read_text(form_path)
+        return self._read_text(form_path)
 
     def form_module_exists(self, owner, name):
         _, _, module_path = self.form_paths(owner, name)
@@ -611,7 +630,7 @@ class Repository(Configuration):
         plan = Plan()
         opened = OrderedDict()
         registry = None
-        registry_path = os.path.join(self.root, "Configuration.xml")
+        registry_path = self.registry_path()
         taken = set()
         for item in prepared:
             edits = item.edits
@@ -636,7 +655,7 @@ class Repository(Configuration):
                 plan.add(module_path, self._encode(item.module, module_path), True)
             if edits.owner is None:
                 if registry is None:
-                    registry = self.tree.parse(_read_text(registry_path))
+                    registry = self.tree.parse(self._read_text(registry_path))
                 if edits.name in self.tree.child_names(registry, "CommonForm"):
                     raise Refuse(f"общая форма «{edits.name}» уже есть в Configuration.xml")
                 tags = self.tree.child_elements(registry)
@@ -726,7 +745,7 @@ class Repository(Configuration):
             if not os.path.isfile(file_path):
                 raise Refuse(f"по адресу «{адрес}» объекта нет "
                              f"(искали {file_path})")
-        return file_path, self.tree.parse(_read_text(file_path)), rest
+        return file_path, self.tree.parse(self._read_text(file_path)), rest
 
     # --- обратный поиск ------------------------------------------------------
 
@@ -956,8 +975,7 @@ class Repository(Configuration):
                     continue
                 if needle not in data:
                     continue
-                text = data.decode("utf-8-sig", "replace")
-                text = text.replace("\r\n", "\n")
+                text = self._source_text(source_path, data)
             elif needle.decode("utf-8") not in text:
                 continue
             if pattern.search(text):
@@ -1034,8 +1052,8 @@ class Repository(Configuration):
 
     def _erase_objects(self, plan, removed):
         """Карточка, файлы-спутники и запись в реестре — за один план."""
-        registry_path = os.path.join(self.root, "Configuration.xml")
-        registry = self.tree.parse(_read_text(registry_path))
+        registry_path = self.registry_path()
+        registry = self.tree.parse(self._read_text(registry_path))
         for (kind, name), file_path in removed:
             plan.note(f"удалить {kind}.{name} целиком")
             self._note_query_mentions(plan, [(kind, name)], f"{kind}.{name}")
@@ -1066,8 +1084,8 @@ class Repository(Configuration):
         """
         self._writable()
         plan = Plan()
-        registry_path = os.path.join(self.root, "Configuration.xml")
-        registry = self.tree.parse(_read_text(registry_path))
+        registry_path = self.registry_path()
+        registry = self.tree.parse(self._read_text(registry_path))
         # Один текст на файл на всю пачку. Без этого второе переименование
         # перечитало бы ссылающуюся карточку с диска и затёрло бы правку
         # первого: в плане оказались бы две записи на один путь, выиграла бы
@@ -1118,7 +1136,7 @@ class Repository(Configuration):
 
             own = touched.pop(old_path, None)
             if own is None:
-                own = _read_text(old_path)
+                own = self._read_text(old_path)
             card = self.tree.parse(_rename_in(pattern, own, new_name))
             self.tree.set_property(self.tree.find(card, []), "Name",
                                    mapping.Node("Name", text=new_name))
