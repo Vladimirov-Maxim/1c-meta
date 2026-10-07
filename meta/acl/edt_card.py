@@ -50,6 +50,15 @@ VALUE_TYPES = {"xs:string": "StringValue", "xs:boolean": "BooleanValue", "xs:dec
                "xs:dateTime": "DateValue"}
 
 
+#: Литералы перечислений, которые выгрузка и EDT называют по-разному: тип
+#: свойства EDT -> {слово выгрузки: литерал EDT}.
+ENUM_WORDS = {
+    "com._1c.g5.v8.dt.metadata.common.ApplicationUsePurpose": {
+        "PlatformApplication": "PersonalComputer", "MobilePlatformApplication": "MobileDevice"},
+}
+ENUM_WORDS_BACK = {тип: {edt: выгр for выгр, edt in слова.items()} for тип, слова in ENUM_WORDS.items()}
+
+
 def feature_name(tag):
     """`UseStandardCommands` -> `useStandardCommands`."""
     return RENAMED.get(tag) or tag[:1].lower() + tag[1:]
@@ -171,12 +180,13 @@ class Translation:
                 return [Node(f.name, text=c.text or "") for c in свойство.children if c.text]
             return [Node(f.name, text=свойство.text)] if свойство.text else []
         if f.kind == "attribute":
+            слова = ENUM_WORDS.get(f.type, {})
             if f.many:
-                return [Node(f.name, text=c.text or "") for c in свойство.children]
+                return [Node(f.name, text=слова.get(c.text or "", c.text or "")) for c in свойство.children]
             if свойство.children:
                 self.problem(where, "у атрибута вложенные элементы")
                 return []
-            текст = свойство.text or ""
+            текст = слова.get(свойство.text or "", свойство.text or "")
             if текст == "" or edt_model.is_default(f, текст, cls):
                 return []
             return [Node(f.name, text=текст)]
@@ -468,10 +478,11 @@ class Reverse:
         if f.kind in ("refers", "attribute"):
             if any(n.children or n.attrs or not plain(n.text) for n in узлы):
                 return [raw(f.name, узлы)]
+            слова = ENUM_WORDS_BACK.get(f.type, {})
             if f.many:
-                return [Node(тег, children=[Node("Item", text=n.text) for n in узлы])]
+                return [Node(тег, children=[Node("Item", text=слова.get(n.text, n.text)) for n in узлы])]
             if len(узлы) == 1:
-                return [Node(тег, text=узлы[0].text)]
+                return [Node(тег, text=слова.get(узлы[0].text, узлы[0].text))]
         return [raw(f.name, узлы)]
 
     def type_description(self, узел, тег):

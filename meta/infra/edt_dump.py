@@ -19,20 +19,25 @@
 меняет в файле одну строку. Запись новых объектов сверена с тем, что пишет
 сам EDT при импорте той же выгрузки (`tools/edt_oracle.py`).
 
-Формы проекта EDT (`Form.form`) читаются (`infra.forms.edt`): показ формы и код
-доработки типовой формы работают. Запись описания формы EDT пока не
-поддерживается: отказ, а не запись наугад.
+Формы проекта EDT (`Form.form`) читаются сами (`infra.forms.edt`), а правятся
+через форму выгрузки: `Form.form` -> `Form.xml` (обратная перекладка) -> тот же
+редактор формы, что у выгрузки -> `Form.form` (прямая). Новая форма рождается
+формой выгрузки и перекладывается так же; её карточка — запись `forms` в
+карточке хозяина (у общей формы — своя `.mdo` и запись в реестре), настройки
+динамического списка — файлом `Attributes/<реквизит>/ExtInfo/ListSettings.dcss`.
 """
 
 import os
 import re
+from collections import OrderedDict
 
 from lxml import etree
 
-from ..acl import edt_card, mapping
+from ..acl import edt_card, mapping, vocabulary
 from ..domain.model import Refuse
 from . import edt_xml, serializer
 from .designer import DesignerDump
+from .forms import registry as form_formats
 from .layout import OBJECT_FOLDERS
 from .repository import Plan, ReferenceSource, _read_bytes
 from .shape import shape_of
@@ -42,12 +47,6 @@ from .tree_lxml import LxmlCardTree
 #: выгрузки, но корень без версии формата и без `xs`.
 RIGHTS_ROOT = ('<Rights xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '
                'xmlns="http://v8.1c.ru/8.2/roles" xsi:type="Rights">')
-
-#: Отказ записи описания формы. Тот же текст говорит реализация формата форм
-#: EDT; здесь он свой — реализацию площадка берёт только через реестр.
-WRITE_REFUSAL = ("запись формы проекта EDT (Form.form) инструмент пока не умеет: у EDT умолчания "
-                 "платформы для каждого вида элемента записаны явно, и родить элемент наугад нельзя. "
-                 "Типовую форму дорабатывают кодом («код»: true) — он работает и с формой EDT")
 
 #: Спутник карточки выгрузки -> файл проекта EDT (относительно каталога объекта).
 SATELLITES = (
@@ -299,7 +298,6 @@ class EdtDump(DesignerDump):
         """Схемы, где объект назван в тексте запроса: в проекте EDT схема —
         `Template.dcs`."""
         kind, name = path[0]
-        from ..acl import vocabulary
         if len(path) != 1 or kind not in vocabulary.QUERY_DESIGNATION:
             return []
         needle = name.encode("utf-8")
@@ -313,7 +311,7 @@ class EdtDump(DesignerDump):
                 found.append(source.owner)
         return found
 
-    # --- формы: чтение — да, запись описания формы — пока нет --------------
+    # --- формы -----------------------------------------------------------
 
     def form_paths(self, owner, name):
         """(карточка, описание, модуль) формы. Карточка формы объекта у EDT —
@@ -327,11 +325,73 @@ class EdtDump(DesignerDump):
         return (os.path.join(folder, owner[1] + ".mdo"), os.path.join(base, "Form.form"),
                 os.path.join(base, "Module.bsl"))
 
-    def prepare_form_edits(self, items, new_id):
-        raise Refuse(WRITE_REFUSAL)
+    def _form_source_text(self, owner, name):
+        """Редактор правит форму выгрузки: `Form.form` перекладывается в неё."""
+        text = self.read_form_text(owner, name)
+        if text is None:
+            return None
+        return form_formats.for_version("EDT").designer_text(text)
 
     def prepare_form_files(self, prepared):
-        raise Refuse(WRITE_REFUSAL)
+        """Plan по подготовленным формам (текст формы — в форме выгрузки):
+        описание `Form.form`, настройки динамических списков, модуль; у новой
+        формы объекта — запись `forms` в карточке хозяина, у общей — своя
+        карточка и запись в реестре. Ничего не пишет."""
+        self._writable()
+        plan = Plan()
+        opened = OrderedDict()
+        карточки = {}                                   # путь карточки хозяина -> {имя формы: карточка}
+        registry = None
+        registry_path = self.registry_path()
+        taken = set()
+        edt = form_formats.for_version("EDT")
+        for item in prepared:
+            edits = item.edits
+            card_path, form_path, module_path = self.form_paths(edits.owner, edits.name)
+            if form_path in taken:
+                raise Refuse(f"форма «{edits.address}» правится этим заданием дважды")
+            taken.add(form_path)
+            for note in item.notes:
+                plan.note(note)
+            текст, файлы = edt.files(item.form_text)
+            новая = item.card is not None
+            if новая and os.path.exists(form_path):
+                raise Refuse(f"файл уже существует: {form_path}")
+            plan.add(form_path, self._encode(текст, form_path), новая)
+            for rel_path, содержимое in файлы.items():
+                путь = os.path.join(os.path.dirname(form_path), *rel_path.split("/"))
+                if not os.path.exists(путь):            # настройки списка у существующего — не трогать
+                    plan.add(путь, self._encode(содержимое, путь), True)
+            if item.module is not None:
+                plan.add(module_path, self._encode(item.module, module_path), True)
+            if not новая:
+                continue
+            карточка = self.tree.to_node(self.tree.build(item.card))
+            if edits.owner is None:
+                if os.path.exists(card_path):
+                    raise Refuse(f"файл уже существует: {card_path}")
+                plan.add(card_path, self._encode(self.tree.serialize(self.tree.build(item.card)), card_path),
+                         True)
+                if registry is None:
+                    registry = self.tree.parse(self._read_text(registry_path))
+                if edits.name in self.tree.child_names(registry, "CommonForm"):
+                    raise Refuse(f"общая форма «{edits.name}» уже есть в Configuration.mdo")
+                tags = self.tree.child_elements(registry)
+                self.tree.insert_child(registry, self._place(tags, "CommonForm", vocabulary.GROUP_ORDER),
+                                       mapping.Node("CommonForm", text=edits.name))
+                plan.note(f"общая форма «{edits.name}» — в реестр конфигурации")
+                continue
+            карточки.setdefault(card_path, {})[edits.name] = карточка
+            self._attach_form(plan, opened, edits.create)
+        for file_path, (document, _) in opened.items():
+            новые = карточки.get(file_path, {})
+            карточка_edt = self._edt_text(
+                self.tree.serialize(document),
+                lambda tag, name, новые=новые: новые.get(name) if tag == "Form" else None)
+            plan.add(file_path, карточка_edt.replace("\n", self._eol_of(file_path)).encode("utf-8"), False)
+        if registry is not None:
+            plan.add(registry_path, self._encode(self.tree.serialize(registry), registry_path), False)
+        return plan
 
 
 def satellite_target(folder, rel_path):

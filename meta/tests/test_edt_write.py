@@ -47,10 +47,10 @@ def проект(tmp_path, monkeypatch):
     return src
 
 
-def применить(src, tmp_path):
-    """Задания без форм: описание формы EDT площадка пока не пишет."""
+def применить(src, tmp_path, формы=False):
+    """Задания по порядку: без форм (эталон `ожидание`) или все (`ожидание-формы`)."""
     for имя in sorted(os.listdir(ЗАДАНИЯ)):
-        if not имя.endswith(".json") or "-форма-" in имя:
+        if not имя.endswith(".json") or ("-форма-" in имя and not формы):
             continue
         with open(os.path.join(ЗАДАНИЯ, имя), encoding="utf-8") as f:
             задание = json.loads(f.read().replace("{repo}", str(src).replace("\\", "/")))
@@ -62,6 +62,18 @@ def применить(src, tmp_path):
 def test_new_objects_of_every_kind_are_written_as_edt_writes_them(проект, tmp_path):
     применить(проект, tmp_path)
     ожидание, стало = files(os.path.join(EDT, "ожидание")), files(проект)
+    assert sorted(стало) == sorted(ожидание)
+    разошлись = [путь for путь in ожидание
+                 if open(ожидание[путь], "rb").read() != open(стало[путь], "rb").read()]
+    assert разошлись == []
+
+
+def test_forms_are_written_as_edt_writes_them(проект, tmp_path):
+    """Формы: новая форма объекта (запись в карточке хозяина, описание, модуль,
+    настройки динамического списка) и правка существующей — те же байты, что у
+    EDT после импорта выгрузки, в которой те же задания записал писатель выгрузки."""
+    применить(проект, tmp_path, формы=True)
+    ожидание, стало = files(os.path.join(EDT, "ожидание-формы")), files(проект)
     assert sorted(стало) == sorted(ожидание)
     разошлись = [путь for путь in ожидание
                  if open(ожидание[путь], "rb").read() != open(стало[путь], "rb").read()]

@@ -1,5 +1,6 @@
 """Формат управляемой формы 2.21 — реализация договора `FormFormat`."""
 
+from ....acl.mapping import Node
 from ....domain.model import Refuse
 from ...tree_lxml import LxmlCardTree
 from . import birth, editor, module
@@ -31,6 +32,13 @@ class Format221:
         card = birth.card_node(form, uuid)
         skeleton = TREE.build(birth.skeleton_node(form, new_id))
         return card, skeleton
+
+    def document_text(self, node):
+        """Узел корня формы (`Form` с детьми) -> текст `Form.xml`: с объявлениями
+        пространств имён и версией, как у формы, которую рождает инструмент."""
+        attrs = {("xmlns" if not prefix else f"xmlns:{prefix}"): uri for prefix, uri in voc.NAMESPACES}
+        attrs["version"] = voc.FORMAT_VERSION
+        return TREE.serialize(TREE.build(Node("Form", attrs=attrs, children=node.children)))
 
     def module_text(self, handlers, edits):
         return module.module_text(handlers, edits)

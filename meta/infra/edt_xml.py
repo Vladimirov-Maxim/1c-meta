@@ -32,6 +32,11 @@ NAMESPACES = {
     "core": "http://g5.1c.ru/v8/dt/mcore",
     "form": "http://g5.1c.ru/v8/dt/form",
     "mdclass": "http://g5.1c.ru/v8/dt/metadata/mdclass",
+    # схема компоновки внутри формы (динамический список); `core_1` — так EDT
+    # называет второе пространство с именем `core`
+    "schema": "http://g5.1c.ru/v8/dt/data-composition-system/schema",
+    "core_1": "http://g5.1c.ru/v8/dt/data-composition-system/core",
+    "settings": "http://g5.1c.ru/v8/dt/data-composition-system/settings",
 }
 XSI_TYPE = "{" + NAMESPACES["xsi"] + "}type"
 

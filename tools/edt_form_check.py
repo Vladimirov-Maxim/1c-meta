@@ -52,6 +52,58 @@ def translate(path):
     return edt_xml.render(узел), перекладка.problems
 
 
+def edt_forms(edt):
+    for папка, _, файлы in os.walk(LONG + edt):
+        if "Form.form" in файлы:
+            yield os.path.relpath(папка, LONG + edt), os.path.join(папка, "Form.form")
+
+
+def designer_root(node):
+    """Дерево формы выгрузки из обратной перекладки — с пространствами имён
+    корня, как у формы, которую пишет инструмент."""
+    from meta.infra.forms.designer221 import vocabulary as voc
+    attrs = {("xmlns" if not prefix else f"xmlns:{prefix}"): uri for prefix, uri in voc.NAMESPACES}
+    attrs["version"] = voc.FORMAT_VERSION
+    return edt_form.Node("Form", attrs=attrs, children=node.children)
+
+
+def round_trip(edt, шаг):
+    """Форма EDT -> дерево выгрузки (lxml) -> форма EDT: байт в байт?"""
+    import time
+    совпало = всего = 0
+    расхождения, примеры, скелеты, сбои = Counter(), {}, Counter(), Counter()
+    начало = time.time()
+    for k, (rel, e) in enumerate(edt_forms(edt)):
+        if k % шаг:
+            continue
+        всего += 1
+        было = open(e, encoding="utf-8").read()
+        обратно = edt_form.ReverseForm()
+        try:
+            дерево = обратно.form(edt_xml.parse(было.encode("utf-8")))
+        except Exception as беда:                     # noqa: BLE001 — сводка, а не падение
+            сбои[f"{type(беда).__name__}: {re.sub(r'«[^»]*»', '«…»', str(беда))[:120]}"] += 1
+            примеры.setdefault("сбой", rel)
+            continue
+        for вид, _ in обратно.skeletons:
+            скелеты[вид] += 1
+        lxml = TREE.build(designer_root(дерево))
+        стало = edt_xml.render(edt_form.FormTranslation().form(TREE.to_node(lxml)))
+        if стало == было:
+            совпало += 1
+        else:
+            вид = first_difference(было, стало)
+            расхождения[вид] += 1
+            примеры.setdefault(вид, rel)
+    print(f"форм: {всего}, круг сошёлся: {совпало}, сбоев: {sum(сбои.values())}, "
+          f"{time.time() - начало:.0f} с")
+    print("скелетом:", dict(скелеты.most_common()))
+    for беда, n in сбои.most_common(15):
+        print(f"{n:6}  {беда}")
+    for вид, n in расхождения.most_common(30):
+        print(f"{n:6}  {вид}    [{примеры[вид]}]")
+
+
 def first_difference(было, стало):
     a, b = было.split("\n"), стало.split("\n")
     for _i, (x, y) in enumerate(zip(a, b, strict=False)):
@@ -215,7 +267,9 @@ def learn(источники):
 
 def main(argv):
     шаг = int(argv[argv.index("--шаг") + 1]) if "--шаг" in argv else 1
-    if "--умолчания" in argv:
+    if "--круг" in argv:
+        round_trip(argv[argv.index("--круг") + 1], шаг)
+    elif "--умолчания" in argv:
         источники = [(argv[0], argv[1], шаг)]
         if "--и" in argv:                            # второй источник — каждая форма
             i = argv.index("--и")

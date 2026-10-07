@@ -1,5 +1,5 @@
 """Формат управляемой формы проекта EDT (`Form.form`) — реализация договора
-`FormFormat`, пока только для чтения.
+`FormFormat` и перекладка в форму выгрузки и обратно.
 
 Форма EDT — объект EMF (`form:Form`), и устроена иначе, чем `Form.xml`
 выгрузки: элементы — обобщённые `items` с `xsi:type` (`form:FormField`,
@@ -10,18 +10,30 @@
 (`event`, `name`). Разбор и запись текста — `infra.edt_xml`: круг на всех
 11 058 формах проекта крупной типовой конфигурации — байт в байт.
 
-Читается всё, что нужно показу формы и коду доработки типовой формы (она
-читает форму, чтобы знать соседей и места вставки). Писать XML формы EDT
-инструмент пока не умеет: у EDT умолчания платформы для каждого вида элемента
-записаны явно, и родить элемент «наугад» нельзя — отказ, а не догадка.
+Показ формы и код доработки типовой формы читают `Form.form` сами. Запись
+идёт через форму выгрузки: площадка EDT перекладывает `Form.form` в `Form.xml`
+(`designer_text`, обратная перекладка `acl.edt_form.ReverseForm`), правит её
+тем же редактором, что и форму выгрузки, и перекладывает обратно
+(`edt_files`, `acl.edt_form.FormTranslation`). Круг сверен на всех формах
+проекта EDT крупной типовой конфигурации, запись новых форм — с тем, что
+пишет сам EDT при импорте той же выгрузки.
+
+Настройки динамического списка (`ListSettings`) EDT держит не в `Form.form`,
+а файлом `Attributes/<реквизит>/ExtInfo/ListSettings.dcss` рядом с ним — тело
+тех же настроек отдельным документом.
 """
 
-from ...acl import edt_model, mdo
+import re
+
+from lxml import etree
+
+from ...acl import edt_form, edt_model, mdo
 from ...domain import form_properties as fp
 from ...domain import forms as fm
 from ...domain import model as dm
 from ...domain.model import Refuse
 from .. import edt_xml
+from ..tree_lxml import LxmlCardTree
 from . import module
 from . import platform as voc
 
@@ -39,9 +51,25 @@ SATELLITES = {"extendedTooltip": "ExtendedTooltip", "contextMenu": "ContextMenu"
 LAYOUT = {англ: рус for словарь in ("ГруппировкаПодчиненныхЭлементовФормы", "ГруппировкаКолонок")
           for рус, англ in fp.ENUMS.get(словарь, {}).items()}
 
-WRITE_REFUSAL = ("запись формы проекта EDT (Form.form) инструмент пока не умеет: у EDT умолчания платформы "
-                 "для каждого вида элемента записаны явно, и родить элемент наугад нельзя. Типовую форму "
-                 "дорабатывают кодом («код»: true) — он работает и с формой EDT")
+TREE = LxmlCardTree()
+
+#: Шапка файла настроек динамического списка — так её пишет EDT (оракул
+#: `tools/edt_oracle.py`, установленный EDT; в проектах, созданных старыми
+#: версиями, бывает ещё `xmlns:lf`).
+DCSS_ROOT = ('<Settings xmlns="http://v8.1c.ru/8.1/data-composition-system/settings" '
+             'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xs="http://www.w3.org/2001/XMLSchema" '
+             'xmlns:v8="http://v8.1c.ru/8.1/data/core" xmlns:v8ui="http://v8.1c.ru/8.1/data/ui" '
+             'xmlns:pal="http://v8.1c.ru/8.1/data/ui/colors/palette" xmlns:style="http://v8.1c.ru/8.1/data/ui/style" '
+             'xmlns:sys="http://v8.1c.ru/8.1/data/ui/fonts/system" '
+             'xmlns:web="http://v8.1c.ru/8.1/data/ui/colors/web" '
+             'xmlns:win="http://v8.1c.ru/8.1/data/ui/colors/windows" '
+             'xmlns:dcscor="http://v8.1c.ru/8.1/data-composition-system/core">')
+LOGFORM = "http://v8.1c.ru/8.3/xcf/logform"
+#: Глубина `<ListSettings>` в `Form.xml`: Form/Attributes/Attribute/Settings/ListSettings.
+LIST_SETTINGS_DEPTH = 4
+
+WRITE_REFUSAL = ("форму проекта EDT (Form.form) правит площадка EDT через форму выгрузки "
+                 "(designer_text -> правка -> files), а не реализация формата напрямую")
 
 
 def _by_tag(node, tag):
@@ -170,8 +198,51 @@ def _assignment_of(main, main_type, name, owner):
     return "Произвольная"
 
 
+def designer_text(edt_text):
+    """`Form.form` -> текст `Form.xml`, из которого `edt_files` вернёт тот же
+    `Form.form` байт в байт."""
+    from .registry import for_version  # реестр знает и эту реализацию
+    try:
+        дерево = edt_form.ReverseForm().form(edt_xml.parse(edt_text.encode("utf-8")))
+    except ValueError as беда:
+        raise Refuse(f"форма EDT не перекладывается в форму выгрузки: {беда}") from беда
+    return for_version("2.21").document_text(дерево)
+
+
+def edt_files(form_xml):
+    """Текст `Form.xml` -> (текст `Form.form`, {путь относительно каталога формы:
+    текст} — настройки динамических списков). Чего перекладка не умеет — отказ."""
+    дерево = TREE.parse(form_xml)
+    файлы = {}
+    for реквизит in дерево.iter(f"{{{LOGFORM}}}Attribute"):
+        настройки = реквизит.find(f"{{{LOGFORM}}}Settings/{{{LOGFORM}}}ListSettings")
+        if настройки is not None:
+            файлы[f"Attributes/{реквизит.get('name')}/ExtInfo/ListSettings.dcss"] = dcss_text(настройки)
+    перекладка = edt_form.FormTranslation()
+    форма = перекладка.form(TREE.to_node(дерево))
+    if перекладка.problems:
+        raise Refuse("форма в формат EDT не перекладывается: " + "; ".join(перекладка.problems))
+    return edt_xml.render(форма), файлы
+
+
+def dcss_text(list_settings):
+    """`<ListSettings>` формы выгрузки -> текст `ListSettings.dcss`: те же узлы
+    отдельным документом, пространство настроек — по умолчанию."""
+    текст = etree.tostring(list_settings, encoding="unicode")
+    тело = текст[текст.index(">") + 1:текст.rindex("</")]
+    тело = re.sub(r"(</?)dcsset:", r"\1", тело)
+    тело = тело.replace('"dcsset:', '"')
+    строки = []
+    for строка in тело.split("\n"):
+        if строка.startswith("\t" * LIST_SETTINGS_DEPTH):
+            строка = строка[LIST_SETTINGS_DEPTH:]
+        строки.append(строка)
+    тело = "\n".join(строки).rstrip("\t")
+    return '<?xml version="1.0" encoding="UTF-8"?>\n' + DCSS_ROOT + тело + "</Settings>\n"
+
+
 class FormatEdt:
-    """Форма проекта EDT: чтение — полностью, запись — отказ."""
+    """Форма проекта EDT: чтение — сама, запись — через форму выгрузки."""
 
     version = "EDT"
 
@@ -188,10 +259,19 @@ class FormatEdt:
         return view(document, owner, name)
 
     def apply(self, document, edits, owner_spec=None, new_id=None):
+        # правит форму выгрузки, переложенную из этой (`designer_text`), — площадка EDT
         raise Refuse(WRITE_REFUSAL)
 
     def born(self, form, uuid, new_id=None):
         raise Refuse(WRITE_REFUSAL)
+
+    @staticmethod
+    def designer_text(text):
+        return designer_text(text)
+
+    @staticmethod
+    def files(form_xml):
+        return edt_files(form_xml)
 
     def module_text(self, handlers, edits):
         return module.module_text(handlers, edits)
