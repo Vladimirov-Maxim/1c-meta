@@ -86,7 +86,7 @@ def main(argv):
                 break
     print(dict(итог))
     print(f"\nразличий (первая строка расхождения): {len(различия)}")
-    for (каталог, было, стало), (n, где) in sorted(различия.items(), key=lambda x: -x[1][0])[:40]:
+    for (_, было, стало), (n, где) in sorted(различия.items(), key=lambda x: -x[1][0])[:40]:
         print(f"{n:6} {где}\n         было:  {было}\n         стало: {стало}")
     print(f"\nчего перекладка не умеет: {len(беды)}")
     for ключ, n in беды.most_common(40):

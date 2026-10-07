@@ -39,7 +39,7 @@ def main(argv):
             примеры.setdefault(ключ, (os.path.relpath(путь, root), i + 1, a[i] if i < len(a) else "",
                                       b[i] if i < len(b) else ""))
     print(dict(итог))
-    for ключ, (путь, строка, a, b) in list(примеры.items())[:25]:
+    for путь, строка, a, b in list(примеры.values())[:25]:
         print(f"{путь}:{строка}\n   было:  {a!r}\n   стало: {b!r}")
 
 
