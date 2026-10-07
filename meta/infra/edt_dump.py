@@ -33,7 +33,6 @@ from ..acl import edt_card, mapping
 from ..domain.model import Refuse
 from . import edt_xml, serializer
 from .designer import DesignerDump
-from .forms.edt import WRITE_REFUSAL
 from .layout import OBJECT_FOLDERS
 from .repository import Plan, ReferenceSource, _read_bytes
 from .shape import shape_of
@@ -43,6 +42,12 @@ from .tree_lxml import LxmlCardTree
 #: выгрузки, но корень без версии формата и без `xs`.
 RIGHTS_ROOT = ('<Rights xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '
                'xmlns="http://v8.1c.ru/8.2/roles" xsi:type="Rights">')
+
+#: Отказ записи описания формы. Тот же текст говорит реализация формата форм
+#: EDT; здесь он свой — реализацию площадка берёт только через реестр.
+WRITE_REFUSAL = ("запись формы проекта EDT (Form.form) инструмент пока не умеет: у EDT умолчания "
+                 "платформы для каждого вида элемента записаны явно, и родить элемент наугад нельзя. "
+                 "Типовую форму дорабатывают кодом («код»: true) — он работает и с формой EDT")
 
 #: Спутник карточки выгрузки -> файл проекта EDT (относительно каталога объекта).
 SATELLITES = (
