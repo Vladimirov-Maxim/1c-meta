@@ -1230,6 +1230,9 @@ def classify_all(items, lines, ranges, meta):
             raise Refuse(отказ)
     if meta["new_module"]:
         return [plain(i, "модуль создан текущей задачей — внутри разметки нет") for i in items]
+    if not meta.get("markers", True):
+        return [plain(i, "метки вставок выключены профилем — правка на месте, без вставки")
+                for i in items]
     slots, groups = [], {}            # решения в порядке правок задания
     for item in items:
         cut = crossing(ranges, item)
@@ -1794,17 +1797,18 @@ def _decision(d):
                     where=d.get("where", ""))
 
 
-def edit_module(lines, edits, signature, new_module, notes=()):
+def edit_module(lines, edits, signature, new_module, notes=(), markers=True):
     """Строки модуля и правки -> (новые строки, решения). Отказ — `Refuse`.
 
     `new_module` — модуль создан текущей задачей: внутри него разметки нет
     вовсе, и это знает площадка, а не домен. `notes` —
     примечания, добытые до правок (что переименование оставило нетронутым).
+    `markers` — ставит ли команда метки вставок: нет — правка на месте.
     """
     if not edits:
         raise Refuse("в задании нет ни одной правки")
     meta = {"task": signature.task, "date": signature.date, "author": signature.author,
-            "tag": signature.tag, "new_module": new_module}
+            "tag": signature.tag, "new_module": new_module, "markers": markers}
     new_lines, decisions = apply_all(lines, edits, meta)
     return new_lines, ([_decision(d) for d in decisions]
                        + [Decision(0, 0, 0, False, None, n, True) for n in notes])

@@ -216,6 +216,39 @@ def test_the_team_tag_comes_from_the_profile_not_from_the_job():
         "// {[+](фрагмент ДОБАВЛЕН), 06.10.2026, #ITS Петров #ЗАДАЧА-1")
 
 
+def правленое(соглашения_команды, правки):
+    """Модуль после правок задания — без файлов."""
+    задание = CodeJob(Signature("ЗАДАЧА-1", "06.10.2026", "Петров"),
+                      (ModuleJob(ModuleRef(path="Модуль.bsl"), tuple(правки)),))
+    результат = EditCodeUseCase(Модули(), соглашения=соглашения_команды).execute([задание])
+    (_, решения), = результат.per_module
+    return решения
+
+
+def test_without_markers_an_edit_goes_in_place():
+    """«метки.ставить»: false — замена на месте без закомментированной копии,
+    удаление удаляет, вставка — как есть; ни одной метки."""
+    без_меток = Соглашения(тег_меток="#ITS", метки=False)
+    for правка in (Edit(line=2, lines=1, first_line="\tЗначение = 1;", last_line="\tЗначение = 1;",
+                        code="\tЗначение = 2;"),
+                   Edit(line=2, lines=1, first_line="\tЗначение = 1;", last_line="\tЗначение = 1;",
+                        code=""),
+                   Edit(line=3, code="\tПроверка();")):
+        решения = правленое(без_меток, [правка])
+        текст = "\n".join(строка for решение in решения for строка in решение.block)
+        assert "фрагмент" not in текст and "//Значение" not in текст
+        assert any("метки вставок выключены профилем" in (р.reason or "") for р in решения)
+        assert not any(р.marker for р in решения)
+
+
+def test_the_markers_switch_is_read_from_the_profile():
+    assert соглашения({"метки": {"ставить": False}}).метки is False
+    assert соглашения({"метки": {"тег": "#TEAM"}}).метки is True
+    assert соглашения({}).метки is True
+    with pytest.raises(Refuse, match="true или false"):
+        соглашения({"метки": {"ставить": "нет"}})
+
+
 def test_markers_of_any_team_are_parsed():
     """Разбор не знает, чья выгрузка: метка любой команды — метка, а ИД задачи —
     последний «#» в ней, с тегом и без."""

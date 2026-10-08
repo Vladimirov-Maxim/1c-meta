@@ -201,6 +201,28 @@ def test_a_vendor_edit_without_a_marker_is_found(tmp_path, capsys, профил�
     assert код == 1 and коды(данные) == ["ПРАВКА-ВНЕ-ВСТАВКИ"]
 
 
+def test_without_markers_in_the_profile_an_unwrapped_edit_is_fine(tmp_path, capsys):
+    """Команда без меток вставок («метки.ставить»: false): правка вне вставки —
+    не находка; правила меток выключены все."""
+    путь = tmp_path / "без-меток.json"
+    путь.write_text(json.dumps({**ПРОФИЛЬ, "метки": {"ставить": False}}, ensure_ascii=False),
+                    encoding="utf-8")
+    root = выгрузка(tmp_path)
+    написать(root, ВЕНДОРСКИЙ, ["Процедура ПередЗаписью(Отказ, РежимЗаписи, РежимПроведения)",
+                                "\tЗначение = 42;", "КонецПроцедуры"])
+    код, _, данные = проверить(capsys, str(путь), root)
+    assert код == 0 and коды(данные) == []
+
+
+def test_marker_rules_of_the_profile_are_the_verification_codes():
+    """Список правил меток в соглашениях — те же коды, что у проверки правок."""
+    from meta.domain import verification as v
+    from meta.domain.conventions import ПРАВИЛА_МЕТОК
+    assert set(ПРАВИЛА_МЕТОК) == {v.ВСТАВКА_Ё, v.ВСТАВКА_БЕЗ_ТИПА, v.ВСТАВКА_БЕЗ_ДАТЫ,
+                                  v.ВСТАВКА_БЕЗ_ЗАДАЧИ, v.ВНЕ_ВСТАВКИ, v.В_ЧУЖОЙ_ВСТАВКЕ,
+                                  v.НЕ_ЗАКРЫТА, v.МЕТОД_НЕ_НА_КОНЦЕ}
+
+
 @pytest.mark.parametrize("метка, код", [
     ("\t// {[*](фрагмент ИЗМЕНЕН), 31.08.2026, #TEAM Автор #TASK-1", None),
     ("\t// {[*](фрагмент ИЗМЕНЁН), 31.08.2026, #TEAM Автор #TASK-1", "ВСТАВКА-БУКВА-Ё"),
