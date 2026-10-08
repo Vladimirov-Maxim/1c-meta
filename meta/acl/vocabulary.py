@@ -299,6 +299,27 @@ GROUP_ORDER = (
 
 ROOTS_BACK = {v: k for k, v in ROOTS.items()}
 
+#: Обозначения объектов верхнего уровня, которые типом значения не бывают:
+#: состав подсистемы, состав функциональной опции и права роли называют и
+#: роль, и общий модуль, и регламентное задание. Слово — то же, что у каталога
+#: выгрузки (сверено тестом с раскладкой).
+OBJECT_WORDS = {
+    **ROOTS,
+    "Подсистема": "Subsystem", "Роль": "Role", "ОбщийМодуль": "CommonModule",
+    "ОбщаяФорма": "CommonForm", "ОбщаяКоманда": "CommonCommand",
+    "ОбщийМакет": "CommonTemplate", "ОбщаяКартинка": "CommonPicture",
+    "ОбщийРеквизит": "CommonAttribute", "ГруппаКоманд": "CommandGroup",
+    "ПараметрСеанса": "SessionParameter", "РегламентноеЗадание": "ScheduledJob",
+    "ПодпискаНаСобытие": "EventSubscription", "ФункциональнаяОпция": "FunctionalOption",
+    "ПараметрФункциональныхОпций": "FunctionalOptionsParameter",
+    "КритерийОтбора": "FilterCriterion", "ХранилищеНастроек": "SettingsStorage",
+    "ЭлементСтиля": "StyleItem", "ПакетXDTO": "XDTOPackage", "WebСервис": "WebService",
+    "HTTPСервис": "HTTPService", "WSСсылка": "WSReference",
+    "СервисИнтеграции": "IntegrationService", "НумераторДокументов": "DocumentNumerator",
+    "ВнешнийИсточникДанных": "ExternalDataSource",
+}
+OBJECT_WORDS_BACK = {v: k for k, v in OBJECT_WORDS.items()}
+
 
 #: Вложенные шаги обозначения объекта, когда оно стоит значением свойства:
 #: основная схема отчёта записана как `Report.Имя.Template.Макет` — все 417

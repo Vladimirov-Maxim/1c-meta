@@ -357,6 +357,49 @@ class Собранные:
                      + "\n   ".join(self.беды))
 
 
+class ListEdit:
+    """Правка поля-перечня («состав» подсистемы, «движения» документа):
+    добавить, убрать — или заменить целиком, но только когда это сказано.
+
+    Перечень в правке голым списком означал бы замену, а замену здесь
+    почти никогда не хотят: в составе подсистемы десятки чужих объектов,
+    и список из одного добавляемого молча выкинул бы остальные.
+    """
+
+    def __init__(self, add=(), remove=(), replace=None):
+        self.add = tuple(add)
+        self.remove = tuple(remove)
+        self.replace = None if replace is None else tuple(replace)
+
+    def applied(self, current):
+        """(новый перечень, уже было, не было) против записанного `current`.
+
+        Порядок записанного сохраняется, добавленное — в конец, повтор
+        добавляемого не дублируется."""
+        if self.replace is not None:
+            return list(self.replace), [], []
+        было = list(current)
+        уже = [x for x in self.add if x in было]
+        нет = [x for x in self.remove if x not in было]
+        новый = [x for x in было if x not in self.remove]
+        for x in self.add:
+            if x not in новый:
+                новый.append(x)
+        return новый, уже, нет
+
+    def added(self, current):
+        """Что появится в перечне сверх записанного."""
+        return [x for x in (self.replace if self.replace is not None else self.add)
+                if x not in current]
+
+    def __repr__(self):
+        части = [f"{слово} {list(что)}" for слово, что in
+                 (("добавить", self.add), ("убрать", self.remove)) if что]
+        if self.replace is not None:
+            части = [f"заменить {list(self.replace)}"]
+        return "; ".join(части)
+
+
 class Spec:
     """Что просят создать, на языке домена: вид объекта и поля.
 

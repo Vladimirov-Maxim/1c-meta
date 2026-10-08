@@ -184,10 +184,10 @@ class Модули:
     def address(self, ref):
         return None
 
-    def base(self, ref):
+    def base(self, ref, rev=None):
         return None
 
-    def is_new(self, ref):
+    def is_new(self, ref, rev=None):
         return False
 
     def prepare(self, changes):

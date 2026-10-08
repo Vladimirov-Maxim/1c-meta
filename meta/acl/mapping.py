@@ -56,6 +56,8 @@ from .vocabulary import (
     NESTED_ROOTS,
     NUMBER_SIGN,
     OBJECT_REFERENCE,
+    OBJECT_WORDS,
+    OBJECT_WORDS_BACK,
     PLATFORM_TYPES,
     QUALIFIER_ORDER,
     READ_ONLY_TYPES_BACK,
@@ -407,9 +409,9 @@ def object_notation(address):
     out = []
     for i in range(0, len(parts), 2):
         kind, name = parts[i], parts[i + 1]
-        root = (ROOTS.get(kind) if i == 0 else NESTED_ROOTS.get(kind))
+        root = (OBJECT_WORDS.get(kind) if i == 0 else NESTED_ROOTS.get(kind))
         if root is None:
-            known = sorted(ROOTS if i == 0 else NESTED_ROOTS)
+            known = sorted(OBJECT_WORDS if i == 0 else NESTED_ROOTS)
             raise Refuse(
                 f"в обозначении «{address}» не знаю вида «{kind}»; "
                 f"известны: {', '.join(known)}")
@@ -1135,7 +1137,7 @@ def _обозначение_назад(текст):
     части = [ч for ч in (текст or "").split(".") if ч]
     if len(части) < 2 or len(части) % 2:
         return текст
-    назад_корни = {v: k for k, v in ROOTS.items()}
+    назад_корни = OBJECT_WORDS_BACK
     назад_вложенные = {v: k for k, v in NESTED_ROOTS.items()}
     вышло = []
     for i in range(0, len(части), 2):

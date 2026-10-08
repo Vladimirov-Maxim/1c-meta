@@ -37,9 +37,11 @@ class Controller:
         """Задание на формы моделями -> результат сценария."""
         return self._execute({"repo": repo, "forms": в_язык_заданий(формы)}, apply_now)
 
-    def code(self, repo, task, date, author, модули, перенос=None, apply_now=False):
+    def code(self, repo, task, date, author, модули, перенос=None, apply_now=False, base=None):
         """Задание на код моделями -> результат сценария правки вставками."""
         job = {"repo": repo, "task": task, "date": date, "author": author}
+        if base:
+            job["base"] = base
         job.update(код_в_язык_заданий(модули, перенос))
         return self._execute(job, apply_now)
 
