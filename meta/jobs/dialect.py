@@ -376,14 +376,52 @@ def path_from_json(text):
     return [(parts[i], parts[i + 1]) for i in range(0, len(parts), 2)]
 
 
+#: Режимы правки поля-перечня в `changes`.
+LIST_MODES = ("добавить", "убрать", "заменить")
+
+
 def change_job_from_json(data):
     """{"путь": "…", "поля": {…}} -> (путь, поля) для сценария изменения."""
+    from ..domain.kinds import REGISTRY
     path = path_from_json(item_of(data, "changes").get("путь"))
-    fields = dict(child_spec_from_json(path[-1][0],
-                                       dict(data.get("поля") or {})).fields)
+    поля = dict(data.get("поля") or {})
+    kind = path[-1][0]
+    перечни = {}
+    for field in getattr(REGISTRY.get(kind), "object_lists", ()) or ():
+        if field in поля:
+            перечни[field] = list_edit_from_json(field, поля.pop(field))
+    fields = dict(child_spec_from_json(kind, поля).fields) if поля else {}
+    fields.update(перечни)
     if not fields:
         raise Refuse("в правке не указано ни одного поля")
     return path, fields
+
+
+def list_edit_from_json(field, value):
+    """Правка поля-перечня: {"добавить": […]}, {"убрать": […]} или {"заменить": […]}.
+
+    Голый список — отказ: при правке он заменил бы перечень целиком, и всё,
+    что в нём было, пропало бы без единого слова в ответе.
+    """
+    if not isinstance(value, dict):
+        raise Refuse(
+            f"«{field}» в правке задаётся явно: {{\"добавить\": […]}}, "
+            f"{{\"убрать\": […]}} (можно вместе) или {{\"заменить\": […]}} — "
+            "голый список заменил бы перечень целиком, и всё, что в нём было, "
+            "пропало бы молча")
+    лишние = sorted(set(value) - set(LIST_MODES))
+    if лишние or not value:
+        raise Refuse(f"«{field}»: ключи правки перечня — {', '.join(LIST_MODES)}; "
+                      f"получено {', '.join(лишние) or 'пусто'}")
+    if "заменить" in value and len(value) > 1:
+        raise Refuse(f"«{field}»: «заменить» задаётся один, без «добавить» и «убрать»")
+    разобрано = {}
+    for ключ, что in value.items():
+        if not isinstance(что, list):
+            raise Refuse(f"«{field}.{ключ}» — список обозначений «Вид.Имя»")
+        разобрано[ключ] = [designation_from_json(x) for x in что]
+    return dm.ListEdit(разобрано.get("добавить", ()), разобрано.get("убрать", ()),
+                       разобрано.get("заменить"))
 
 
 def delete_job_from_json(data):
