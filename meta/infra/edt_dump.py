@@ -112,6 +112,13 @@ class EdtDump(DesignerDump):
     def card_path(self, card):
         return os.path.join(self.root, card.container, card.name, card.name + ".mdo")
 
+    def subsystem_path(self, chain):
+        """Вложенная подсистема EDT: `Subsystems/А/Subsystems/Б/Б.mdo`."""
+        путь = os.path.join(self.root, "Subsystems", chain[0])
+        for имя in chain[1:]:
+            путь = os.path.join(путь, "Subsystems", имя)
+        return os.path.join(путь, chain[-1] + ".mdo")
+
     def _module_path(self, name):
         return os.path.join(self.root, "CommonModules", name, "Module.bsl")
 

@@ -721,6 +721,17 @@ class Repository(Configuration):
     #: не в карточке объекта, а в макете рядом с ней.
     TEMPLATE_STEP = "Макет"
 
+    #: Вид, вложенный в себя самого отдельными карточками.
+    SUBSYSTEM = "Подсистема"
+
+    def subsystem_path(self, chain):
+        """Карточка подсистемы по цепочке имён от корневой:
+        `Subsystems/А/Subsystems/Б.xml`."""
+        путь = os.path.join(self._folder("Subsystems"), chain[0])
+        for имя in chain[1:-1]:
+            путь = os.path.join(путь, "Subsystems", имя)
+        return os.path.join(путь, "Subsystems", chain[-1] + ".xml")
+
     def template_path(self, kind, name, template):
         """Путь к содержимому макета: `<вид>/<объект>/Templates/<макет>/Ext/Template.xml`."""
         card = self.object_path(kind, name)
@@ -738,6 +749,12 @@ class Repository(Configuration):
         """
         object_kind, object_name = path[0]
         rest = path[1:]
+        # Вложенная подсистема — своя карточка в каталоге родителя, а не узел
+        # его карточки: «Подсистема.А.Подсистема.Б» открывает её файл.
+        цепочка = [object_name]
+        while object_kind == self.SUBSYSTEM and rest and rest[0][0] == self.SUBSYSTEM:
+            цепочка.append(rest[0][1])
+            rest = rest[1:]
         # Сообщение цитирует то, что написал человек, а внутреннее устройство
         # приписывает следом. Одно «карточки „…\\Catalogs\\Имя.xml“ нет» при
         # опечатке в **виде** уводит в сторону — объект существует, просто
@@ -753,6 +770,10 @@ class Repository(Configuration):
             if not os.path.isfile(file_path):
                 raise Refuse(f"по адресу «{адрес}» макета нет "
                              f"(искали {file_path})")
+        elif len(цепочка) > 1:
+            file_path = self.subsystem_path(цепочка)
+            if not os.path.isfile(file_path):
+                raise Refuse(f"по адресу «{адрес}» подсистемы нет (искали {file_path})")
         else:
             file_path = self.object_path(object_kind, object_name)
             if file_path is None:
