@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mdclass:Report xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:core="http://g5.1c.ru/v8/dt/mcore" xmlns:mdclass="http://g5.1c.ru/v8/dt/metadata/mdclass" uuid="dc4d1e84-48f7-4f6f-a677-132c5764d72f">
+  <producedTypes>
+    <objectType typeId="f32a47e1-2a29-4006-88b4-e0e4d7e2c7e8" valueTypeId="e11d60b2-f7d0-4efd-8054-12bfd7182fc8"/>
+    <managerType typeId="67799939-2972-43b6-b8fa-8c7297184caf" valueTypeId="cf58ca8a-a2ba-45fe-a30c-77f164640493"/>
+  </producedTypes>
+  <name>мой_Анализ</name>
+  <synonym>
+    <key>ru</key>
+    <value>Анализ</value>
+  </synonym>
+  <useStandardCommands>true</useStandardCommands>
+  <mainDataCompositionSchema>Report.мой_Анализ.Template.ОсновнаяСхема</mainDataCompositionSchema>
+  <attributes uuid="6a19cd32-1dbc-4103-a4cd-fb48026918f4">
+    <name>Период</name>
+    <synonym>
+      <key>ru</key>
+      <value>Период</value>
+    </synonym>
+    <type>
+      <types>Date</types>
+      <dateQualifiers>
+        <dateFractions>Date</dateFractions>
+      </dateQualifiers>
+    </type>
+    <minValue xsi:type="core:UndefinedValue"/>
+    <maxValue xsi:type="core:UndefinedValue"/>
+  </attributes>
+  <templates uuid="981275ff-bb74-48bb-b854-12a106287375">
+    <name>ОсновнаяСхема</name>
+    <synonym>
+      <key>ru</key>
+      <value>ОсновнаяСхема</value>
+    </synonym>
+    <templateType>DataCompositionSchema</templateType>
+  </templates>
+</mdclass:Report>

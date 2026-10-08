@@ -13,9 +13,10 @@ Git — для выгрузки под историей: рабочая копи
 import os
 import re
 
-from ..acl import mapping
+from ..acl import mapping, mdo
 from ..acl import modules as module_files
 from ..application.ports import ChangeSource
+from ..domain import verification as rules
 from ..domain.changes import (
     ADDED,
     AFTER,
@@ -56,15 +57,24 @@ def split_lines(data):
     return [строка[:-1] if строка.endswith("\r") else строка for строка in text.split("\n")]
 
 
-def read_composition(data):
+def read_composition(data, edt=False):
     """Байты карточки -> `domain.plan.Состав`; карточка не читается — состав с
-    причиной: о сломанной карточке говорится словами, а не обрывом проверки."""
+    причиной: о сломанной карточке говорится словами, а не обрывом проверки.
+    `edt` — карточка проекта EDT (`.mdo`), иначе — выгрузки конфигуратора."""
     tree = LxmlCardTree()
     try:
         документ = tree.parse(data.decode("utf-8-sig", "replace").replace("\r\n", "\n"))
     except Refuse as отказ:
         return Состав(сломан=str(отказ))
-    return mapping.composition_from_node(tree.to_node(документ))
+    узел = tree.to_node(документ)
+    return mdo.composition_from_node(узел) if edt else mapping.composition_from_node(узел)
+
+
+def bom_word(data):
+    """True — файл с BOM, False — без; пустой файл — None: сказать нечего."""
+    if not data:
+        return None
+    return data.startswith(b"\xef\xbb\xbf")
 
 
 def eol_word(data):
@@ -77,33 +87,51 @@ def eol_word(data):
 
 
 class _Layout(ChangeSource):
-    """Раскладка выгрузки конфигуратора — общая для обоих источников."""
+    """Раскладка исходников — общая для обоих источников; какая именно
+    (выгрузка конфигуратора или проект EDT), решает корень (`layout.layout_of`)."""
+
+    #: раскладка файлов и раскладка модулей; ставит конструктор источника
+    layout = layout.DESIGNER
+
+    @property
+    def format_name(self):
+        return self.layout.name
+
+    @property
+    def _modules(self):
+        return module_files.EDT if self.layout.edt else module_files.DESIGNER
+
+    def format_notes(self):
+        if self.layout.edt:
+            return [f"правило {rules.СЛУЖЕБНЫЙ_ФАЙЛ} не применяется: в проекте EDT служебного файла "
+                    "выгрузки нет"]
+        return []
 
     def is_module(self, path):
-        return layout.is_module(path)
+        return self.layout.is_module(path)
 
     def is_text(self, path):
-        return layout.is_text(path)
+        return self.layout.is_text(path)
 
     def is_service(self, path):
-        return layout.is_service(path)
+        return self.layout.is_service(path)
 
     def object_of(self, path):
-        return layout.object_of(path)
+        return self.layout.object_of(path)
 
     def owner_of(self, path):
-        return layout.owner_of(path)
+        return self.layout.owner_of(path)
 
     def card_path(self, kind, name):
-        return layout.card_path(kind, name)
+        return self.layout.card_path(kind, name)
 
     def composition(self, kind, name, side):
-        путь = layout.card_path(kind, name)
+        путь = self.layout.card_path(kind, name)
         данные = self.data(путь, side) if путь else None
-        return None if данные is None else read_composition(данные)
+        return None if данные is None else read_composition(данные, self.layout.edt)
 
     def module_of(self, path):
-        адрес = module_files.address_of_file(path.split("/"))
+        адрес = self._modules.address_of_file(path.split("/"))
         if адрес is None or адрес.sub is not None or адрес.module in (FORM_MARK, COMMAND_MARK) \
                 or адрес.kind == CONFIGURATION:
             return None
@@ -112,7 +140,7 @@ class _Layout(ChangeSource):
     def module_path(self, kind, name, module):
         if kind not in module_files.CONTAINERS or module not in module_files.OWN_FILES:
             return None
-        return "/".join(module_files.module_file(ModuleAddress(kind, name, module)))
+        return "/".join(self._modules.module_file(ModuleAddress(kind, name, module)))
 
     def lines(self, path, side):
         return split_lines(self.data(path, side))
@@ -123,12 +151,12 @@ class _Layout(ChangeSource):
         может перечислять права со значением false."""
         tree, выдано, итог = LxmlCardTree(), {}, {}
         for объект in objects:
-            имя = layout.rights_name(*объект)
+            имя = self.layout.rights_name(*объект)
             for файл in sorted(set(mentions.get(объект, ()))):
                 if файл not in выдано:
                     текст = (read(файл) or b"").decode("utf-8-sig", "replace").replace("\r\n", "\n")
                     выдано[файл] = {name for name, _ in tree.granted(tree.parse(текст))}
-                роль = layout.RIGHTS_FILE.match(файл).group(1)
+                роль = self.layout.rights_file.match(файл).group(1)
                 итог.setdefault(объект, []).append((роль, имя in выдано[файл]))
         return итог
 
@@ -145,6 +173,7 @@ class GitChanges(_Layout):
         self._cache = {}
         if not os.path.isdir(self.root):
             raise Refuse(f"каталога «{self.root}» не существует")
+        self.layout = layout.layout_of(self.root)
         внутри = self._git("rev-parse", "--is-inside-work-tree", why="не могу узнать, под git ли выгрузка")
         if внутри is None:
             raise Refuse("git не найден — для сравнения с базой он нужен; без git сравнивайте парой "
@@ -167,8 +196,10 @@ class GitChanges(_Layout):
 
     def describe(self):
         if self.rev:
-            return f"ревизия {self.rev} против {self.base}"
-        return f"рабочая копия против {self.base} (с новыми файлами)"
+            что = f"ревизия {self.rev} против {self.base}"
+        else:
+            что = f"рабочая копия против {self.base} (с новыми файлами)"
+        return f"{self.layout.name}: {что}" if self.layout.edt else что
 
     def changes(self):
         if "changes" in self._cache:
@@ -251,29 +282,51 @@ class GitChanges(_Layout):
     def unchanged_pairs(self, path):
         return pairs_by_position(self.hunks(path))
 
+    def _samples(self):
+        """Начала образцов репозитория — модулей и карточек: по ним видно, какие
+        в нём переводы строк и есть ли BOM. Читается один раз."""
+        if "образцы" not in self._cache:
+            образцы = self._git("ls-files", "--", "*.bsl", "*.xml", "*.mdo",
+                                why="не могу получить образцы файлов")
+            данные = []
+            if образцы is not None and образцы.returncode == 0:
+                for путь in образцы.stdout.decode("utf-8", "replace").splitlines()[:EOL_SAMPLE]:
+                    полный = os.path.join(self.root, *git.unquote(путь).split("/"))
+                    if os.path.isfile(полный):
+                        with open(полный, "rb") as файл:
+                            данные.append(файл.read())
+            self._cache["образцы"] = данные
+        return self._cache["образцы"]
+
     def accepted_eol(self):
         флаг = self._git("config", "core.autocrlf", why="не могу прочитать настройку переводов строк")
         if флаг is not None and флаг.stdout.decode("utf-8", "replace").strip().lower() in ("true", "input"):
             return None, "переводы строк не сверяются: git нормализует их сам (core.autocrlf)"
-        образцы = self._git("ls-files", "--", "*.bsl", "*.xml", why="не могу получить образцы файлов")
         crlf = lf = 0
-        if образцы is not None and образцы.returncode == 0:
-            for путь in образцы.stdout.decode("utf-8", "replace").splitlines()[:EOL_SAMPLE]:
-                полный = os.path.join(self.root, *git.unquote(путь).split("/"))
-                if not os.path.isfile(полный):
-                    continue
-                with open(полный, "rb") as файл:
-                    слово = eol_word(файл.read())
-                crlf += слово == "CRLF"
-                lf += слово == "LF"
+        for данные in self._samples():
+            слово = eol_word(данные)
+            crlf += слово == "CRLF"
+            lf += слово == "LF"
         if not crlf and not lf:
             return None, "переводы строк не сверяются: в репозитории нет модулей и карточек, с которыми сверить"
         return ("CRLF" if crlf >= lf else "LF"), None
 
+    def accepted_bom(self):
+        """BOM, принятый в репозитории: так, как у большинства его образцов; образцов
+        нет — как принято в формате исходников."""
+        с, без = 0, 0
+        for данные in self._samples():
+            есть = bom_word(данные)
+            с += есть is True
+            без += есть is False
+        if not с and not без:
+            return self.layout.bom
+        return с >= без
+
     def roles_granting(self, objects):
         if not objects:
             return {}
-        имена = {layout.rights_name(*объект): объект for объект in objects}
+        имена = {self.layout.rights_name(*объект): объект for объект in objects}
         аргументы = ["grep", "-F", "-o"]
         for имя in имена:
             аргументы += ["-e", f"<name>{имя}</name>"]
@@ -290,7 +343,7 @@ class GitChanges(_Layout):
                 строка = строка[len(self.rev) + 1:]
             файл, _, найдено = строка.partition(":<name>")
             имя = найдено.removesuffix("</name>")
-            if имя in имена and layout.RIGHTS_FILE.match(файл):
+            if имя in имена and self.layout.rights_file.match(файл):
                 упоминания.setdefault(имена[имя], []).append(файл)
         return self._granting(objects, упоминания, lambda файл: self.data(файл, AFTER))
 
@@ -298,6 +351,11 @@ class GitChanges(_Layout):
         if "eol" not in self._cache:
             self._cache["eol"] = self.accepted_eol()[0]
         return self._cache["eol"]
+
+    def target_bom(self, path):
+        if "bom" not in self._cache:
+            self._cache["bom"] = self.accepted_bom()
+        return self._cache["bom"]
 
     def prepare_rewrites(self, items):
         if self.rev:
@@ -320,6 +378,7 @@ class DirectoryChanges(_Layout):
             if not os.path.isdir(каталог):
                 raise Refuse(f"каталога {что} «{каталог}» не существует")
         self._changes = None
+        self.layout = layout.layout_of(self.target, layout.layout_of(self.baseline))
 
     def describe(self):
         return f"копия {self.target} против эталона {self.baseline}"
@@ -364,19 +423,24 @@ class DirectoryChanges(_Layout):
     def accepted_eol(self):
         return None, None
 
+    def accepted_bom(self):
+        """У пары каталогов — как принято в формате: эталон приходит вложением, и
+        обработка выгрузки конфигуратора несёт BOM в каждом файле."""
+        return self.layout.bom
+
     def roles_granting(self, objects):
         роли = os.path.join(self.target, layout.RIGHTS_FOLDER)
-        if not os.path.isfile(os.path.join(self.target, "Configuration.xml")):
+        if not self.layout.is_configuration(self.target):
             return None                     # обработка вне конфигурации: ролей нет
         упоминания = {}
         if os.path.isdir(роли):
             for роль in sorted(os.listdir(роли)):
-                файл = f"{layout.RIGHTS_FOLDER}/{роль}/Ext/Rights.xml"
+                файл = self.layout.rights_path(роль)
                 данные = self.data(файл, AFTER)
                 if данные is None:
                     continue
                 for объект in objects:
-                    if f"<name>{layout.rights_name(*объект)}</name>".encode() in данные:
+                    if f"<name>{self.layout.rights_name(*объект)}</name>".encode() in данные:
                         упоминания.setdefault(объект, []).append(файл)
         return self._granting(objects, упоминания, lambda файл: self.data(файл, AFTER))
 
@@ -392,6 +456,12 @@ class DirectoryChanges(_Layout):
         if crlf and lf:
             return None
         return "CRLF" if crlf else "LF" if lf else None
+
+    def target_bom(self, path):
+        """Как у эталона; нового файла в эталоне нет — как принято в формате."""
+        эталон = self.data(path, BEFORE)
+        есть = bom_word(эталон) if эталон is not None else None
+        return self.layout.bom if есть is None else есть
 
     def prepare_rewrites(self, items):
         plan = Plan()

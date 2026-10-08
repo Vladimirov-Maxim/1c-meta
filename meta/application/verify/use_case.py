@@ -56,16 +56,18 @@ class VerifyUseCase:
             skipped.append((rules.В_ЧУЖОЙ_ВСТАВКЕ, "не задан ИД задачи"))
 
         findings += rules.service_findings([c.path for c in files if src.is_service(c.path)])
+        notes += src.format_notes()
 
         принятые, почему = src.accepted_eol()
         if почему:
             notes.append(почему)
+        bom = src.accepted_bom()
         for c in files:
             if c.status == DELETED or not src.is_text(c.path):
                 continue
             данные = src.data(c.path, AFTER)
             if данные is not None:
-                findings += rules.format_findings(c.path, данные, принятые)
+                findings += rules.format_findings(c.path, данные, принятые, bom)
 
         for c in files:
             if c.status != MODIFIED or not src.is_text(c.path) or src.is_service(c.path):

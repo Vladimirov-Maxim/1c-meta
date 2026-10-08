@@ -475,9 +475,9 @@ def test_matches_platform_dump():
         assert result.ok, [str(f) for f in result.errors]
 
         to_check = [
-            (os.path.join(root, "CommonModules", "мой_ПесочницаСервер.xml"),
+            (os.path.join(root, "CommonModules", "мой_ОбщийСервер.xml"),
              references["модуль"]),
-            (os.path.join(root, "CommonModules", "мой_ПесочницаСервер",
+            (os.path.join(root, "CommonModules", "мой_ОбщийСервер",
                           "Ext", "Module.bsl"), references["текст"]),
             (os.path.join(root, "EventSubscriptions",
                           "мой_ЛюбойДокументПередЗаписью.xml"), references["подписка"]),

@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mdclass:InformationRegister xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:core="http://g5.1c.ru/v8/dt/mcore" xmlns:mdclass="http://g5.1c.ru/v8/dt/metadata/mdclass" uuid="373c4fe3-34d0-4a77-837c-c86fba866ab4">
+  <producedTypes>
+    <selectionType typeId="b59ae45e-8375-4aea-ae82-1b7a92d4e609" valueTypeId="c81cdd8d-1052-4442-b18d-d034c7bd1beb"/>
+    <listType typeId="5830fe8e-b64f-4404-a4e3-ee6def322b32" valueTypeId="37351d2d-ddb5-4595-af7a-ea8ea9cc5a81"/>
+    <managerType typeId="5d7a26bd-621d-46ab-bbd2-1a52aa3baaba" valueTypeId="4085acb8-d922-45a1-b652-8d0223b09516"/>
+    <recordSetType typeId="956b62a5-8bf2-4bd0-88c5-9ebc2a6f1d76" valueTypeId="7ab84c07-0edb-47a6-b7ac-f57dd6cf508d"/>
+    <recordKeyType typeId="065981c2-214e-4fee-8f52-4eb415baf557" valueTypeId="4a3e7eb6-4dd6-48b1-a372-4c3e7d7c8240"/>
+    <recordType typeId="de56fa5f-a466-4253-8406-b217b1f02181" valueTypeId="596b05c3-436d-4c50-add1-9e70665aa0b1"/>
+    <recordManagerType typeId="7b7ef28a-3c32-470f-82f2-14a62ca51906" valueTypeId="da05c86c-4be1-4414-8775-18242a233606"/>
+  </producedTypes>
+  <name>мой_Курсы</name>
+  <synonym>
+    <key>ru</key>
+    <value>Курсы</value>
+  </synonym>
+  <useStandardCommands>true</useStandardCommands>
+  <editType>InDialog</editType>
+  <informationRegisterPeriodicity>Day</informationRegisterPeriodicity>
+  <dataLockControlMode>Managed</dataLockControlMode>
+  <resources uuid="03091348-d3fd-46cf-ab22-4671c4542f59">
+    <name>Курс</name>
+    <synonym>
+      <key>ru</key>
+      <value>Курс</value>
+    </synonym>
+    <type>
+      <types>Number</types>
+      <numberQualifiers>
+        <precision>10</precision>
+        <scale>4</scale>
+      </numberQualifiers>
+    </type>
+    <minValue xsi:type="core:UndefinedValue"/>
+    <maxValue xsi:type="core:UndefinedValue"/>
+    <fullTextSearch>Use</fullTextSearch>
+    <dataHistory>Use</dataHistory>
+    <fillValue xsi:type="core:UndefinedValue"/>
+  </resources>
+  <attributes uuid="05314236-3089-4ef2-8ce6-207aadfc6edf">
+    <name>Комментарий</name>
+    <synonym>
+      <key>ru</key>
+      <value>Комментарий</value>
+    </synonym>
+    <type>
+      <types>String</types>
+      <stringQualifiers>
+        <length>100</length>
+      </stringQualifiers>
+    </type>
+    <minValue xsi:type="core:UndefinedValue"/>
+    <maxValue xsi:type="core:UndefinedValue"/>
+    <fullTextSearch>Use</fullTextSearch>
+    <dataHistory>Use</dataHistory>
+    <fillValue xsi:type="core:StringValue"/>
+  </attributes>
+  <dimensions uuid="a55db630-c061-4f5b-8492-f3a961d9d2b2">
+    <name>Валюта</name>
+    <synonym>
+      <key>ru</key>
+      <value>Валюта</value>
+    </synonym>
+    <type>
+      <types>String</types>
+      <stringQualifiers>
+        <length>3</length>
+      </stringQualifiers>
+    </type>
+    <minValue xsi:type="core:UndefinedValue"/>
+    <maxValue xsi:type="core:UndefinedValue"/>
+    <fullTextSearch>Use</fullTextSearch>
+    <dataHistory>Use</dataHistory>
+    <fillValue xsi:type="core:StringValue"/>
+    <mainFilter>true</mainFilter>
+  </dimensions>
+  <dimensions uuid="ed5c7295-5164-4ebb-a22d-bc9fb8eff8cc">
+    <name>Источник</name>
+    <synonym>
+      <key>ru</key>
+      <value>Источник</value>
+    </synonym>
+    <type>
+      <types>String</types>
+      <stringQualifiers>
+        <length>50</length>
+      </stringQualifiers>
+    </type>
+    <minValue xsi:type="core:UndefinedValue"/>
+    <maxValue xsi:type="core:UndefinedValue"/>
+    <fullTextSearch>Use</fullTextSearch>
+    <dataHistory>Use</dataHistory>
+    <fillValue xsi:type="core:StringValue"/>
+    <mainFilter>true</mainFilter>
+  </dimensions>
+</mdclass:InformationRegister>

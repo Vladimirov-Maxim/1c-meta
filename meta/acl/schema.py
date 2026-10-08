@@ -28,6 +28,7 @@ from .vocabulary import (
     COMPARISON,
     EDIT_TYPE,
     EVENTS,
+    EXTERNAL_CLASSES,
     FIELDS,
     FILL_CHECKING,
     GENERATED_TYPES,
@@ -116,7 +117,17 @@ class Satellite:
 class KindSchema:
     def __init__(self, element, container, registry_tag, fields, satellites=(),
                  generated=(), children=False, child_fields=(), wrapped=True,
-                 named_children=(), inside=(), attrs=()):
+                 named_children=(), inside=(), attrs=(), contained=None,
+                 type_word=None):
+        # Класс вложенного объекта: у внешних обработки и отчёта служебный
+        # блок начинается с `xr:ContainedObject` — идентификатор класса
+        # (постоянный для вида) и свой идентификатор объекта.
+        self.contained = contained
+        # Слово вида в именах порождаемых типов детей: табличная часть
+        # внешней обработки называется `DataProcessorTabularSection…`, а не
+        # `ExternalDataProcessorTabularSection…` — так её выгружает
+        # конфигуратор, что бы ни было загружено. Нет — слово элемента.
+        self.type_word = type_word or element
         # Дети, записанные одним именем: так макет числится в карточке объекта.
         self.named_children = tuple(named_children)
         # Контейнеры внутри хозяина, куда ложится сущность: пункт отбора живёт
@@ -894,6 +905,52 @@ SCHEMA = {
                     Satellite("Templates/{схема}/Ext/Template.xml", "схема",
                               render="схема")),
         generated=GENERATED_TYPES["Отчет"], children=True,
+        named_children=(("схема", "Template"),),
+        child_fields=(("реквизиты", "Реквизит"),
+                      ("табличныеЧасти", "ТабличнаяЧасть"))),
+    # Внешняя обработка — корень своей выгрузки. Свойств пять: остальные
+    # свойства обработки конфигурации (команды, справка, представления) у неё
+    # не бывают. Состав и порядок — круг через конфигуратор 8.5.1.
+    "ВнешняяОбработка": KindSchema(
+        "ExternalDataProcessor", "ExternalDataProcessors", None, [
+            Field("имя", "Name", TEXT),
+            Field("синоним", "Synonym", MULTILANG, always=True),
+            Field("комментарий", "Comment", TEXT, always=True),
+            Field("основнаяФорма", "DefaultForm", TEXT, always=True),
+            Field("дополнительнаяФорма", "AuxiliaryForm", TEXT, always=True),
+        ],
+        satellites=(Satellite("Ext/ObjectModule.bsl", "модульОбъекта", render="модуль"),),
+        generated=GENERATED_TYPES["ВнешняяОбработка"], children=True,
+        contained=EXTERNAL_CLASSES["ВнешняяОбработка"], type_word="DataProcessor",
+        child_fields=(("реквизиты", "Реквизит"),
+                      ("табличныеЧасти", "ТабличнаяЧасть"))),
+    # Внешний отчёт: свойства отчёта конфигурации без команд, справки
+    # и представлений. Круг через конфигуратор 8.5.1.
+    "ВнешнийОтчет": KindSchema(
+        "ExternalReport", "ExternalReports", None, [
+            Field("имя", "Name", TEXT),
+            Field("синоним", "Synonym", MULTILANG, always=True),
+            Field("комментарий", "Comment", TEXT, always=True),
+            Field("основнаяФорма", "DefaultForm", TEXT, always=True),
+            Field("дополнительнаяФорма", "AuxiliaryForm", TEXT, always=True),
+            Field("основнаяСхема", "MainDataCompositionSchema",
+                  OBJECT_REFERENCE, always=True),
+            Field("основнаяФормаНастроек", "DefaultSettingsForm", TEXT, always=True),
+            Field("дополнительнаяФормаНастроек", "AuxiliarySettingsForm", TEXT,
+                  always=True),
+            Field("основнаяФормаВарианта", "DefaultVariantForm", TEXT, always=True),
+            Field("дополнительнаяФормаВарианта", "AuxiliaryVariantForm", TEXT,
+                  always=True),
+            Field("хранилищеВариантов", "VariantsStorage", TEXT, always=True),
+            Field("хранилищеНастроек", "SettingsStorage", TEXT, always=True),
+        ],
+        satellites=(Satellite("Ext/ObjectModule.bsl", "модульОбъекта", render="модуль"),
+                    Satellite("Templates/{схема}.xml", "схема", render="макет",
+                              fields=("синонимСхемы",)),
+                    Satellite("Templates/{схема}/Ext/Template.xml", "схема",
+                              render="схема")),
+        generated=GENERATED_TYPES["ВнешнийОтчет"], children=True,
+        contained=EXTERNAL_CLASSES["ВнешнийОтчет"], type_word="Report",
         named_children=(("схема", "Template"),),
         child_fields=(("реквизиты", "Реквизит"),
                       ("табличныеЧасти", "ТабличнаяЧасть"))),

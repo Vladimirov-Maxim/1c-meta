@@ -95,6 +95,11 @@ ROOTS = {
     "ТочкаМаршрутаБизнесПроцесса": "BusinessProcessRoutePointRef",
     "ПостроительОтчета": "ReportBuilder",
     "НаборКонстант": "ConstantsSet",
+    # Внешние обработка и отчёт: корень своей выгрузки, а не каталог
+    # конфигурации. Главный реквизит их формы — `cfg:ExternalDataProcessorObject.Имя`,
+    # круг через конфигуратор 8.5.1.
+    "ВнешняяОбработка": "ExternalDataProcessor",
+    "ВнешнийОтчет": "ExternalReport",
 }
 
 
@@ -252,6 +257,22 @@ FOLDERS = {
     "РегистрРасчета": "CalculationRegisters",
     "Последовательность": "Sequences",
     "ОпределяемыйТип": "DefinedTypes",
+    # Внешние обработка и отчёт своего каталога не имеют: карточка лежит
+    # в корне их выгрузки, рядом каталог с тем же именем. Имя «каталога» —
+    # условное: по нему ищутся порядок детей карточки и место файлов, а
+    # площадка внешней выгрузки кладёт такие карточки в корень.
+    "ВнешняяОбработка": "ExternalDataProcessors",
+    "ВнешнийОтчет": "ExternalReports",
+}
+
+#: Условные каталоги внешних объектов: их карточки лежат в корне выгрузки.
+EXTERNAL_CONTAINERS = ("ExternalDataProcessors", "ExternalReports")
+
+#: Идентификатор класса вложенного объекта (`xr:ClassId`) — постоянный для
+#: вида: с другим конфигуратор внешнюю обработку не загружает.
+EXTERNAL_CLASSES = {
+    "ВнешняяОбработка": "c3831ec8-d8d5-4f93-8a22-f9bfae07327f",
+    "ВнешнийОтчет": "e41aff26-25cf-4bb6-b6c1-3f478a75f374",
 }
 
 
@@ -347,6 +368,10 @@ GENERATED_TYPES = {
     # ними дают только табличные части, которые добавляются сами.
     "Обработка": (("DataProcessorObject", "Object"),
                   ("DataProcessorManager", "Manager")),
+    # Внешние обработка и отчёт: только объект — менеджера у них нет.
+    # Круг через конфигуратор 8.5.1: что ни подай, выгружается одна грань.
+    "ВнешняяОбработка": (("ExternalDataProcessorObject", "Object"),),
+    "ВнешнийОтчет": (("ExternalReportObject", "Object"),),
     # Константа. Три грани у всех 905 карточек, иных наборов нет.
     "Константа": (("ConstantManager", "Manager"),
                   ("ConstantValueManager", "ValueManager"),
@@ -478,6 +503,10 @@ CARD_ORDER = {
     "Enums": ("EnumValue", "Template", "Form"),   # карточек 1625
     "ExchangePlans": ("Attribute", "TabularSection", "Form", "Template", "Command"),   # карточек 38
     "ExternalDataSources": ("Table", "Cube"),   # карточек 6
+    # Внешние — как обычные обработка и отчёт, только команд у них не бывает.
+    # Круг через конфигуратор: реквизит, табличная часть, форма — в этом порядке.
+    "ExternalDataProcessors": ("Attribute", "TabularSection", "Form", "Template"),
+    "ExternalReports": ("Attribute", "TabularSection", "Form", "Template"),
     "FilterCriteria": ("Form",),   # карточек 1
     "HTTPServices": ("URLTemplate",),   # карточек 22
     # Читается как описка — ресурсы и реквизиты впереди измерений, — но

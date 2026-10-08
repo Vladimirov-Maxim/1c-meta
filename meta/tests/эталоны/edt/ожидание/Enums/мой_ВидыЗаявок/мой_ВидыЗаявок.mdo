@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mdclass:Enum xmlns:mdclass="http://g5.1c.ru/v8/dt/metadata/mdclass" uuid="0823ae56-5f37-4fad-a1e6-bdf38e130533">
+  <producedTypes>
+    <refType typeId="58ef4360-47b8-485b-b65c-0668f7dd80e9" valueTypeId="0f8a2c50-f697-43f7-9bbb-6f4370bcd938"/>
+    <listType typeId="4be03c05-3214-4497-b96c-9c2477746fd3" valueTypeId="13317032-6a71-49d0-a693-cdd5e410389f"/>
+    <managerType typeId="59227746-5849-437c-a839-48bdc858dcae" valueTypeId="3b82191f-dfe7-4612-a631-4a45bc1576b6"/>
+  </producedTypes>
+  <name>мой_ВидыЗаявок</name>
+  <synonym>
+    <key>ru</key>
+    <value>Виды</value>
+  </synonym>
+  <quickChoice>true</quickChoice>
+  <choiceMode>BothWays</choiceMode>
+  <enumValues uuid="0c4128a7-cf96-4b7f-ad11-219f8e3d0cdc">
+    <name>Первый</name>
+    <synonym>
+      <key>ru</key>
+      <value>Первый</value>
+    </synonym>
+  </enumValues>
+  <enumValues uuid="55bcbd04-227e-4481-a7bb-d8ea007186d0">
+    <name>Второй</name>
+    <synonym>
+      <key>ru</key>
+      <value>Второй</value>
+    </synonym>
+  </enumValues>
+  <enumValues uuid="1e85975c-5c22-49ac-a29d-2e7c47302275">
+    <name>Третий</name>
+    <synonym>
+      <key>ru</key>
+      <value>Третий</value>
+    </synonym>
+  </enumValues>
+</mdclass:Enum>

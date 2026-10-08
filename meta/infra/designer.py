@@ -62,7 +62,7 @@ class DesignerDump(Repository, Platform):
                 implementation = form_formats.for_version(FORMAT_VERSION)
                 card, document = implementation.born(edits.create, uuid, new_id)
             else:
-                text = self.read_form_text(edits.owner, edits.name)
+                text = self._form_source_text(edits.owner, edits.name)
                 if text is None:
                     raise Refuse(f"формы «{edits.address}» в выгрузке нет")
                 implementation = form_formats.for_text(text)
@@ -104,6 +104,11 @@ class DesignerDump(Repository, Platform):
             prepared.append(PreparedForm(edits, card, implementation.dump(document),
                                          module, handlers, notes))
         return self.prepare_form_files(prepared)
+
+    def _form_source_text(self, owner, name):
+        """Текст формы, который правит редактор формы выгрузки. У выгрузки это
+        сам `Form.xml`; площадка другого формата отдаёт его перекладку."""
+        return self.read_form_text(owner, name)
 
     @staticmethod
     def _handlers(edits):

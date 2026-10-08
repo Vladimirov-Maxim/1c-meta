@@ -1,4 +1,7 @@
-"""Модули кода в выгрузке: где лежит файл, как он записан, новый ли он.
+"""Модули кода в исходниках: где лежит файл, как он записан, новый ли он.
+
+Исходники — выгрузка конфигуратора или проект EDT: раскладка модулей
+у них разная (`acl.modules`), какая именно — решает корень (`layout.layout_of`).
 
 Формат файла модуля сохраняется таким, каким был: BOM, переводы строк (CRLF у
 конфигуратора, LF у части выгрузок), наличие последнего перевода строки.
@@ -19,7 +22,7 @@ import re
 from ..acl import modules as vocabulary
 from ..application.ports import Modules
 from ..domain.model import Refuse
-from . import git
+from . import git, layout
 from .repository import Plan
 
 
@@ -27,6 +30,7 @@ class DumpModules(Modules):
     def __init__(self, root):
         self.root = root
         self._format = {}          # путь -> (bom, eol, final_eol), снятый при чтении
+        self.files = (vocabulary.EDT if layout.layout_of(root).edt else vocabulary.DESIGNER)
 
     # --- где лежит ---
 
@@ -34,12 +38,12 @@ class DumpModules(Modules):
         """Путь модуля относительно корня выгрузки, через «/»."""
         if ref.path is not None:
             return ref.path.replace("\\", "/")
-        return "/".join(vocabulary.module_file(ref.address))
+        return "/".join(self.files.module_file(ref.address))
 
     def address(self, ref):
         if ref.address is not None:
             return ref.address
-        return vocabulary.address_of_file(self.relative(ref).split("/"))
+        return self.files.address_of_file(self.relative(ref).split("/"))
 
     def full_path(self, ref):
         return os.path.join(self.root, *self.relative(ref).split("/"))
@@ -58,7 +62,7 @@ class DumpModules(Modules):
     def _existing(self, address, folder):
         base = os.path.join(self.root, *folder)
         есть = []
-        ext = os.path.join(base, "Ext")
+        ext = os.path.join(base, *self.files.own)
         if os.path.isdir(ext):
             есть += [f"{address.kind}.{address.name}.{vocabulary.OWN_BY_FILE[имя]}"
                      for имя in sorted(os.listdir(ext)) if имя in vocabulary.OWN_BY_FILE]

@@ -20,6 +20,9 @@ from . import vocabulary as voc
 
 XSI_TYPE = "xsi:type"
 
+#: Хозяева, чья выгрузка — внешняя обработка или отчёт.
+EXTERNAL_OWNERS = ("ВнешняяОбработка", "ВнешнийОтчет")
+
 
 def auto_title(name):
     """«НачалоПериода» -> «Начало периода»: так конфигуратор образует
@@ -75,6 +78,10 @@ def card_node(form, uuid):
         text_node("UseInInterfaceCompatibilityMode", "Any"),
     ]
     element = "Form"
+    if form.owner_kind in EXTERNAL_OWNERS:
+        # Форма внешней обработки и отчёта несёт ещё и расширенное
+        # представление: конфигуратор дописывает его при выгрузке.
+        properties.append(Node("ExtendedPresentation"))
     if form.owner is None:
         element = "CommonForm"
         properties += [text_node("UseStandardCommands", "false"),

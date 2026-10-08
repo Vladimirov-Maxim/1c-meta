@@ -22,3 +22,7 @@ dist/
 # Virtual environments
 .venv/
 venv/
+
+# Таблица метамодели EDT — снята с моделей установленного 1C:EDT, создаётся на месте:
+# py -3 tools/edt_model_from_xcore.py
+meta/acl/edt_metamodel.py

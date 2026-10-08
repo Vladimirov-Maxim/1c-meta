@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mdclass:DataProcessor xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:core="http://g5.1c.ru/v8/dt/mcore" xmlns:mdclass="http://g5.1c.ru/v8/dt/metadata/mdclass" uuid="514f1af0-35b3-45e5-b39e-8e09c108c87c">
+  <producedTypes>
+    <objectType typeId="7573b22d-adcb-4578-859c-806828088c7e" valueTypeId="8c1448f6-7cd1-4681-8c5a-4bf76c6a825e"/>
+    <managerType typeId="0f2647ca-2ce8-498b-9ae5-086234f2f312" valueTypeId="7ec8c284-c841-4c35-972f-ac4d3e1a63dd"/>
+  </producedTypes>
+  <name>мой_Загрузка</name>
+  <synonym>
+    <key>ru</key>
+    <value>Загрузка</value>
+  </synonym>
+  <useStandardCommands>true</useStandardCommands>
+  <attributes uuid="549f80c2-900d-4194-ae8c-c46ecf4ab755">
+    <name>ИмяФайла</name>
+    <synonym>
+      <key>ru</key>
+      <value>Имя файла</value>
+    </synonym>
+    <type>
+      <types>String</types>
+      <stringQualifiers>
+        <length>260</length>
+      </stringQualifiers>
+    </type>
+    <minValue xsi:type="core:UndefinedValue"/>
+    <maxValue xsi:type="core:UndefinedValue"/>
+  </attributes>
+  <tabularSections uuid="f1a16a35-d583-4c96-a5b7-3c8ff7454285">
+    <producedTypes>
+      <objectType typeId="be195aa3-4d2f-4183-b97c-e7a98c4f128c" valueTypeId="1e9c2939-8c3c-42c1-88c8-7e55b4b8629e"/>
+      <rowType typeId="36dd0ced-d0e1-4cfa-88fc-6ef418145bda" valueTypeId="e2c9257a-6490-4340-b79a-80de4ebad770"/>
+    </producedTypes>
+    <name>Данные</name>
+    <synonym>
+      <key>ru</key>
+      <value>Данные</value>
+    </synonym>
+    <attributes uuid="3111eb17-dcc2-4786-8bdf-c74b47f790d5">
+      <name>Значение</name>
+      <synonym>
+        <key>ru</key>
+        <value>Значение</value>
+      </synonym>
+      <type>
+        <types>CatalogRef.мой_Пример</types>
+      </type>
+      <minValue xsi:type="core:UndefinedValue"/>
+      <maxValue xsi:type="core:UndefinedValue"/>
+      <fillValue xsi:type="core:UndefinedValue"/>
+    </attributes>
+  </tabularSections>
+</mdclass:DataProcessor>

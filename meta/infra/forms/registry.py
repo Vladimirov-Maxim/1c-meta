@@ -8,8 +8,9 @@
 
 from ...domain.model import Refuse
 from .designer221 import Format221
+from .edt import FormatEdt
 
-FORMATS = (Format221(),)
+FORMATS = (Format221(), FormatEdt())
 
 
 def for_version(version):
