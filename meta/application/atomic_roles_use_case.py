@@ -22,11 +22,12 @@ class AtomicRolesUseCase:
     соглашения: Соглашения = НЕЙТРАЛЬНЫЕ
 
     def execute(self, requests, apply_now=False):
-        """`requests` — (вид, имя, права или None[, сокращение или None])."""
+        """`requests` — (вид, имя, права или None[, сокращение[, комментарий]])."""
         схема = atomic_roles.нужна_схема(self.соглашения.атомарные_роли)
         specs, notes, соседи = [], {}, {}
         for kind, name, rights, *хвост in requests:
             сокращение = хвост[0] if хвост else None
+            комментарий = хвост[1] if len(хвост) > 1 else None
             if kind not in atomic_roles.kinds():
                 raise Refuse(f"типовой состав атомарных ролей есть для видов "
                              f"{', '.join(atomic_roles.kinds())}, а не для «{kind}»")
@@ -44,7 +45,8 @@ class AtomicRolesUseCase:
                 raise Refuse(f"{kind}.{name}: атомарные роли у объекта уже есть — "
                              f"{', '.join(есть)}; вторую пару не заводим")
             for role, note in atomic_roles.roles_for(
-                    kind, name, found.get("синоним"), rights, сокращение, схема, соседи[kind]):
+                    kind, name, found.get("синоним"), rights, сокращение, схема, соседи[kind],
+                    комментарий):
                 specs.append(role)
                 if note:
                     notes[role.get("имя")] = note

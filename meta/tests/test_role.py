@@ -222,12 +222,74 @@ def test_a_new_object_can_bring_its_atomic_roles_in_the_same_job(dump):
 
 def test_an_unmeasured_kind_is_refused_for_atomic_roles(dump):
     with pytest.raises(Refuse) as отказ:
-        atomic_roles.roles_for("Отчет", "мой_Проба", "Проба", схема=ТЕСТ.атомарные_роли)
+        atomic_roles.roles_for("Константа", "мой_Проба", "Проба", схема=ТЕСТ.атомарные_роли)
     assert "типовой состав есть для" in str(отказ.value)
     with pytest.raises(Refuse) as отказ:
         atomic_roles.roles_for("Документ", "мой_Проба", "Проба", ["Удаление"],
                                схема=ТЕСТ.атомарные_роли)
     assert "Просмотр, Изменение" in str(отказ.value).replace("Изменение, Просмотр", "Просмотр, Изменение")
+
+
+def обработка(dump):
+    """Обработка в выгрузке — карточка с синонимом."""
+    os.makedirs(os.path.join(dump, "DataProcessors"))
+    open(os.path.join(dump, "DataProcessors", "мой_Помощник.xml"), "w",
+         encoding="utf-8-sig", newline="").write(
+        ДОКУМЕНТ.replace("Document", "DataProcessor").replace("мой_Заявка", "мой_Помощник")
+        .replace("Заявка на оплату", "Помощник расчета"))
+
+
+def test_a_data_processor_gets_one_role_without_a_suffix(dump):
+    """Обработка: роль одна и без суффикса — «Использование» и «Просмотр»; в
+    имени и синониме нет права и разделителя перед ним."""
+    from meta.application.atomic_roles_use_case import AtomicRolesUseCase
+
+    обработка(dump)
+    result = AtomicRolesUseCase(DesignerDump(dump), ТЕСТ).execute(
+        [("Обработка", "мой_Помощник", None)], apply_now=True)
+    assert result.ok, [str(f) for f in result.errors]
+    роли = sorted(f for f in os.listdir(os.path.join(dump, "Roles")) if f.endswith(".xml"))
+    assert роли == ["мой_атом_Обработка_мой_Помощник.xml"]
+    card = open(os.path.join(dump, "Roles", роли[0]), encoding="utf-8-sig").read()
+    assert "<v8:content>(Мой) Атом. Обработка - Помощник расчета</v8:content>" in card
+    rights = open(os.path.join(dump, "Roles", "мой_атом_Обработка_мой_Помощник", "Ext",
+                               "Rights.xml"), encoding="utf-8-sig").read()
+    assert "<name>DataProcessor.мой_Помощник</name>" in rights
+    assert "<name>Use</name>" in rights and "<name>View</name>" in rights
+
+
+def test_a_data_processor_role_takes_no_rights_list():
+    with pytest.raises(Refuse, match="роль одна, без суффикса"):
+        atomic_roles.roles_for("Обработка", "мой_П", "П", ["Просмотр"], схема=ТЕСТ.атомарные_роли)
+
+
+def test_a_role_without_a_suffix_is_recognised_as_atomic():
+    """Роль обработки без суффикса — атомарная по схеме: её находят соседи и
+    проверка «пара уже есть»."""
+    схема = ТЕСТ.атомарные_роли
+    assert atomic_roles.is_atomic_role(схема, "мой_атом_Обработка_мой_Помощник")
+    assert atomic_roles.is_atomic_role(схема, "мой_атом_Документ_мой_Заявка_Просмотр")
+
+
+def test_atomic_roles_carry_the_comment(dump):
+    """Комментарий роли — как у соседей: дата, автор, задача."""
+    from meta.application.atomic_roles_use_case import AtomicRolesUseCase
+
+    AtomicRolesUseCase(DesignerDump(dump), ТЕСТ).execute(
+        [("Документ", "мой_Заявка", ["Просмотр"], None, "08.10.2026, #TEAM Тестов Тест #ТЕСТ-1")],
+        apply_now=True)
+    card = open(os.path.join(dump, "Roles", "мой_атом_Документ_мой_Заявка_Просмотр.xml"),
+                encoding="utf-8-sig").read()
+    assert "<Comment>08.10.2026, #TEAM Тестов Тест #ТЕСТ-1</Comment>" in card
+
+
+def test_inline_atomic_roles_carry_the_comment(dump):
+    spec = Spec("Документ", {"имя": "мой_Счет", "синоним": "Счет на оплату",
+                             "атомарныеРоли": {"права": ["Просмотр"], "комментарий": "ТЕСТ-1"}})
+    assert create(dump, spec).ok
+    card = open(os.path.join(dump, "Roles", "мой_атом_Документ_мой_Счет_Просмотр.xml"),
+                encoding="utf-8-sig").read()
+    assert "<Comment>ТЕСТ-1</Comment>" in card
 
 
 def test_a_register_role_synonym_names_its_kind_in_words():

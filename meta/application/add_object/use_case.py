@@ -101,13 +101,14 @@ class AddObjectUseCase:
                 continue
             # true, список ролей или объект {«права»: […], «сокращение»: «…»} —
             # сокращение нужно, когда имя роли не укладывается в 80 символов.
-            сокращение = None
+            сокращение = комментарий = None
             if isinstance(asked, dict):
-                лишние = [k for k in asked if k not in ("права", "сокращение")]
+                лишние = [k for k in asked if k not in ("права", "сокращение", "комментарий")]
                 if лишние:
                     raise Refuse(f"в «{ATOMIC_ROLES}» не знаю ключей: {', '.join(лишние)}; "
-                                 "бывают: права, сокращение")
+                                 "бывают: права, сокращение, комментарий")
                 сокращение = asked.get("сокращение")
+                комментарий = asked.get("комментарий")
                 rights = asked.get("права")
             elif isinstance(asked, (list, tuple)):
                 rights = list(asked)
@@ -123,7 +124,7 @@ class AddObjectUseCase:
                     atomic_roles.name_pattern(схема, spec.kind))
             for role, note in atomic_roles.roles_for(
                     spec.kind, spec.get("имя"), spec.get("синоним"), rights, сокращение,
-                    схема, соседи.get(spec.kind)):
+                    схема, соседи.get(spec.kind), комментарий):
                 expanded.append(role)
                 if note:
                     notes[role.get("имя")] = note
