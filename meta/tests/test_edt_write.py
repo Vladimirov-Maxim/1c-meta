@@ -20,7 +20,12 @@ import pytest
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, ROOT)
 
+from meta.acl import edt_model as _edt_model  # noqa: E402
 from meta.add import main  # noqa: E402
+
+#: Таблица метамодели EDT не хранится в репозитории — без неё эти тесты не о чем.
+pytestmark = pytest.mark.skipif(not _edt_model.available(), reason="таблица метамодели EDT не сгенерирована: "
+                                "py -3 tools/edt_model_from_xcore.py")
 
 EDT = os.path.join(ROOT, "meta", "tests", "эталоны", "edt")
 ЗАДАНИЯ = os.path.join(EDT, "задания")

@@ -26,7 +26,13 @@ EDT хранит объект метаданных объектом EMF и пи�
 import functools
 from dataclasses import dataclass
 
-from .edt_metamodel import METAMODEL
+from ..domain.model import Refuse
+
+#: Таблица не хранится в репозитории: она снята с моделей установленного 1C:EDT
+#: и создаётся на месте при установке инструмента.
+NO_TABLE = ("таблица метамодели EDT не сгенерирована — без неё запись в проект EDT и показ его объектов и форм невозможны (проверки и нормализация работают). "
+            "Создайте её из установленного 1C:EDT: py -3 tools/edt_model_from_xcore.py "
+            "(без аргумента — пул p2 пользователя, %USERPROFILE%\\.p2\\pool\\plugins)")
 
 #: Свойства, которые EDT пишет первыми, вопреки порядку EMF.
 FIRST = ("producedTypes",)
@@ -57,8 +63,22 @@ class Feature:
     id: bool = False
 
 
+@functools.cache
 def _table():
+    try:
+        from .edt_metamodel import METAMODEL
+    except ImportError as нет:
+        raise Refuse(NO_TABLE) from нет
     return METAMODEL
+
+
+def available():
+    """Таблица метамодели EDT создана — с проектом EDT можно работать."""
+    try:
+        _table()
+    except Refuse:
+        return False
+    return True
 
 
 def classes():
