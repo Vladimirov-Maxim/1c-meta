@@ -82,7 +82,8 @@ class EditCodeUseCase:
                                           own=own_qualifiers(self.modules.address(entry.ref)))
             work.extend(renamed)
         new_lines, decisions = edits.edit_module(lines, work, signature,
-                                                 self.modules.is_new(entry.ref, self._base), notes)
+                                                 self.modules.is_new(entry.ref, self._base), notes,
+                                                 markers=self.соглашения.метки)
         return entry.ref, new_lines, decisions
 
     def _expand_move(self, move):
