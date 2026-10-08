@@ -262,7 +262,7 @@
 			<Role>мой_ПробаРоль</Role>
 			<Role>мой_атом_Документ_мой_ПробаСДвижениями_Просмотр</Role>
 			<Role>мой_атом_Документ_мой_ПробаСДвижениями_Изменение</Role>
-			<CommonModule>мой_ПесочницаСервер</CommonModule>
+			<CommonModule>мой_ОбщийСервер</CommonModule>
 			<EventSubscription>мой_ЛюбойДокументПередЗаписью</EventSubscription>
 			<Catalog>мой_ПробаСправочник</Catalog>
 			<Catalog>мой_ДоговорыСРеквизитами</Catalog>

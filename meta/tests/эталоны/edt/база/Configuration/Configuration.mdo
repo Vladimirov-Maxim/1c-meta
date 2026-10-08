@@ -38,7 +38,7 @@
   <roles>Role.мой_ПробаРоль</roles>
   <roles>Role.мой_атом_Документ_мой_ПробаСДвижениями_Просмотр</roles>
   <roles>Role.мой_атом_Документ_мой_ПробаСДвижениями_Изменение</roles>
-  <commonModules>CommonModule.мой_ПесочницаСервер</commonModules>
+  <commonModules>CommonModule.мой_ОбщийСервер</commonModules>
   <eventSubscriptions>EventSubscription.мой_ЛюбойДокументПередЗаписью</eventSubscriptions>
   <catalogs>Catalog.мой_ПробаСправочник</catalogs>
   <catalogs>Catalog.мой_ДоговорыСРеквизитами</catalogs>

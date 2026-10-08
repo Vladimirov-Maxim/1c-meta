@@ -14,7 +14,7 @@
 				<v8:TypeSet>cfg:DocumentObject</v8:TypeSet>
 			</Source>
 			<Event>BeforeWrite</Event>
-			<Handler>CommonModule.мой_ПесочницаСервер.мой_ПередЗаписьюЛюбогоДокумента</Handler>
+			<Handler>CommonModule.мой_ОбщийСервер.мой_ПередЗаписьюЛюбогоДокумента</Handler>
 		</Properties>
 	</EventSubscription>
 </MetaDataObject>

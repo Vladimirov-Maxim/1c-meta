@@ -43,7 +43,7 @@
   <roles>Role.мой_атом_Документ_мой_Заявка_Просмотр</roles>
   <roles>Role.мой_атом_Документ_мой_Заявка_Изменение</roles>
   <roles>Role.мой_атом_РегистрСведений_мой_Курсы_Просмотр</roles>
-  <commonModules>CommonModule.мой_ПесочницаСервер</commonModules>
+  <commonModules>CommonModule.мой_ОбщийСервер</commonModules>
   <commonModules>CommonModule.мой_Сервер</commonModules>
   <commonModules>CommonModule.мой_СерверВызовСервера</commonModules>
   <eventSubscriptions>EventSubscription.мой_ЛюбойДокументПередЗаписью</eventSubscriptions>

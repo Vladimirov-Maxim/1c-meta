@@ -69,7 +69,21 @@ def test_blank_lines_in_methods_get_their_indent(tmp_path, capsys):
     assert строки[9] == ""              # между процедурами отступ не ставится
 
 
-def test_a_line_with_whitespace_already_is_left_alone(tmp_path, capsys):
+def test_an_added_blank_line_gets_the_exact_indent_even_with_whitespace(tmp_path, capsys):
+    """Пустая строка перед `КонецЦикла` вложенного цикла с потерянной
+    табуляцией (одна вместо трёх) — отступ по уровню, а не «пробел уже есть»."""
+    root = выгрузка(tmp_path)
+    написать(root, ТЕСТ, ["Процедура А() Экспорт", "\tВозврат;", "КонецПроцедуры"])
+    зафиксировать(root)
+    for отступ in ("", "\t", "\t\t", "\t\t\t\t"):
+        написать(root, ТЕСТ, ["Процедура А() Экспорт", "\tДля Каждого А Из Массив Цикл",
+                              "\t\tДля Каждого Б Из А Цикл", "\t\t\tСделать(Б);", отступ,
+                              "\t\tКонецЦикла;", "\tКонецЦикла;", "КонецПроцедуры"])
+        нормализовать(capsys, root, "--apply")
+        assert прочитать(root, ТЕСТ)[0][4] == "\t\t\t", repr(отступ)
+
+
+def test_a_foreign_line_with_whitespace_is_left_alone(tmp_path, capsys):
     """Переоформлять существующий отступ значило бы самой нормализации дать
     косметическую правку чужого кода."""
     root = выгрузка(tmp_path)
