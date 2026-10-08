@@ -153,7 +153,7 @@
     <fullTextSearch>Use</fullTextSearch>
     <dataHistory>Use</dataHistory>
   </attributes>
-  <attributes uuid="5d06f04a-341c-496c-b625-9d906813348c">
+  <attributes uuid="966d48f5-921d-418f-9f30-06c4daf4244d">
     <name>Примечание</name>
     <synonym>
       <key>ru</key>
@@ -216,7 +216,7 @@
       <dataHistory>Use</dataHistory>
       <fullTextSearch>Use</fullTextSearch>
     </attributes>
-    <attributes uuid="ed5c7295-5164-4ebb-a22d-bc9fb8eff8cc">
+    <attributes uuid="488e66df-006a-4998-aa96-3d290fdb20bc">
       <name>Сумма</name>
       <synonym>
         <key>ru</key>

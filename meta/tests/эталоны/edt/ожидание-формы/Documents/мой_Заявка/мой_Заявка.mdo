@@ -75,7 +75,7 @@
     <fullTextSearch>Use</fullTextSearch>
     <dataHistory>Use</dataHistory>
   </attributes>
-  <attributes uuid="966d48f5-921d-418f-9f30-06c4daf4244d">
+  <attributes uuid="1ec25db5-4f16-40df-872d-4e49c3bfb2dd">
     <name>Ответственный</name>
     <synonym>
       <key>ru</key>
@@ -91,7 +91,7 @@
     <fullTextSearch>Use</fullTextSearch>
     <dataHistory>Use</dataHistory>
   </attributes>
-  <forms uuid="0bb38f4c-e9e3-4497-a70f-b98cc2fb9f34">
+  <forms uuid="e0c114e8-d738-4b40-a6c6-91a3020f0ca5">
     <name>мой_Круг</name>
     <synonym>
       <key>ru</key>
@@ -100,7 +100,7 @@
     <usePurposes>PersonalComputer</usePurposes>
     <usePurposes>MobileDevice</usePurposes>
   </forms>
-  <forms uuid="e0c114e8-d738-4b40-a6c6-91a3020f0ca5">
+  <forms uuid="21dc2dae-8209-4017-ba11-32470d3c2e53">
     <name>мой_Круг2</name>
     <synonym>
       <key>ru</key>
@@ -109,7 +109,7 @@
     <usePurposes>PersonalComputer</usePurposes>
     <usePurposes>MobileDevice</usePurposes>
   </forms>
-  <forms uuid="21dc2dae-8209-4017-ba11-32470d3c2e53">
+  <forms uuid="6602c3dd-6efb-4746-a5c1-b5add090dbb2">
     <name>мой_КругСписок</name>
     <synonym>
       <key>ru</key>
@@ -118,7 +118,7 @@
     <usePurposes>PersonalComputer</usePurposes>
     <usePurposes>MobileDevice</usePurposes>
   </forms>
-  <forms uuid="6602c3dd-6efb-4746-a5c1-b5add090dbb2">
+  <forms uuid="1a8dcd4b-2d65-4bf6-9fda-0305d8e4a09c">
     <name>мой_КругДерево</name>
     <synonym>
       <key>ru</key>
@@ -127,7 +127,7 @@
     <usePurposes>PersonalComputer</usePurposes>
     <usePurposes>MobileDevice</usePurposes>
   </forms>
-  <forms uuid="1a8dcd4b-2d65-4bf6-9fda-0305d8e4a09c">
+  <forms uuid="a3788367-62ac-44c2-9b0b-b5a29bbc26b4">
     <name>мой_КругВиды</name>
     <synonym>
       <key>ru</key>
@@ -226,10 +226,10 @@
       <fullTextSearch>Use</fullTextSearch>
     </attributes>
   </tabularSections>
-  <tabularSections uuid="1e85975c-5c22-49ac-a29d-2e7c47302275">
+  <tabularSections uuid="50cb6495-3cd2-4184-a885-332d10cc89dd">
     <producedTypes>
-      <objectType typeId="50cb6495-3cd2-4184-a885-332d10cc89dd" valueTypeId="c75b1f8c-348c-4562-875d-fe4b6289bc19"/>
-      <rowType typeId="9ff81d60-b31d-4540-904b-7eaf89f5b519" valueTypeId="058c3a4d-9d1a-4c34-ac10-4f20a675d3b9"/>
+      <objectType typeId="c75b1f8c-348c-4562-875d-fe4b6289bc19" valueTypeId="9ff81d60-b31d-4540-904b-7eaf89f5b519"/>
+      <rowType typeId="058c3a4d-9d1a-4c34-ac10-4f20a675d3b9" valueTypeId="02fc7aea-7002-4c5d-853e-ae5295e9fbe6"/>
     </producedTypes>
     <name>Исполнители</name>
     <synonym>

@@ -74,7 +74,7 @@
     <fillValue xsi:type="core:StringValue"/>
     <mainFilter>true</mainFilter>
   </dimensions>
-  <dimensions uuid="1ec25db5-4f16-40df-872d-4e49c3bfb2dd">
+  <dimensions uuid="ed5c7295-5164-4ebb-a22d-bc9fb8eff8cc">
     <name>Источник</name>
     <synonym>
       <key>ru</key>

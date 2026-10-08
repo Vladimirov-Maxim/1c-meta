@@ -203,6 +203,10 @@ class Repository(Configuration):
         self._schemas = {}
         if not os.path.isdir(self.root):
             raise Refuse(f"каталога «{self.root}» не существует")
+        self._check_root()
+
+    def _check_root(self):
+        """Корень — выгрузка этого формата; иначе отказ."""
         if not os.path.isfile(os.path.join(self.root, "Configuration.xml")):
             raise Refuse(f"в «{self.root}» нет Configuration.xml — "
                          "это не выгрузка конфигурации")
@@ -212,6 +216,14 @@ class Repository(Configuration):
     def registry_path(self):
         """Файл реестра конфигурации."""
         return os.path.join(self.root, "Configuration.xml")
+
+    def _folder(self, container):
+        """Каталог карточек вида. Площадка внешней выгрузки кладёт свои
+        карточки в корень; в конфигурации внешнему объекту места нет."""
+        if container in vocabulary.EXTERNAL_CONTAINERS:
+            raise Refuse("внешние обработка и отчёт живут в своей выгрузке — каталоге без "
+                         "Configuration.xml, а не в выгрузке конфигурации")
+        return os.path.join(self.root, container)
 
     def _read_text(self, path):
         """Текст файла, переводы строк приведены к `\n`. Площадка другого формата
@@ -312,7 +324,7 @@ class Repository(Configuration):
             folder = vocabulary.FOLDERS.get(kind)
         if folder is None:
             return None
-        return os.path.join(self.root, folder, name + ".xml")
+        return os.path.join(self._folder(folder), name + ".xml")
 
     def read_card(self, kind, name):
         """Карточку -> дерево. `None`, если её нет или вид без каталога.
@@ -492,7 +504,7 @@ class Repository(Configuration):
     # --- запись --------------------------------------------------------------
 
     def card_path(self, card):
-        return os.path.join(self.root, card.container, card.name + ".xml")
+        return os.path.join(self._folder(card.container), card.name + ".xml")
 
     #: Сколько байт файла хватает, чтобы увидеть его перевод строки.
     #: Первая строка выгрузки — объявление XML, дальше корень: если в этом
@@ -545,7 +557,9 @@ class Repository(Configuration):
         plan = Plan()
         taken = set()
         registry_path = self.registry_path()
-        registry = self.tree.parse(self._read_text(registry_path))
+        # Внешней выгрузке реестр не нужен: карточка сама корень.
+        registry = (self.tree.parse(self._read_text(registry_path))
+                    if registry_path is not None else None)
         for card in cards:
             path = self.card_path(card)
             # Два разных случая с разными правками, и объяснять их одинаково
@@ -563,7 +577,7 @@ class Repository(Configuration):
             plan.add(path, self._encode(
                 serializer.card_to_text(card, self.tree), path), True)
             for rel_path, content in card.satellites:
-                satellite = os.path.join(self.root, card.container, card.name,
+                satellite = os.path.join(self._folder(card.container), card.name,
                                        *rel_path.split("/"))
                 if os.path.exists(satellite):
                     raise Refuse(f"файл уже существует: {satellite}")
@@ -573,10 +587,12 @@ class Repository(Configuration):
                 text = (content if isinstance(content, str)
                         else self.tree.serialize(self.tree.build(content)))
                 plan.add(satellite, self._encode(text, satellite), True)
-            self._register(registry, card)
-        plan.add(registry_path,
-                 self._encode(self.tree.serialize(registry), registry_path),
-                 False)
+            if registry is not None:
+                self._register(registry, card)
+        if registry is not None:
+            plan.add(registry_path,
+                     self._encode(self.tree.serialize(registry), registry_path),
+                     False)
         return plan
 
     # --- формы -----------------------------------------------------------------
@@ -586,7 +602,7 @@ class Repository(Configuration):
         if owner is None:
             base = os.path.join(self.root, "CommonForms")
         else:
-            base = os.path.join(self.root, mapping.container_of(owner[0]), owner[1], "Forms")
+            base = os.path.join(self._folder(mapping.container_of(owner[0])), owner[1], "Forms")
         return (os.path.join(base, name + ".xml"),
                 os.path.join(base, name, "Ext", "Form.xml"),
                 os.path.join(base, name, "Ext", "Form", "Module.bsl"))

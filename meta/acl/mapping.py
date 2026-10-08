@@ -647,8 +647,8 @@ def translate(spec, uuid, host=None, new_id=None, configuration=None):
     satellites = []
     for satellite in schema.satellites:
         value = spec.get(satellite.domain)
-        if satellite.render in ("макет", "схема") and not value:
-            continue                      # макет не заказан — файлов и нет
+        if satellite.render in ("макет", "схема", "модуль") and not value:
+            continue                      # макет или модуль не заказан — файлов и нет
         path = satellite.path.format(**{
             field: said for field, said in spec.fields.items()
             if isinstance(said, str)})
@@ -663,7 +663,7 @@ def translate(spec, uuid, host=None, new_id=None, configuration=None):
         satellites.append((path, content))
     return Card(schema.element, schema.container, schema.registry_tag,
                 spec.get("имя"), uuid, _properties(schema, spec, host), satellites,
-                _generated(schema, spec, new_id),
+                _contained(schema, new_id) + _generated(schema, spec, new_id),
                 _children(schema, spec, new_id, spec.get("имя"))
                 if schema.children else None)
 
@@ -686,14 +686,61 @@ def _children(schema, spec, new_id, owner, host=None):
     знает и хозяина, и себя. Дальше вглубь передаётся то же имя — реквизиту
     табличной части оно не нужно, но и врать ему нечем.
     """
-    out = list(_named_children(schema, spec))
+    out = []
     for field, _ in schema.child_fields:
         for child in spec.get(field) or []:
             if new_id is None:
                 raise Refuse("детям нужны идентификаторы, а источник не задан")
             out.append(translate_node(child, new_id(), host or spec.kind,
                                       owner, new_id))
-    return out
+    # Макет — после реквизитов и табличных частей: так их ставит
+    # конфигуратор (`CARD_ORDER`: Attribute, TabularSection, Form, Template),
+    # круг через платформу 8.5.1.
+    return out + list(_named_children(schema, spec))
+
+
+#: Внешние виды: корни своей выгрузки.
+EXTERNAL_KINDS = ("ВнешняяОбработка", "ВнешнийОтчет")
+
+#: Стандартный реквизит «НомерСтроки» табличной части внешнего объекта:
+#: (тег, значение; `None` — `xsi:nil`, пустая строка — пустой узел).
+#: Конфигуратор 8.5.1 дописывает этот блок при выгрузке внешней обработки
+#: всегда, даже если в загруженном его не было, — у табличных частей
+#: обработки конфигурации его нет (корпус). Значения — круг через платформу.
+LINE_NUMBER_STANDARD = (
+    ("LinkByType", ""), ("FillChecking", "DontCheck"), ("MultiLine", "false"),
+    ("FillFromFillingValue", "false"), ("CreateOnInput", "Auto"),
+    ("TypeReductionMode", "TransformValues"), ("MaxValue", None), ("ToolTip", ""),
+    ("ExtendedEdit", "false"), ("Format", ""), ("ChoiceForm", ""), ("QuickChoice", "Auto"),
+    ("ChoiceHistoryOnInput", "Auto"), ("EditFormat", ""), ("PasswordMode", "false"),
+    ("DataHistory", "Use"), ("MarkNegatives", "false"), ("MinValue", None), ("Synonym", ""),
+    ("Comment", ""), ("FullTextSearch", "Use"), ("ChoiceParameterLinks", ""),
+    ("FillValue", None), ("Mask", ""), ("ChoiceParameters", ""),
+)
+
+
+def _line_number_block():
+    """`<StandardAttributes>` с «НомерСтроки» — у табличной части внешнего объекта."""
+    def node(tag, value):
+        if value is None:
+            return Node(f"xr:{tag}", attrs={"xsi:nil": "true"})
+        return Node(f"xr:{tag}", text=value) if value else Node(f"xr:{tag}")
+    return Node("StandardAttributes", children=[
+        Node("xr:StandardAttribute", attrs={"name": "LineNumber"},
+             children=[node(tag, value) for tag, value in LINE_NUMBER_STANDARD])])
+
+
+def _contained(schema, new_id):
+    """`xr:ContainedObject` внешних обработки и отчёта: класс вида и свой
+    идентификатор объекта. Стоит в служебном блоке первым — так выгружает
+    конфигуратор."""
+    if schema.contained is None:
+        return []
+    if new_id is None:
+        raise Refuse("внешнему объекту нужен идентификатор, а источник не задан")
+    return [Node("xr:ContainedObject", children=[
+        Node("xr:ClassId", text=schema.contained),
+        Node("xr:ObjectId", text=new_id())])]
 
 
 def _generated(schema, spec, new_id, host=None, owner=None):
@@ -716,7 +763,7 @@ def _generated(schema, spec, new_id, host=None, owner=None):
         if "{host}" in prefix:
             if host is None or host not in SCHEMA:
                 raise Refuse(f"«{spec.kind}» не знает, внутри какого вида находится")
-            prefix = prefix.format(host=SCHEMA[host].element)
+            prefix = prefix.format(host=SCHEMA[host].type_word)
         full = ".".join(part for part in (prefix, owner, name) if part)
         out.append(Node("xr:GeneratedType",
                         attrs={"name": full, "category": category},
@@ -747,7 +794,10 @@ def translate_node(spec, uuid, host=None, owner=None, new_id=None):
     if schema.generated:
         inner.append(Node("InternalInfo",
                           children=_generated(schema, spec, new_id, host, owner)))
-    inner.append(Node("Properties", children=_properties(schema, spec, host)))
+    properties = _properties(schema, spec, host)
+    if spec.kind == "ТабличнаяЧасть" and host in EXTERNAL_KINDS:
+        properties.append(_line_number_block())
+    inner.append(Node("Properties", children=properties))
     if schema.children:
         # Детям передаётся вид, от которого зависит их состав, а не имя
         # ближайшего родителя: у реквизитов табличной части он разный

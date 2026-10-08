@@ -52,6 +52,10 @@ CONTAINERS = {
     "ХранилищеНастроек": "SettingsStorages",
     "ОбщаяФорма": "CommonForms",
     "ОбщаяКоманда": "CommonCommands",
+    # Внешние обработка и отчёт: своего каталога нет — каталог объекта
+    # лежит прямо в корне их выгрузки (`<Имя>/Ext/ObjectModule.bsl`).
+    "ВнешняяОбработка": "",
+    "ВнешнийОтчет": "",
 }
 
 #: Собственный модуль объекта -> файл в `Ext`.
@@ -102,6 +106,9 @@ class ModuleLayout:
         if container is None:
             raise Refuse(f"у вида «{address.kind}» модулей не бывает или вид не знаю; "
                          f"модули бывают у: {', '.join(CONTAINERS)}")
+        return tuple(часть for часть in self._module_file(container, address) if часть)
+
+    def _module_file(self, container, address):
         if address.kind == "ОбщаяФорма":
             return (container, address.name, *self.form)
         if address.module == "Форма":
@@ -161,4 +168,6 @@ address_of_file = DESIGNER.address_of_file
 def object_folder(address):
     """Части пути каталога объекта — чтобы назвать, какие модули у него есть."""
     container = CONTAINERS.get(address.kind)
-    return (container, address.name) if container else None
+    if container is None:
+        return None
+    return tuple(часть for часть in (container, address.name) if часть)

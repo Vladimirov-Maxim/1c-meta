@@ -73,7 +73,7 @@
     <fullTextSearch>Use</fullTextSearch>
     <dataHistory>Use</dataHistory>
   </attributes>
-  <attributes uuid="966d48f5-921d-418f-9f30-06c4daf4244d">
+  <attributes uuid="1ec25db5-4f16-40df-872d-4e49c3bfb2dd">
     <name>Ответственный</name>
     <synonym>
       <key>ru</key>
@@ -179,10 +179,10 @@
       <fullTextSearch>Use</fullTextSearch>
     </attributes>
   </tabularSections>
-  <tabularSections uuid="1e85975c-5c22-49ac-a29d-2e7c47302275">
+  <tabularSections uuid="50cb6495-3cd2-4184-a885-332d10cc89dd">
     <producedTypes>
-      <objectType typeId="50cb6495-3cd2-4184-a885-332d10cc89dd" valueTypeId="c75b1f8c-348c-4562-875d-fe4b6289bc19"/>
-      <rowType typeId="9ff81d60-b31d-4540-904b-7eaf89f5b519" valueTypeId="058c3a4d-9d1a-4c34-ac10-4f20a675d3b9"/>
+      <objectType typeId="c75b1f8c-348c-4562-875d-fe4b6289bc19" valueTypeId="9ff81d60-b31d-4540-904b-7eaf89f5b519"/>
+      <rowType typeId="058c3a4d-9d1a-4c34-ac10-4f20a675d3b9" valueTypeId="02fc7aea-7002-4c5d-853e-ae5295e9fbe6"/>
     </producedTypes>
     <name>Исполнители</name>
     <synonym>

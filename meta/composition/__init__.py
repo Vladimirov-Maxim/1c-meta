@@ -42,6 +42,7 @@ from ..domain.model import Refuse
 from ..infra.changes import DirectoryChanges, GitChanges
 from ..infra.designer import DesignerDump
 from ..infra.edt_dump import EdtDump
+from ..infra.external import ExternalDump
 from ..infra.layout import layout_of
 from ..infra.modules import DumpModules
 from ..infra.reference import DesignerReference
@@ -152,8 +153,13 @@ def platform_factory(roots=None):
     def для(repo):
         _allowed(repo, roots)
         # Формат — по корню: `Configuration/Configuration.mdo` — проект EDT,
-        # иначе выгрузка конфигуратора (она же и отказывает, если корень чужой).
-        return EdtDump(repo) if layout_of(repo).edt else DesignerDump(repo)
+        # `Configuration.xml` — выгрузка конфигуратора, ни того ни другого —
+        # выгрузка внешних обработок и отчётов (пустой каталог — под новую).
+        if layout_of(repo).edt:
+            return EdtDump(repo)
+        if os.path.isfile(os.path.join(repo, "Configuration.xml")) or not os.path.isdir(repo):
+            return DesignerDump(repo)
+        return ExternalDump(repo)
     return для
 
 

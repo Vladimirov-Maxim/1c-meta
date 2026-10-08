@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<mdclass:EventSubscription xmlns:mdclass="http://g5.1c.ru/v8/dt/metadata/mdclass" uuid="6a19cd32-1dbc-4103-a4cd-fb48026918f4">
+<mdclass:EventSubscription xmlns:mdclass="http://g5.1c.ru/v8/dt/metadata/mdclass" uuid="5d06f04a-341c-496c-b625-9d906813348c">
   <name>мой_ЗаявкаПередЗаписью</name>
   <synonym>
     <key>ru</key>
