@@ -31,7 +31,7 @@ from ..domain.edits import CodeJob, Edit, MethodMove, ModuleJob, Signature
 from ..domain.model import Refuse
 from ..domain.modules import ModuleAddress, ModuleRef
 
-HEADER_KEYS = ("repo", "task", "date", "author", "modules", "move_method", "принято")
+HEADER_KEYS = ("repo", "task", "date", "author", "base", "modules", "move_method", "принято")
 MODULE_KEYS = ("модуль", "path", "edits", "revert", "rename")
 EDIT_KEYS = ("line", "lines", "first_line", "last_line", "code")
 RENAME_KEYS = ("from", "to")
@@ -143,7 +143,10 @@ def code_job_from_json(job):
         raise Refuse(f"дата «{date}» — пишется дд.мм.гггг, как в метках вставок, "
                      "например 05.10.2026")
     signature = Signature(job["task"], date, author)
-    return CodeJob(signature, tuple(modules), move)
+    base = job.get("base")
+    if base is not None and (not isinstance(base, str) or not base.strip()):
+        raise Refuse("«base» — ревизия до задачи строкой: коммит, ветка или «HEAD»")
+    return CodeJob(signature, tuple(modules), move, base.strip() if base else None)
 
 
 def _is_date(text):

@@ -36,6 +36,9 @@ class EditCodeUseCase:
         # Метка команды — соглашение команды, а не поле задания: задание
         # называет задачу, дату и автора, а чья это команда, говорит профиль.
         signature = replace(job.signature, tag=self.соглашения.тег_меток)
+        # База сверки — общая на всё задание: «создан задачей» и сверка отката
+        # спрашивают одну и ту же ревизию до задачи.
+        self._base = job.base
         entries = list(job.modules)
         # Отказы — по всем модулям сразу: по первому видна была бы одна ошибка,
         # следующая — только после исправления. Отказ переноса — один из них.
@@ -69,7 +72,8 @@ class EditCodeUseCase:
     def _prepare(self, entry, signature):
         lines = self.modules.read(entry.ref)
         if entry.revert:
-            new_lines, decisions = edits.revert(lines, signature.task, self.modules.base(entry.ref))
+            new_lines, decisions = edits.revert(lines, signature.task,
+                                                self.modules.base(entry.ref, self._base))
             return entry.ref, new_lines, decisions
         work = list(entry.edits)
         notes = []
@@ -78,7 +82,7 @@ class EditCodeUseCase:
                                           own=own_qualifiers(self.modules.address(entry.ref)))
             work.extend(renamed)
         new_lines, decisions = edits.edit_module(lines, work, signature,
-                                                 self.modules.is_new(entry.ref), notes)
+                                                 self.modules.is_new(entry.ref, self._base), notes)
         return entry.ref, new_lines, decisions
 
     def _expand_move(self, move):

@@ -320,15 +320,17 @@ def build(controller, соглашения=НЕЙТРАЛЬНЫЕ):
         же фрагмент кода доработки формы, что и forms_check."""
         return _формы(repo, forms, accepted, apply_now=True)
 
-    def _код(repo, task, date, author, modules, move_method, apply_now, verbose=False):
-        result = controller.code(repo, task, date, author, modules, move_method, apply_now)
+    def _код(repo, task, date, author, modules, move_method, apply_now, verbose=False, base="HEAD"):
+        result = controller.code(repo, task, date, author, modules, move_method, apply_now,
+                                 base=None if base in ("", "HEAD") else base)
         return текст([f"Выгрузка: {repo}"] + code_lines(result, apply_now, КОД, целиком=verbose))
 
     @server.tool(structured_output=False)
     @словами
     def code_check(repo: Выгрузка, task: Задача, modules: list[CodeModule],
                    date: Дата = "", author: Автор = "",
-                   move_method: MethodMove | None = None, verbose: ПодробноКод = False) -> str:
+                   move_method: MethodMove | None = None, verbose: ПодробноКод = False,
+                   base: База = "HEAD") -> str:
         """Просмотр правки кода вставками: решение по каждой
         правке — где она (метод или область) — и текст, который встанет на
         её место, с номерами строк нового модуля; на диск не пишется ничего.
@@ -353,23 +355,25 @@ def build(controller, соглашения=НЕЙТРАЛЬНЫЕ):
         внесённого метода, вставки или области, устаревший якорь (ответ
         скажет, где строка сейчас). Задание атомарно: отказ по одной правке —
         не меняется ни один модуль. `revert` снимает вставки задачи и
-        заведённые ею области, стыки сверяет с HEAD. `verbose` — длинные
-        блоки целиком.
+        заведённые ею области, стыки сверяет с базой. `base` — ревизия до
+        задачи, как у verify: модуля в ней нет — он создан задачей, меток в нём
+        нет. `verbose` — длинные блоки целиком.
 
         Что считается меткой и все правила разбора — fields(kind="Код").
         """
         return _код(repo, task, date, author, modules, move_method, apply_now=False,
-                    verbose=verbose)
+                    verbose=verbose, base=base)
 
     @server.tool(structured_output=False)
     @словами
     def code_apply(repo: Выгрузка, task: Задача, modules: list[CodeModule],
                    date: Дата = "", author: Автор = "",
-                   move_method: MethodMove | None = None, verbose: ПодробноЗапись = False) -> str:
+                   move_method: MethodMove | None = None, verbose: ПодробноЗапись = False,
+                   base: База = "HEAD") -> str:
         """То же задание на код с записью. Модули пишутся все разом или ни один.
         `verbose` — показать записанный текст, а не только номера строк."""
         return _код(repo, task, date, author, modules, move_method, apply_now=True,
-                    verbose=verbose)
+                    verbose=verbose, base=base)
 
     def _метаданные(repo, операции, accepted, apply_now, verbose=False):
         result = controller.metadata(метаданные_в_язык_заданий(repo, операции, accepted),
