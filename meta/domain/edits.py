@@ -148,10 +148,6 @@ MARKER_DATE = re.compile(r"\d{2}\.\d{2}\.\d{4}")
 #: деактивирует всё внутри, и 2300 строк за одну добавленную — не правка, а
 #: авария. Число — порог внимания, а не свойство формата.
 WRAP_LIMIT = 300
-#: Столько заменяемых строк внутри чужой вставки ещё «одна-две строки» правила вложенности:
-#: обёртка вкладывается в чужую, а не поглощает её. Чистая вставка (0 строк)
-#: сюда попадает всегда — она ничего чужого не деактивирует.
-NESTED_LIMIT = 2
 #: Чужие метки без пары ближе этого к правке называются поимённо: рядом с
 #: правкой непарная метка может сбить разбор, вдали — только шумит.
 NOTE_REACH = 60
@@ -937,33 +933,53 @@ def touches_marks(item, foreign):
     return item["count"] > 0 and (item["first"] == foreign["start"] or item["last"] == foreign["end"])
 
 
-def needs_outer(group, foreign):
-    """Правило меток вставок делит правку внутри чужой вставки надвое,
-    и решает то, остаётся ли деактивированный чужой код под нашей меткой:
+def code_lines(lines, first, last):
+    """Строк кода среди first..last: непустые и не комментарии."""
+    return sum(1 for n in range(first, last + 1)
+               if lines[n - 1].strip() and not lines[n - 1].lstrip().startswith("//"))
 
-    - правится одна-две строки — обёртка ВКЛАДЫВАЕТСЯ в чужую: своя метка внутри
-      чужого блока, чужой блок живёт;
-    - правится больше, деактивируются несколько фрагментов вставки или правка
-      задевает её метку — обёртка СНАРУЖИ, прежняя вставка уходит под нашу метку.
 
-    Обёртка «снаружи всегда» деактивировала бы десятки строк живого кода ради
-    двух. Чистая вставка (0 строк) ничего чужого не деактивирует и вкладывается
-    всегда.
+def insertion_code(lines, foreign):
+    """Строк кода в чужой вставке — между её метками; сами строки меток не
+    считаются."""
+    return code_lines(lines, foreign["start"] + 1, foreign["end"] - 1)
+
+
+def replaced_code(group, lines):
+    """Строк кода, которые заменяют правки: пустые и комментарии не считаются —
+    сравнивается то же, что считается у вставки."""
+    return sum(code_lines(lines, g["first"], g["last"]) for g in group if g["count"] > 0)
+
+
+def needs_outer(group, foreign, lines):
+    """Правка внутри чужой вставки по умолчанию размечается НА МЕСТЕ: каждый
+    фрагмент — своей вложенной меткой, сколько бы фрагментов ни было и сколько
+    бы строк ни занимал каждый; закомментированный оригинал и новый код — под
+    нашей меткой, остальной код чужой вставки живёт и не трогается.
+
+    Обёртка СНАРУЖИ — только когда вложить нельзя или незачем:
+
+    - правка задевает строку с меткой чужой вставки — открывающую (в том числе
+      хвостом на объявлении метода) или закрывающую: метку под нашу не вложить;
+    - чужая вставка фактически переписывается: правки заменяют больше половины
+      её строк кода (с обеих сторон — непустые и не комментарии).
+
+    Чистая вставка (0 строк) ничего чужого не деактивирует и вкладывается всегда.
     """
     replacing = [g for g in group if g["count"] > 0]
-    return (len(replacing) > 1
-            or any(g["count"] > NESTED_LIMIT for g in replacing)
-            or any(touches_marks(g, foreign) for g in replacing))
+    if any(touches_marks(g, foreign) for g in replacing):
+        return True
+    return 2 * replaced_code(replacing, lines) > insertion_code(lines, foreign)
 
 
-def outer_reason(group, foreign):
+def outer_reason(group, foreign, lines):
     """Почему обёртка снаружи — критерием правила, а не числом строк молча."""
     replacing = [g for g in group if g["count"] > 0]
     if any(touches_marks(g, foreign) for g in replacing):
         return "правка задевает строку с меткой этой вставки"
-    if len(replacing) > 1:
-        return f"правок внутри неё {len(replacing)} — несколько фрагментов"
-    return f"заменяемых строк {replacing[0]['count']}, вложить можно не больше {NESTED_LIMIT}"
+    return (f"правки заменяют {replaced_code(replacing, lines)} строк кода из "
+            f"{insertion_code(lines, foreign)} строк кода вставки — больше половины: "
+            "вставка фактически переписывается")
 
 
 def live_lines(lines, first, last, ranges):
@@ -1107,7 +1123,7 @@ def outer_wrapper(group, foreign, lines, ranges, meta):
     shifts = "".join(shift_note(g["shift"]) for g in group[:1] if g["shift"])
     return {"line": group[0]["first"], "first": f_first, "last": f_last, "marker": True,
             "kind": kind[1],
-            "reason": f"правка попала во вставку {task}: {outer_reason(group, foreign)} — обёртка "
+            "reason": f"правка попала во вставку {task}: {outer_reason(group, foreign, lines)} — обёртка "
                       f"снаружи, вставка деактивирована целиком, {what}" + shifts,
             "replace": (f_first, f_last), "insert": False, "block": block}
 
@@ -1165,7 +1181,7 @@ def marked(item, lines, meta, nested_in=None):
         чья = nested_in["task"] or "без ИД"
         заменяемое = ("деактивирована только заменяемая строка" if count == 1
                       else "деактивированы только заменяемые строки")
-        reason = (f"вложенная метка внутри чужой вставки {чья} (правка в 1-2 строки: чужие метки "
+        reason = (f"вложенная метка внутри чужой вставки {чья} (правка на месте: чужие метки "
                   f"на месте, {заменяемое})" if count > 0 else
                   f"вложенная метка внутри чужой вставки {чья} (чистая вставка ничего чужого не "
                   "деактивирует)")
@@ -1258,7 +1274,7 @@ def classify_all(items, lines, ranges, meta):
             decisions.append(slot)
             continue
         foreign, group = groups[slot]
-        if needs_outer(group, foreign):
+        if needs_outer(group, foreign, lines):
             decisions.append(outer_wrapper(group, foreign, lines, ranges, meta))
         else:
             decisions.extend(marked(item, lines, meta, nested_in=foreign) for item in group)
