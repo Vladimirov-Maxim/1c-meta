@@ -34,7 +34,9 @@ import zipfile
 
 #: jar-ы с метамоделями, которые нужны писателю: метаданные, ядро, формы, права, СКД.
 JARS = ("com._1c.g5.v8.dt.metadata_", "com._1c.g5.v8.dt.mcore_", "com._1c.g5.v8.dt.form.model_",
-        "com._1c.g5.v8.dt.rights.model_", "com._1c.g5.v8.dt.dcs.model_")
+        "com._1c.g5.v8.dt.rights.model_", "com._1c.g5.v8.dt.dcs.model_",
+        # расширение конфигурации: блоки `extension` объектов расширения
+        "com._1c.g5.v8.dt.metadata.extension_")
 
 OUT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "meta", "acl",
                    "edt_metamodel.py")
