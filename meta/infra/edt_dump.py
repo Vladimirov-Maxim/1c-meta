@@ -93,10 +93,46 @@ class EdtDump(DesignerDump):
                          "это не исходники проекта EDT")
         self.eol = eol or self._accepted_eol()
 
+    #: сколько карточек объектов опросить о переводах строк
+    EOL_SAMPLES = 9
+
     def _accepted_eol(self):
-        """Переводы строк нового файла — как у реестра проекта; CRLF в нём
-        бывает от записи EDT на Windows, принятые в репозитории — LF."""
-        return "\n"
+        """Переводы строк нового файла — как у карточек проекта в рабочей копии.
+        Репозитории проектов EDT бывают и с LF (основная конфигурация), и с
+        CRLF (расширение тестов, `* -text`): новый файл с чужими переводами
+        строк выделялся бы в diff и в проверке правок.
+
+        Решает большинство среди карточек разных видов, а не один реестр: при
+        `core.autocrlf` рабочая копия смешанная — перевыгруженный файл бывает
+        с CRLF среди карточек с LF. Без карточек — по реестру."""
+        голоса = []
+        try:
+            каталоги = sorted(e.path for e in os.scandir(self.root)
+                              if e.is_dir() and e.name != "Configuration")
+        except OSError:
+            каталоги = []
+        for каталог in каталоги:
+            if len(голоса) >= self.EOL_SAMPLES:
+                break
+            try:
+                имя = min(e.name for e in os.scandir(каталог) if e.is_dir())
+            except (OSError, ValueError):
+                continue
+            голос = self._eol_in(os.path.join(каталог, имя, имя + ".mdo"))
+            if голос:
+                голоса.append(голос)
+        if not голоса:
+            голоса.append(self._eol_in(self.registry_path()) or "\n")
+        return max(("\n", "\r\n"), key=голоса.count)
+
+    def _eol_in(self, path):
+        """Перевод строки, которым записан файл, или None, если его нет."""
+        try:
+            with open(path, "rb") as source:
+                head = source.read(self.EOL_HEAD)
+        except OSError:
+            return None
+        return "\r\n" if b"\r\n" in head else "\n"
 
     # --- пути -------------------------------------------------------------
 

@@ -32,6 +32,9 @@ NAMESPACES = {
     "core": "http://g5.1c.ru/v8/dt/mcore",
     "form": "http://g5.1c.ru/v8/dt/form",
     "mdclass": "http://g5.1c.ru/v8/dt/metadata/mdclass",
+    # расширение конфигурации: блок `extension` у объектов расширения и у
+    # заимствованных — что расширение контролирует и перехватывает
+    "mdclassExtension": "http://g5.1c.ru/v8/dt/metadata/mdclass/extension",
     # схема компоновки внутри формы (динамический список); `core_1` — так EDT
     # называет второе пространство с именем `core`
     "schema": "http://g5.1c.ru/v8/dt/data-composition-system/schema",
