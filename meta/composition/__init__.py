@@ -42,7 +42,7 @@ from ..domain.model import Refuse
 from ..infra.changes import DirectoryChanges, GitChanges
 from ..infra.designer import DesignerDump
 from ..infra.edt_dump import EdtDump
-from ..infra.external import ExternalDump
+from ..infra.external import ExternalDump, is_external
 from ..infra.layout import layout_of
 from ..infra.modules import DumpModules
 from ..infra.reference import DesignerReference
@@ -202,6 +202,18 @@ def changes_factory(roots=None):
     return для
 
 
+def _план(src):
+    """Источник правок для сверки плана. План описывает объекты конфигурации, а
+    раскладку внешней обработки и отчёта сверка не знает: факт был бы пуст, и
+    вместо отказа выходило бы ложное «объект не сделан»."""
+    for каталог in (getattr(src, "root", None), getattr(src, "baseline", None), getattr(src, "target", None)):
+        if каталог and is_external(каталог):
+            raise Refuse(f"«{каталог}» — выгрузка внешней обработки или отчёта: сверки плана "
+                         "(plan_check, plan_emit) для неё нет — план описывает объекты конфигурации; "
+                         "правки проверяет verify")
+    return src
+
+
 def _today():
     """Сегодня — так, как дата пишется в метках вставок."""
     return datetime.date.today().strftime("%d.%m.%Y")
@@ -223,8 +235,8 @@ def _controller(cls, platform, modules, соглашения=НЕЙТРАЛЬН�
                reference=ReferenceUseCase(DesignerReference()),
                verify=lambda **источник: VerifyUseCase(changes(**источник), соглашения),
                normalize=lambda **источник: NormalizeUseCase(changes(**источник)),
-               plan_check=lambda **источник: PlanCheckUseCase(changes(**источник), соглашения),
-               plan_emit=lambda **источник: PlanEmitUseCase(changes(**источник)))
+               plan_check=lambda **источник: PlanCheckUseCase(_план(changes(**источник)), соглашения),
+               plan_emit=lambda **источник: PlanEmitUseCase(_план(changes(**источник))))
 
 
 def _ключ_профиля(argv):

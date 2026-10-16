@@ -101,3 +101,25 @@ def test_an_external_dump_has_no_common_forms(каталог, tmp_path):
     with pytest.raises(Refuse, match="общих форм не бывает"):
         main([str(путь), "--apply", "--профиль", ПРОФИЛЬ])
     assert os.listdir(каталог) == []
+
+
+def test_the_plan_of_an_external_dump_is_refused_not_reported_as_not_done(tmp_path):
+    """Сверки плана для внешней обработки нет: отказ, а не ложное «объект не
+    сделан» по пустому факту."""
+    import asyncio
+    import shutil
+
+    from meta.composition import mcp_server
+
+    эталон, копия = tmp_path / "эталон", tmp_path / "копия"
+    эталон.mkdir()
+    shutil.copytree(os.path.join(ВНЕШНИЕ, "ожидание"), копия)
+    сервер = mcp_server(roots=[str(tmp_path)])
+    for инструмент, аргументы in (("plan_emit", {}),
+                                  ("plan_check", {"objects": [{"вид": "Обработка", "имя": "мой_Обработка",
+                                                               "действие": "создать"}]})):
+        ответ = asyncio.run(сервер.call_tool(инструмент, {"baseline": str(эталон), "target": str(копия),
+                                                          **аргументы}))
+        текст = "\n".join(блок.text for блок in (ответ[0] if isinstance(ответ, tuple) else ответ))
+        assert "сверки плана" in текст and "ПЛАН-ОБЪЕКТ-НЕ-СДЕЛАН" not in текст, текст
+
