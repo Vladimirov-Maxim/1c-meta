@@ -35,6 +35,7 @@ class DumpModules(Modules):
     def __init__(self, root):
         self.root = root
         self._format = {}          # путь -> (bom, eol, final_eol), снятый при чтении
+        self._converted = {}       # путь -> свои переводы строк, если git требует других
         self.files = (vocabulary.EDT if layout.layout_of(root).edt else vocabulary.DESIGNER)
 
     # --- где лежит ---
@@ -94,6 +95,15 @@ class DumpModules(Modules):
             if text.endswith("\r"):
                 text = text[:-1]
         eol = "\r\n" if text.count("\r\n") >= text.count("\n") - text.count("\r\n") else "\n"
+        # переводы строк задаёт git (`core.autocrlf`, атрибуты) — те, которыми он
+        # кладёт файл в рабочую копию: иные `git add` при `core.safecrlf=true`
+        # не примет, а в индексе они сводятся, и diff во весь файл не возникает
+        от_git = git.checkout_eol(self.root, self.relative(ref))
+        if от_git:
+            своё = "CRLF" if eol == "\r\n" else "LF"
+            eol = "\r\n" if от_git == "CRLF" else "\n"
+            if "\n" in text and своё != от_git:
+                self._converted[path] = своё
         self._format[path] = (bom, eol, final_eol)
         return re.split(r"\r\n|\n|\r", text) if text else []
 
@@ -102,7 +112,12 @@ class DumpModules(Modules):
         if known is None:
             return None
         bom, eol, _ = known
-        return ("CRLF" if eol == "\r\n" else "LF") + (", BOM" if bom else ", без BOM")
+        слово = "CRLF" if eol == "\r\n" else "LF"
+        было = self._converted.get(self.full_path(ref))
+        if было:
+            return (f"{было}{', BOM' if bom else ', без BOM'} — станет {слово}: так файл кладёт в рабочую "
+                    "копию git (core.autocrlf), иначе git add при core.safecrlf=true откажет")
+        return слово + (", BOM" if bom else ", без BOM")
 
     def _git(self, *args, why):
         """git над выгрузкой; git нет — None, не ответил в срок — отказ (`infra.git`)."""

@@ -248,11 +248,13 @@ def eol_counts(data):
     return crlf, data.count(b"\n") - crlf
 
 
-def format_findings(path, data, accepted_eol=None, accepted_bom=True):
+def format_findings(path, data, accepted_eol=None, accepted_bom=True, why=None):
     """BOM и переводы строк файла. `accepted_eol` — «CRLF» или «LF», принятые
     в репозитории; `None` — сверять не с чем (git нормализует их сам или
     репозитория нет). `accepted_bom` — принят ли BOM: у выгрузки конфигуратора
-    он обязателен, у проекта EDT его нет ни в одном файле."""
+    он обязателен, у проекта EDT его нет ни в одном файле. `why` — почему
+    файлу нужны именно `accepted_eol` (так его кладёт git, так он лежит в
+    базе); без него — «в репозитории приняты»."""
     found = []
     есть_bom = data.startswith(b"\xef\xbb\xbf")
     if accepted_bom and not есть_bom:
@@ -266,8 +268,9 @@ def format_findings(path, data, accepted_eol=None, accepted_bom=True):
     elif accepted_eol is not None:
         своё = "CRLF" if crlf else "LF" if lf else None
         if своё is not None and своё != accepted_eol:
-            found.append(FileFinding(ПЕРЕВОДЫ_ЧУЖИЕ, f"переводы строк {своё}, в репозитории приняты "
-                                                     f"{accepted_eol}", path))
+            found.append(FileFinding(ПЕРЕВОДЫ_ЧУЖИЕ, f"переводы строк {своё}, "
+                                                     + (why or f"в репозитории приняты {accepted_eol}"),
+                                     path))
     return found
 
 

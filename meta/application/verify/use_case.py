@@ -58,7 +58,7 @@ class VerifyUseCase:
         findings += rules.service_findings([c.path for c in files if src.is_service(c.path)])
         notes += src.format_notes()
 
-        принятые, почему = src.accepted_eol()
+        _, почему = src.accepted_eol()
         if почему:
             notes.append(почему)
         bom = src.accepted_bom()
@@ -67,7 +67,8 @@ class VerifyUseCase:
                 continue
             данные = src.data(c.path, AFTER)
             if данные is not None:
-                findings += rules.format_findings(c.path, данные, принятые, bom)
+                свои, почему_свои = src.expected_eol(c.path)
+                findings += rules.format_findings(c.path, данные, свои, bom, почему_свои)
 
         for c in files:
             if c.status != MODIFIED or not src.is_text(c.path) or src.is_service(c.path):
