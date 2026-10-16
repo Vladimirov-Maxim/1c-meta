@@ -22,9 +22,10 @@ from .edits import (
     code_part,
     marker_kind,
     marker_ranges,
+    revert_task,
     unclosed_markers,
 )
-from .model import Finding, TypeRef
+from .model import Finding, Refuse, TypeRef
 
 # --- коды правил ---------------------------------------------------------------
 
@@ -163,6 +164,9 @@ def marker_findings(path, old, new, hunks, task=None):
 
     вне = [n for n in added if not _внутри(n, new_ranges)]
     стёрто = _стёртые(old, new, hunks, set(removed), set(added), old_ranges, свои_старые, new_ranges)
+    if (вне or стёрто) and task and _сходится_без_вставок(old, new, task):
+        # выравнивание diff ошиблось, а не правка: сняв свои вставки, получаем базу
+        вне, стёрто = [], []
     if вне or стёрто:
         части = []
         if вне:
@@ -184,6 +188,25 @@ def marker_findings(path, old, new, hunks, task=None):
                                  f"{len(чужие)} (стр. {_номера([n for n, _ in чужие])}) — нужна своя "
                                  "вставка поверх", path))
     return found
+
+
+def _сходится_без_вставок(old, new, task):
+    """Сняв вставки задачи (тем же откатом, что у правки), получаем базу — без
+    учёта пустых строк и хвостовых пробелов: их судят свои правила.
+
+    Построчное сопоставление diff ошибается, когда вставка начинается теми же
+    строками, что стоят сразу за ней (разделители `|` в тексте запроса), и
+    сдвинуть участок нельзя — к нему примыкает соседняя правка: тогда
+    исходные строки за вставкой выглядят добавленными вне её. Структура
+    вставок такой ошибки не знает: каждая правка учтена, если откат даёт базу."""
+    try:
+        без_вставок, _, _ = revert_task(new, task, old)
+    except Refuse:
+        return False
+
+    def суть(lines):
+        return [line.rstrip() for line in lines if line.strip()]
+    return суть(без_вставок) == суть(old)
 
 
 def _внутри(n, ranges):
