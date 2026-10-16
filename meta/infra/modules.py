@@ -27,6 +27,7 @@ import re
 from ..acl import modules as vocabulary
 from ..application.ports import Modules
 from ..domain.model import Refuse
+from ..domain.modules import MODULES_OF_KIND
 from . import git, layout
 from .repository import Plan
 
@@ -36,6 +37,7 @@ class DumpModules(Modules):
         self.root = root
         self._format = {}          # путь -> (bom, eol, final_eol), снятый при чтении
         self._converted = {}       # путь -> свои переводы строк, если git требует других
+        self._created = set()      # пути модулей, которых не было: их создаёт правка
         self.files = (vocabulary.EDT if layout.layout_of(root).edt else vocabulary.DESIGNER)
 
     # --- где лежит ---
@@ -82,10 +84,43 @@ class DumpModules(Modules):
 
     # --- порт ---
 
+    def _creatable(self, ref):
+        """Модуля нет, но объект есть и такой модуль у его вида бывает: правка
+        его создаёт. Новый модуль объекта — обычное дело (менеджер регистра,
+        которого не было), и писать его мимо инструмента значит проверять
+        формат файла и метки руками."""
+        адрес = ref.address
+        if адрес is None or адрес.sub is not None or адрес.kind not in MODULES_OF_KIND.get(адрес.module, ()):
+            return False
+        папка = vocabulary.object_folder(адрес)
+        if not папка:
+            return False
+        каталог = os.path.join(self.root, *папка)
+        return (os.path.isfile(os.path.join(каталог, адрес.name + ".mdo"))      # проект EDT
+                or os.path.isfile(каталог + ".xml"))                          # выгрузка
+
+    def _new_format(self, ref):
+        """(BOM, перевод строки) нового модуля: BOM — как принято в формате
+        (выгрузка — с BOM, проект EDT — без); переводы строк — как кладёт git,
+        а где git их не задаёт — как у площадки."""
+        edt = layout.layout_of(self.root).edt
+        от_git = git.checkout_eol(self.root, self.relative(ref))
+        if от_git:
+            return not edt, "\r\n" if от_git == "CRLF" else "\n"
+        if edt:
+            from .edt_dump import EdtDump
+            return False, EdtDump(self.root).eol
+        return True, "\r\n"
+
     def read(self, ref):
         path = self.full_path(ref)
         if not os.path.isfile(path):
-            raise self._missing(ref)
+            if not self._creatable(ref):
+                raise self._missing(ref)
+            bom, eol = self._new_format(ref)
+            self._format[path] = (bom, eol, True)
+            self._created.add(path)
+            return []
         raw = open(path, "rb").read()
         bom = raw.startswith(b"\xef\xbb\xbf")
         text = raw[3:].decode("utf-8") if bom else raw.decode("utf-8")
@@ -113,6 +148,8 @@ class DumpModules(Modules):
             return None
         bom, eol, _ = known
         слово = "CRLF" if eol == "\r\n" else "LF"
+        if self.full_path(ref) in self._created:
+            return f"{слово}{', BOM' if bom else ', без BOM'} — новый: модуля не было, правка его создаёт"
         было = self._converted.get(self.full_path(ref))
         if было:
             return (f"{было}{', BOM' if bom else ', без BOM'} — станет {слово}: так файл кладёт в рабочую "
@@ -134,6 +171,8 @@ class DumpModules(Modules):
         return re.split(r"\r\n|\n|\r", text) if text else []
 
     def is_new(self, ref, rev=None):
+        if self.full_path(ref) in self._created:
+            return True                 # модуля не было на диске — его создаёт задача
         # Сбой git не читается как «модуль новый»: иначе снятый руками
         # зависший git дал бы «создан задачей» типовому модулю формы.
         if self._resolves(rev or "HEAD"):
@@ -186,5 +225,5 @@ class DumpModules(Modules):
             if final_eol:
                 text += eol
             body = text.encode("utf-8")
-            plan.add(path, b"\xef\xbb\xbf" + body if bom else body, False)
+            plan.add(path, b"\xef\xbb\xbf" + body if bom else body, path in self._created)
         return plan

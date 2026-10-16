@@ -1881,3 +1881,18 @@ def test_line_endings_are_kept_and_named(репо, tmp_path):
     _, текст = запустить(lf, path=ВЕНДОРСКИЙ, edits=[правка(3, code="\tХ();")])
     _, bom, crlf, bare_lf = прочитать(lf, ВЕНДОРСКИЙ)
     assert bom and crlf == 0 and bare_lf > 0 and "файл LF, BOM — так и останется" in текст
+
+
+def test_a_missing_object_module_of_a_dump_is_created_with_bom_and_crlf(репо):
+    """Выгрузка конфигуратора: модуля объекта нет, карточка есть — правка
+    создаёт `Ext/ObjectModule.bsl` с BOM и CRLF, как пишет конфигуратор, без меток."""
+    root = репо(ТЕСТ)
+    написать(root, "Catalogs/мой_Х.xml", ["<MetaDataObject/>"])
+    зафиксировать(root, "карточка")
+    код, текст = запустить(root, modules=[{"модуль": "Справочник.мой_Х.МодульОбъекта", "edits": [
+        правка(1, code="Процедура ПередЗаписью(Отказ)\n\tВозврат;\nКонецПроцедуры")]}])
+    assert код == 0 and "новый: модуля не было" in текст, текст
+    строки, bom, crlf, bare_lf = прочитать(root, "Catalogs/мой_Х/Ext/ObjectModule.bsl")
+    assert строки == ["Процедура ПередЗаписью(Отказ)", "\tВозврат;", "КонецПроцедуры"]
+    assert bom and crlf == 3 and bare_lf == 0
+

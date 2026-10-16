@@ -313,15 +313,50 @@ def test_code_apply_writes_an_edt_module_in_its_format_and_verify_accepts_it(tmp
 
 
 def test_a_missing_edt_module_names_the_modules_the_object_has(tmp_path, capsys):
+    """Модуля, которого у вида не бывает (набор записей у документа), правка не
+    создаёт: отказ называет модули, которые у объекта есть."""
     repo, src = проект(tmp_path)
     задание = {"repo": str(src), "task": "TASK-1", "date": "06.10.2026", "author": "Автор",
-               "modules": [{"модуль": "Документ.Вендорский.МодульМенеджера", "edits": [
+               "modules": [{"модуль": "Документ.Вендорский.МодульНабораЗаписей", "edits": [
                    {"line": 1, "lines": 0, "first_line": "x", "code": "\tА = 1;"}]}]}
     путь = tmp_path / "код.json"
     путь.write_text(json.dumps(задание, ensure_ascii=False), encoding="utf-8")
     from meta.domain.model import Refuse
 
     with pytest.raises(Refuse, match="у объекта есть: Документ.Вендорский.МодульОбъекта"):
+        main([str(путь)])
+
+
+def test_a_missing_module_of_an_existing_object_is_created_without_markers(tmp_path, capsys, профиль):
+    """Модуль менеджера, которого у документа ещё нет: правка его создаёт — без
+    BOM, переводы строк как у проекта, без меток (модуль создан задачей); ответ
+    говорит, что модуль новый; проверка правок записанное принимает."""
+    repo, src = проект(tmp_path)
+    задание = {"repo": str(src), "task": "TASK-1", "date": "06.10.2026", "author": "Автор",
+               "modules": [{"модуль": "Документ.Вендорский.МодульМенеджера", "edits": [
+                   {"line": 1, "lines": 0, "code": "Функция Новая() Экспорт\n\tВозврат 1;\nКонецФункции"}]}]}
+    путь = tmp_path / "код.json"
+    путь.write_text(json.dumps(задание, ensure_ascii=False), encoding="utf-8")
+    capsys.readouterr()
+    assert main(["--apply", str(путь), "--профиль", профиль]) == 0
+    текст = capsys.readouterr().out
+    assert "новый: модуля не было, правка его создаёт" in текст, текст
+    данные = прочитать(src, "Documents/Вендорский/ManagerModule.bsl")
+    assert данные == "Функция Новая() Экспорт\n\tВозврат 1;\nКонецФункции\n".encode()
+    код, текст, ответ = проверить(capsys, профиль, src, "--задача", "TASK-1")
+    assert код == 0 and коды(ответ) == [], текст
+
+
+def test_a_module_of_a_missing_object_is_not_created(tmp_path):
+    repo, src = проект(tmp_path)
+    задание = {"repo": str(src), "task": "TASK-1", "date": "06.10.2026", "author": "Автор",
+               "modules": [{"модуль": "Документ.Нет.МодульМенеджера", "edits": [
+                   {"line": 1, "lines": 0, "code": "А = 1;"}]}]}
+    путь = tmp_path / "код.json"
+    путь.write_text(json.dumps(задание, ensure_ascii=False), encoding="utf-8")
+    from meta.domain.model import Refuse
+
+    with pytest.raises(Refuse, match="в выгрузке нет"):
         main([str(путь)])
 
 
