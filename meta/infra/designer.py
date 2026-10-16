@@ -16,11 +16,15 @@ from ..application.ports import Platform
 from ..domain.edits import DECLARATION
 from ..domain.form_events import existing_handler
 from ..domain.forms import code_handler_name
+from ..domain.kinds import PredefinedItemKind
 from ..domain.model import Refuse
 from ..domain.modules import region_place
 from .format import FORMAT_VERSION
 from .forms import registry as form_formats
 from .repository import PreparedForm, Repository, _read_text
+
+#: Вид предопределённого элемента: его пишет только площадка EDT.
+PREDEFINED = PredefinedItemKind.name
 
 
 class DesignerDump(Repository, Platform):
@@ -36,6 +40,10 @@ class DesignerDump(Repository, Platform):
                                  configuration=self.configuration_name())
 
     def translate_node_for(self, spec, uuid, host, owner=None, new_id=None):
+        if spec.kind == PREDEFINED:
+            raise Refuse("предопределённые элементы инструмент пока пишет только в проект EDT: в "
+                         "выгрузке конфигуратора они лежат отдельным файлом Ext/Predefined.xml, "
+                         "которого инструмент не ведёт")
         return mapping.translate_node(spec, uuid, host, owner, new_id)
 
     def read_form(self, owner, name):
