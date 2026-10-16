@@ -303,6 +303,34 @@ def test_a_line_replaced_by_itself_with_other_whitespace():
     assert "«Значение=1;»" in found[0].message
 
 
+def test_a_neighbouring_xml_block_is_not_whitespace_only():
+    """Удалено поле верхнего уровня, в другом месте добавлено поле в группе:
+    теги совпадают без пробелов, но это разные строки, а не смена отступа."""
+    old = ["<fields>", "\t<field>", "\t\t<valueType>А</valueType>", "\t</field>", "\t<group>", "\t</group>",
+           "</fields>"]
+    new = ["<fields>", "\t<group>", "\t\t<field>", "\t\t\t<valueType>Б</valueType>", "\t\t</field>", "\t</group>",
+           "</fields>"]
+    assert v.cosmetic_findings("Template.dcs", old, new, hunks_between(old, new)) == []
+
+
+def test_a_block_moved_to_another_hunk_is_not_whitespace_only():
+    """Перенос кода в другое место модуля — не «та же строка с другими
+    пробелами»: пара ищется внутри участка."""
+    old = ["Процедура А()", "\tШаг();", "\tДругое();", "КонецПроцедуры", "", "Процедура Б()", "КонецПроцедуры"]
+    new = ["Процедура А()", "\tДругое();", "КонецПроцедуры", "", "Процедура Б()", "\tЕсли Да Тогда",
+           "\t\tШаг();", "\tКонецЕсли;", "КонецПроцедуры"]
+    assert v.cosmetic_findings("a.bsl", old, new, hunks_between(old, new)) == []
+
+
+def test_a_line_with_an_exact_copy_among_added_is_not_whitespace_only():
+    """Весь файл одним участком (сменились переводы строк): строка, вернувшаяся
+    тем же текстом, не изменилась."""
+    old = ["Процедура А()", "\tКонецЕсли;", "\t\tКонецЕсли;", "КонецПроцедуры"]
+    new = ["Процедура А()", "\t\tКонецЕсли;", "\tКонецЕсли;", "КонецПроцедуры"]
+    from meta.domain.changes import Hunk as H
+    assert v.cosmetic_findings("a.bsl", old, new, [H(1, 4, 1, 4)]) == []
+
+
 # --- права на новые объекты ------------------------------------------------------------------
 
 

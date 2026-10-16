@@ -11,6 +11,7 @@
 лежат роли, — знание площадки: правила получают его готовым.
 """
 
+import difflib
 import re
 from collections import Counter
 
@@ -350,24 +351,33 @@ def cosmetic_findings(path, old, new, hunks):
     """Строка, заменённая на себя же с другими пробелами. В изменениях она
     выглядит правкой, к задаче отношения не имеет и при обновлении вендора даёт
     ложный конфликт. Пустые строки не в счёт: пустая строка вставки на месте
-    пустой строки с отступом — следствие оформления, а не правка."""
-    removed, added = [], []
-    for hunk in hunks:
-        removed += [old[o - 1] for o in hunk.old_lines if o <= len(old)]
-        added += [(n, new[n - 1]) for n in hunk.new_lines if n <= len(new)]
-    по_сути = {}
-    for n, text in added:
-        по_сути.setdefault(re.sub(r"\s+", "", text), []).append((n, text))
+    пустой строки с отступом — следствие оформления, а не правка.
+
+    Пара ищется внутри одного участка и по порядку строк (выравниванием без
+    пробелов), а не общим пулом файла: иначе удалённый в одном месте тег
+    `<field>` «находил пару» в добавленном с другим отступом совсем в другом
+    месте, и вставка соседнего блока XML давала россыпь ложных находок.
+    Строка, точная копия которой есть среди добавленных участка, не
+    изменилась — она лишь сдвинулась."""
     found = []
-    for text in removed:
-        суть = re.sub(r"\s+", "", text)
-        if not суть:
-            continue
-        пара = next(((n, a) for n, a in по_сути.get(суть, ()) if a != text), None)
-        if пара is not None:
-            показ = суть if len(суть) <= 60 else суть[:60] + "…"
-            found.append(FileFinding(ТОЛЬКО_ПРОБЕЛЫ, f"строка отличается от прежней только пробелами: «{показ}»",
-                                     path, пара[0]))
+    for hunk in hunks:
+        было = [old[o - 1] for o in hunk.old_lines if o <= len(old)]
+        стало = [(n, new[n - 1]) for n in hunk.new_lines if n <= len(new)]
+        копии = Counter(text for _, text in стало)
+        суть_было = [re.sub(r"\s+", "", text) for text in было]
+        суть_стало = [re.sub(r"\s+", "", text) for _, text in стало]
+        matcher = difflib.SequenceMatcher(None, суть_было, суть_стало, autojunk=False)
+        for tag, i1, i2, j1, _ in matcher.get_opcodes():
+            if tag != "equal":
+                continue
+            for k in range(i2 - i1):
+                text, (n, a) = было[i1 + k], стало[j1 + k]
+                суть = суть_было[i1 + k]
+                if not суть or a == text or копии[text]:
+                    continue
+                показ = суть if len(суть) <= 60 else суть[:60] + "…"
+                found.append(FileFinding(ТОЛЬКО_ПРОБЕЛЫ, f"строка отличается от прежней только пробелами: «{показ}»",
+                                         path, n))
     return found
 
 
