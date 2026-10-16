@@ -75,10 +75,11 @@ class Controller:
         return "объект", spec, файл
 
     def verify(self, repo=None, base="HEAD", rev=None, baseline=None, target=None, task=None,
-               only=None):
+               only=None, paths=None):
         """Проверка правок задачи: выгрузка под git против базы или пара каталогов."""
         сценарий = self.verify_case(repo=repo, base=base, rev=rev, baseline=baseline, target=target)
-        return сценарий.execute(task=task or None, only=list(only) if only else None)
+        return сценарий.execute(task=task or None, only=list(only) if only else None,
+                                paths=list(paths) if paths else None)
 
     def normalize(self, repo=None, base="HEAD", baseline=None, target=None, apply_now=False):
         """Нормализация формата файлов задачи: просмотр или запись."""

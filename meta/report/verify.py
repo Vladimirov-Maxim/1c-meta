@@ -10,6 +10,12 @@
 #: задачи ненормален — похоже на перезалив выгрузки или обновление вендора.
 СОСТАВ_ЦЕЛИКОМ = 30
 
+#: Больше стольких находок — сначала сводка по файлам, и у файла печатается не
+#: больше `НА_ФАЙЛ`: чужой файл с сотнями находок не должен вытеснять из
+#: ответа файлы задачи. Полный список — в JSON.
+СВОДКА_ОТ = 50
+НА_ФАЙЛ = 10
+
 
 def _где(f):
     if f.path and f.line:
@@ -17,8 +23,44 @@ def _где(f):
     return f.path or ""
 
 
+def _фильтр(result):
+    части = []
+    if result.only:
+        части.append("правила " + ", ".join(result.only))
+    if result.paths:
+        части.append("файлы " + ", ".join(result.paths))
+    return "; ".join(части)
+
+
+def _строка(f):
+    где = _где(f)
+    return f"   {f.level:14} [{f.code}] {где + ' — ' if где else ''}{f.message}"
+
+
+def _находки(result):
+    if len(result.findings) <= СВОДКА_ОТ:
+        return [_строка(f) for f in result.findings]
+    по_файлам = {}
+    for f in result.findings:
+        по_файлам.setdefault(f.path or "", []).append(f)
+    строки = [f"   Находок {len(result.findings)} в {len(по_файлам)} файлах — сводка; у файла показано не "
+              f"больше {НА_ФАЙЛ}, все — в JSON; сузить — only, paths:"]
+    for путь, свои in sorted(по_файлам.items(), key=lambda п: (-len(п[1]), п[0])):
+        ошибок = len([f for f in свои if f.blocking])
+        строки.append(f"      {len(свои):5}  (ошибок {ошибок})  {путь or 'без файла'}")
+    строки.append("")
+    for путь, свои in по_файлам.items():
+        строки += [_строка(f) for f in свои[:НА_ФАЙЛ]]
+        if len(свои) > НА_ФАЙЛ:
+            строки.append(f"   … ещё {len(свои) - НА_ФАЙЛ} в {путь or 'находках без файла'}")
+    return строки
+
+
 def verify_lines(result):
-    строки = [f"Проверка правок: {result.source}", f"Файлов задачи: {len(result.files)}"]
+    строки = [f"Проверка правок: {result.source}",
+              f"Файлов задачи: {len(result.files)}" + (" (по отбору paths)" if result.paths else "")]
+    if result.filtered:
+        строки.insert(1, f"Фильтр: {_фильтр(result)} — остальное не проверялось")
     if len(result.files) <= СОСТАВ_ЦЕЛИКОМ:
         строки += [f"   {c.status}  {c.path}" for c in result.files]
     else:
@@ -26,9 +68,7 @@ def verify_lines(result):
     строки += [f"   {пояснение}" for пояснение in result.notes]
     if result.findings:
         строки.append("")
-        for f in result.findings:
-            где = _где(f)
-            строки.append(f"   {f.level:14} [{f.code}] {где + ' — ' if где else ''}{f.message}")
+        строки += _находки(result)
     if result.skipped:
         строки.append("")
         строки.append(f"Пропущено правил: {len(result.skipped)}")
@@ -43,6 +83,8 @@ def verify_lines(result):
     elif result.skipped:
         строки.append(f"НЕПОЛНЫЙ ПРОГОН: среди проверенного нарушений нет, но пропущено правил: "
                       f"{len(result.skipped)} — «чисто» это не означает")
+    elif result.filtered:
+        строки.append(f"ЧИСТО ПО ФИЛЬТРУ ({_фильтр(result)}): нарушений нет — остальное не проверялось")
     else:
         строки.append("ЧИСТО: нарушений нет, проверены все правила")
     return строки
@@ -58,4 +100,5 @@ def verify_json(result):
                      "текст": f.message} for f in result.findings],
         "пропущено": [{"что": что, "почему": почему} for что, почему in result.skipped],
         "пояснения": list(result.notes),
+        "фильтр": {"правила": list(result.only), "файлы": list(result.paths)},
     }
