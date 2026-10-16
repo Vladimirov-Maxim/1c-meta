@@ -42,7 +42,7 @@ from ..domain.model import Refuse
 from ..infra.changes import DirectoryChanges, GitChanges
 from ..infra.designer import DesignerDump
 from ..infra.edt_dump import EdtDump
-from ..infra.external import ExternalDump
+from ..infra.external import ExternalDump, is_external
 from ..infra.layout import layout_of
 from ..infra.modules import DumpModules
 from ..infra.reference import DesignerReference
@@ -115,6 +115,11 @@ def соглашения_из_окружения():
     return соглашения_из_файла(путь) if путь else НЕЙТРАЛЬНЫЕ
 
 
+#: Когда процесс прочитал окружение: белый список берётся из него при запуске,
+#: и правка `.mcp.json` после этого до сервера не доходит.
+ЗАПУСК = datetime.datetime.now()
+
+
 def roots_from_environment():
     """Разрешённые выгрузки из «META_ROOTS» (через «;»). Пусто — никуда."""
     return tuple(путь.strip() for путь in (os.environ.get(ROOTS_VARIABLE) or "").split(";")
@@ -137,7 +142,10 @@ def _inside(repo, roots):
         полный = os.path.normcase(os.path.abspath(корень))
         if цель == полный or цель.startswith(полный + os.sep):
             return
-    raise Refuse(f"выгрузка «{repo}» вне разрешённых: " + "; ".join(roots))
+    raise Refuse(f"выгрузка «{repo}» вне разрешённых: " + "; ".join(roots)
+                 + f" — список взят из «{ROOTS_VARIABLE}» при запуске сервера "
+                 f"({ЗАПУСК:%d.%m.%Y %H:%M}); если настройку (.mcp.json) меняли позже, "
+                 "переподключите сервер — без перезапуска процесс её не увидит")
 
 
 def _allowed(repo, roots):
@@ -194,6 +202,18 @@ def changes_factory(roots=None):
     return для
 
 
+def _план(src):
+    """Источник правок для сверки плана. План описывает объекты конфигурации, а
+    раскладку внешней обработки и отчёта сверка не знает: факт был бы пуст, и
+    вместо отказа выходило бы ложное «объект не сделан»."""
+    for каталог in (getattr(src, "root", None), getattr(src, "baseline", None), getattr(src, "target", None)):
+        if каталог and is_external(каталог):
+            raise Refuse(f"«{каталог}» — выгрузка внешней обработки или отчёта: сверки плана "
+                         "(plan_check, plan_emit) для неё нет — план описывает объекты конфигурации; "
+                         "правки проверяет verify")
+    return src
+
+
 def _today():
     """Сегодня — так, как дата пишется в метках вставок."""
     return datetime.date.today().strftime("%d.%m.%Y")
@@ -215,8 +235,8 @@ def _controller(cls, platform, modules, соглашения=НЕЙТРАЛЬН�
                reference=ReferenceUseCase(DesignerReference()),
                verify=lambda **источник: VerifyUseCase(changes(**источник), соглашения),
                normalize=lambda **источник: NormalizeUseCase(changes(**источник)),
-               plan_check=lambda **источник: PlanCheckUseCase(changes(**источник), соглашения),
-               plan_emit=lambda **источник: PlanEmitUseCase(changes(**источник)))
+               plan_check=lambda **источник: PlanCheckUseCase(_план(changes(**источник)), соглашения),
+               plan_emit=lambda **источник: PlanEmitUseCase(_план(changes(**источник))))
 
 
 def _ключ_профиля(argv):
