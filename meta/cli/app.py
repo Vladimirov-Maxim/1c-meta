@@ -292,7 +292,7 @@ def show(controller, repo, address, подробно=False, ветвь=None):
                           своя=своя))
     else:
         _, spec, файл = ответ
-        печать(shown_object(spec, файл, ПОДСКАЗКИ))
+        печать(shown_object(spec, файл, ПОДСКАЗКИ, полностью=подробно))
         if ветвь:
             print("третий аргумент — ветка дерева формы; у объекта не применяется")
     return 0
