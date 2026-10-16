@@ -131,7 +131,8 @@ def code_lines(result, apply_now=False, подсказки=БЕЗ_КАНАЛА, 
         пиши("")
         формат = (getattr(result, "formats", None) or {}).get(str(ref))
         пиши(f"  {ref} (правок: {len([d for d in decisions if not d.note])}"
-             + (f"; файл {формат} — так и останется" if формат else "") + ")")
+             + (f"; файл {формат}" + ("" if " — " in формат else " — так и останется") if формат else "")
+             + ")")
         for d in decisions:
             if d.note:
                 # Дефекты чужой разметки (незакрытые, осиротевшие метки) — рядом

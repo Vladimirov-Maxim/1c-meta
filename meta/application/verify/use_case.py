@@ -10,11 +10,14 @@
 отсутствующей.
 """
 
+import fnmatch
+import re
 from dataclasses import dataclass
 
 from ...domain import verification as rules
 from ...domain.changes import ADDED, AFTER, BEFORE, DELETED, MODIFIED, changed_lines
 from ...domain.conventions import НЕЙТРАЛЬНЫЕ, Соглашения
+from ...domain.model import Refuse
 from ..dto import VerifyResult
 from ..ports import ChangeSource
 
@@ -24,11 +27,24 @@ class VerifyUseCase:
     source: ChangeSource
     соглашения: Соглашения = НЕЙТРАЛЬНЫЕ
 
-    def execute(self, task=None, only=None):
+    def execute(self, task=None, only=None, paths=None):
         """`task` — ИД задачи: без него правило о правке внутри чужой вставки
-        не проверяется. `only` — коды правил, находки которых нужны; пусто — все."""
+        не проверяется. `only` — коды правил, находки которых нужны; пусто — все.
+        `paths` — какие файлы правок проверять (путь, каталог или маска от корня
+        исходников); пусто — все.
+
+        Фильтр сужает ответ, а не прячет ошибку входа: неизвестный код правила и
+        отбор, под который не подошёл ни один файл, — отказ. Иначе опечатка в
+        фильтре давала бы «чисто» без единой проверки."""
+        only = _коды(only)
+        paths = [_маска(п) for п in paths or () if _маска(п)]
         src = self.source
         files = src.changes()
+        if paths:
+            files = [c for c in files if any(_под(c.path, п) for п in paths)]
+            if not files:
+                raise Refuse(f"ни один файл правок не подходит под paths: {', '.join(paths)} — пути от корня "
+                             "исходников, каталог или маска («CommonModules/мой_*/Module.bsl»)")
         findings, skipped, notes = [], [], []
 
         новые_объекты = []
@@ -58,7 +74,7 @@ class VerifyUseCase:
         findings += rules.service_findings([c.path for c in files if src.is_service(c.path)])
         notes += src.format_notes()
 
-        принятые, почему = src.accepted_eol()
+        _, почему = src.accepted_eol()
         if почему:
             notes.append(почему)
         bom = src.accepted_bom()
@@ -67,7 +83,8 @@ class VerifyUseCase:
                 continue
             данные = src.data(c.path, AFTER)
             if данные is not None:
-                findings += rules.format_findings(c.path, данные, принятые, bom)
+                свои, почему_свои = src.expected_eol(c.path)
+                findings += rules.format_findings(c.path, данные, свои, bom, почему_свои)
 
         for c in files:
             if c.status != MODIFIED or not src.is_text(c.path) or src.is_service(c.path):
@@ -93,7 +110,9 @@ class VerifyUseCase:
         findings = self.соглашения.применить(findings)
         if only:
             findings = [f for f in findings if f.code in only]
-        return VerifyResult(src.describe(), files, _ordered(findings), skipped, notes)
+            skipped = [(что, почему) for что, почему in skipped if что in only]
+        return VerifyResult(src.describe(), files, _ordered(findings), skipped, notes,
+                            only=only, paths=paths)
 
     def _составы(self, files, skipped, notes):
         """Составные типы членов, появившихся в задаче, — по карточкам задачи."""
@@ -134,3 +153,28 @@ def _ordered(findings):
             seen.add(ключ)
             out.append(f)
     return out
+
+
+#: Похоже на номер пункта регламента («2.5», «[9.1]», «2.1–2.6»), а не на код правила.
+НОМЕР_ПУНКТА = re.compile(r"^\[?\d+(?:\.\d+)*(?:\s*[-–—]\s*\d+(?:\.\d+)*)?\]?$")
+
+
+def _коды(only):
+    """Коды правил фильтра; неизвестный — отказ с перечнем известных."""
+    коды = [к.strip() for к in only or () if к and к.strip()]
+    неизвестные = [к for к in коды if к not in rules.ПРАВИЛА]
+    if неизвестные:
+        подсказка = (" — это номера пунктов регламента, а фильтр принимает коды правил"
+                     if any(НОМЕР_ПУНКТА.match(к) for к in неизвестные) else "")
+        raise Refuse(f"неизвестные коды правил в only: {', '.join(неизвестные)}{подсказка}; "
+                     f"коды: {', '.join(rules.ПРАВИЛА)}")
+    return коды
+
+
+def _маска(путь):
+    return путь.strip().replace("\\", "/").removeprefix("./").rstrip("/")
+
+
+def _под(путь, маска):
+    """Файл правок подходит под отбор: тот же путь, лежит в каталоге или под маской."""
+    return путь == маска or путь.startswith(маска + "/") or fnmatch.fnmatchcase(путь, маска)

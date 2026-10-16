@@ -141,7 +141,11 @@ def _подсказки(записать):
 Копия = Annotated[str | None, Field(description="каталог «после» — правленая копия; вместе с baseline")]
 ЗадачаПроверки = Annotated[str | None, Field(description="ИД задачи: без него правка внутри чужой "
                                                          "вставки не проверяется")]
-Только = Annotated[list[str] | None, Field(description="коды правил, находки которых нужны; пусто — все")]
+Только = Annotated[list[str] | None, Field(description="коды правил, находки которых нужны "
+                                                     "(«ФАЙЛ-БЕЗ-BOM», не номера пунктов); пусто — все; "
+                                                     "неизвестный код — отказ")]
+Файлы = Annotated[list[str] | None, Field(description="какие файлы правок проверять: путь, каталог или маска "
+                                                    "от корня исходников; пусто — все")]
 ОбъектыПлана = Annotated[list[PlanObject], Field(description="объекты плана — по объекту на "
                                                            "то, что задача создаёт, меняет или удаляет")]
 
@@ -435,7 +439,7 @@ def build(controller, соглашения=НЕЙТРАЛЬНЫЕ):
     @словами
     def verify(repo: ВыгрузкаПодGit = None, base: База = "HEAD", rev: Ревизия = None,
                baseline: Эталон = None, target: Копия = None, task: ЗадачаПроверки = None,
-               only: Только = None) -> str:
+               only: Только = None, paths: Файлы = None) -> str:
         """Проверка правок задачи против базы — только чтение.
 
         Источник один: выгрузка под git (`repo`: рабочая копия вместе с новыми
@@ -449,10 +453,11 @@ def build(controller, соглашения=НЕЙТРАЛЬНЫЕ):
         пробелами; права на новый объект в своей роли. Находки — с кодом
         правила, файлом и строкой новой версии; правило, которое не
         проверялось, названо в «Пропущено»: «чисто» при пропусках не выдаётся.
-        Уровни правил — из профиля команды.
+        Уровни правил — из профиля команды. `only` и `paths` сужают проверку:
+        ответ повторяет фильтр, и «чисто» при нём — чисто только по нему.
         """
         result = controller.verify(repo=repo, base=base, rev=rev, baseline=baseline,
-                                   target=target, task=task, only=only)
+                                   target=target, task=task, only=only, paths=paths)
         return текст(verify_lines(result))
 
     @server.tool(structured_output=False)

@@ -102,9 +102,9 @@ class EdtDump(DesignerDump):
         CRLF (расширение тестов, `* -text`): новый файл с чужими переводами
         строк выделялся бы в diff и в проверке правок.
 
-        Решает большинство среди карточек разных видов, а не один реестр: при
-        `core.autocrlf` рабочая копия смешанная — перевыгруженный файл бывает
-        с CRLF среди карточек с LF. Без карточек — по реестру."""
+        Это запасной ответ — где переводы строк не задаёт git: задаёт — файл
+        пишется так, как git его кладёт (`_eol_of`). Решает большинство среди
+        карточек разных видов, а не один реестр. Без карточек — по реестру."""
         голоса = []
         try:
             каталоги = sorted(e.path for e in os.scandir(self.root)
@@ -274,7 +274,7 @@ class EdtDump(DesignerDump):
             text = self.tree.serialize(self.tree.build(serializer.card_to_node(card)))
             карточка = self._edt_text(
                 text, lambda tag, name, макеты=макеты: макеты.get(name) if tag == "Template" else None)
-            plan.add(path, карточка.replace("\n", self.eol).encode("utf-8"), True)
+            plan.add(path, карточка.replace("\n", self._eol_of(path)).encode("utf-8"), True)
             self._register(registry, card)
         plan.add(registry_path, self._encode(self.tree.serialize(registry), registry_path), False)
         return plan

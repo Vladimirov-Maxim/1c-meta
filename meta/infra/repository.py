@@ -25,7 +25,7 @@ from ..acl.schema import SCHEMA
 from ..application.ports import Plan as PlanContract
 from ..domain.kinds import REGISTRY
 from ..domain.model import Configuration, Refuse, Собранные
-from . import serializer
+from . import git, serializer
 from .format import FORMAT_VERSION
 from .layout import OBJECT_FOLDERS
 from .tree_lxml import LxmlCardTree
@@ -175,6 +175,10 @@ def _write_bytes(path, raw):
     with open(tmp, "wb") as fn:
         fn.write(raw)
     os.replace(tmp, path)
+
+
+#: перевод строки по слову «CRLF» / «LF»
+EOL_BY_WORD = {"CRLF": "\r\n", "LF": "\n"}
 
 
 class Repository(Configuration):
@@ -533,9 +537,18 @@ class Repository(Configuration):
                 ).encode("utf-8")
 
     def _eol_of(self, path):
-        """Перевод строки, которым записан файл. Нового файла — площадки."""
+        """Перевод строки, которым записан файл. Нового файла — площадки.
+
+        Если переводы строк задаёт git (`core.autocrlf`, атрибуты `text`/`eol`),
+        — те, которыми git кладёт файл в рабочую копию, и у нового файла, и у
+        существующего: при `core.safecrlf=true` другие `git add` не примет, а
+        в индексе git их всё равно сводит, так что diff во весь файл не
+        возникает."""
         if path is None:
             return self.eol
+        от_git = git.checkout_eol(self.root, os.path.relpath(path, self.root).replace(os.sep, "/"))
+        if от_git:
+            return EOL_BY_WORD[от_git]
         try:
             with open(path, "rb") as source:
                 head = source.read(self.EOL_HEAD)

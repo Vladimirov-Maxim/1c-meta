@@ -299,9 +299,57 @@ class GitChanges(_Layout):
         return self._cache["образцы"]
 
     def accepted_eol(self):
-        флаг = self._git("config", "core.autocrlf", why="не могу прочитать настройку переводов строк")
-        if флаг is not None and флаг.stdout.decode("utf-8", "replace").strip().lower() in ("true", "input"):
+        if not self.rev and git.setting(self.root, "core.autocrlf") in ("true", "input"):
+            if self._strict():
+                return None, ("переводы строк сверяются с тем, как git кладёт файлы в рабочую копию: "
+                              "при core.safecrlf=true другие git add не примет")
             return None, "переводы строк не сверяются: git нормализует их сам (core.autocrlf)"
+        return self._repository_eol()
+
+    def _strict(self):
+        if "safecrlf" not in self._cache:
+            self._cache["safecrlf"] = git.strict_eol(self.root)
+        return self._cache["safecrlf"]
+
+    def _checkout_eol(self, path):
+        """Как git кладёт файл в рабочую копию — для всех текстовых файлов правок
+        разом: `check-attr` по одному файлу на сотне правок стоил бы секунды."""
+        if "checkout" not in self._cache:
+            пути = [c.path for c in self.changes() if self.is_text(c.path)]
+            self._cache["checkout"] = git.checkout_eols(self.root, пути)
+        if path not in self._cache["checkout"]:
+            self._cache["checkout"][path] = git.checkout_eol(self.root, path)
+        return self._cache["checkout"][path]
+
+    def expected_eol(self, path):
+        """Рабочая копия: если переводы строк задаёт git — те, которыми он кладёт
+        файл (сверяются только при `core.safecrlf=true`: иначе git сводит их сам
+        и на коммит они не влияют); не задаёт — принятые в репозитории.
+
+        Ревизия: блоб git уже не нормализует — CRLF в коммите остаётся в
+        истории. Изменённый файл держится переводов строк своего блоба в базе;
+        новый — LF, если переводы строк задаёт git (в индексе он их сводит к
+        LF), иначе принятых в репозитории."""
+        if self.rev:
+            до = self._blob(self.base, path)
+            if до is not None:
+                crlf, lf = rules.eol_counts(до)
+                if crlf and lf:
+                    return None, None
+                слово = "CRLF" if crlf else "LF" if lf else None
+                return слово, f"в {self.base} файл с {слово}: коммит переписывает его целиком"
+            if self._checkout_eol(path):
+                return "LF", "в истории git такие файлы хранит с LF (core.autocrlf, атрибуты)"
+            return self._repository_eol()[0], None
+        от_git = self._checkout_eol(path)
+        if от_git:
+            if not self._strict():
+                return None, None
+            return от_git, (f"git кладёт его в рабочую копию с {от_git}: при core.safecrlf=true "
+                            "git add откажет — нормализуйте файл")
+        return self._repository_eol()[0], None
+
+    def _repository_eol(self):
         crlf = lf = 0
         for данные in self._samples():
             слово = eol_word(данные)
@@ -348,9 +396,7 @@ class GitChanges(_Layout):
         return self._granting(objects, упоминания, lambda файл: self.data(файл, AFTER))
 
     def target_eol(self, path):
-        if "eol" not in self._cache:
-            self._cache["eol"] = self.accepted_eol()[0]
-        return self._cache["eol"]
+        return self.expected_eol(path)[0]
 
     def target_bom(self, path):
         if "bom" not in self._cache:

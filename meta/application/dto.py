@@ -85,15 +85,23 @@ class VerifyResult:
     `source` — что с чем сравнивалось, словами; `files` — файлы задачи
     (`domain.changes.FileChange`); `findings` — находки (`FileFinding`);
     `skipped` — [(что, почему)] правил, которые не проверялись: «чисто» при
-    пропусках не выдаётся; `notes` — пояснения, не меняющие вердикта.
+    пропусках не выдаётся; `notes` — пояснения, не меняющие вердикта;
+    `only`, `paths` — применённый фильтр (коды правил, отбор файлов): ответ
+    его повторяет, и «чисто» при фильтре — чисто только по нему.
     """
 
-    def __init__(self, source, files, findings, skipped=(), notes=()):
+    def __init__(self, source, files, findings, skipped=(), notes=(), only=(), paths=()):
         self.source = source
         self.files = list(files)
         self.findings = list(findings)
         self.skipped = list(skipped)
         self.notes = list(notes)
+        self.only = list(only or ())
+        self.paths = list(paths or ())
+
+    @property
+    def filtered(self):
+        return bool(self.only or self.paths)
 
     @property
     def errors(self):
