@@ -138,6 +138,17 @@ def test_a_whole_file_hunk_with_an_own_marker_does_not_remove_unchanged_lines():
     assert not any("удалённых" in f.message for f in found), found
 
 
+def test_a_removal_hunk_separated_from_its_insertion_by_a_blank_line_is_kept():
+    """diff отдаёт удалённое объявление отдельным участком, а вставка с его
+    комментарием начинается через пустую строку."""
+    from meta.domain.changes import Hunk as H
+    old = ["// Описание.", "Функция Ф(А) Экспорт", "\tВозврат А;", "КонецФункции"]
+    new = ["// Описание.", "", СВОЯ, "//Функция Ф(А) Экспорт", "Функция Ф(А, Б) Экспорт", СВОЯ_КОНЕЦ, "\tВозврат А;",
+           "КонецФункции"]
+    found = v.marker_findings("М.bsl", old, new, [H(2, 1, 1, 0), H(3, 0, 2, 5)], "TASK-1")
+    assert not any("удалённых" in f.message for f in found), found
+
+
 def test_each_removed_line_needs_its_own_commented_copy():
     old = ["Процедура А()", "\tШаг();", "\tШаг();", "КонецПроцедуры"]
     new = ["Процедура А()", СВОЯ, "\t//Шаг();", "\tНовое();", СВОЯ_КОНЕЦ, "КонецПроцедуры"]
@@ -288,6 +299,20 @@ def test_bom_and_line_endings():
     assert v.format_findings("a.bsl", "﻿А\nБ\n".encode(), None) == []
     смесь = v.format_findings("a.bsl", "﻿А\r\nБ\n".encode(), "CRLF")
     assert коды(смесь) == ["ФАЙЛ-ПЕРЕВОДЫ-СМЕШАНЫ"] and смесь[0].level == "предупреждение"
+
+
+def test_a_marker_wrapping_only_the_declaration_is_not_a_method_insertion():
+    """Смена сигнатуры: метка ИЗМЕНЕН над описанием-комментарием не нужна,
+    старое объявление комментарием, новое, закрывающая метка сразу за ним —
+    не вставка вокруг метода, закрывать её на КонецФункции не нужно."""
+    new = ["// Описание метода.", "// {[*](фрагмент ИЗМЕНЕН), 31.08.2026, #TEAM Автор #TASK-1",
+           "//Функция Ф(А) Экспорт", "Функция Ф(А, Б) Экспорт", "// } Автор, 31.08.2026", "\tВозврат А;",
+           "КонецФункции"]
+    assert v.structure_findings("a.bsl", new, [2, 3, 4, 5]) == []
+
+    вокруг = ["// {[+](фрагмент ДОБАВЛЕН), 31.08.2026, #TEAM Автор #TASK-1", "Функция Ф(А) Экспорт",
+              "\tВозврат А;", "КонецФункции", "// } Автор, 31.08.2026"]
+    assert коды(v.structure_findings("a.bsl", вокруг, [1, 2, 3, 4, 5])) == ["ВСТАВКА-МЕТОДА-НЕ-НА-КОНЦЕ"]
 
 
 def test_trailing_whitespace_lost_against_the_baseline():

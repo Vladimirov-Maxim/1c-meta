@@ -223,6 +223,12 @@ def _стёртые(old, new, hunks, removed, added, old_ranges, own_old, new_ra
     for h in hunks:
         начало = h.new_start
         конец = h.new_start + h.new_count - 1 if h.new_count else h.new_start + 1
+        # участок и вставка рядом с ним бывают разделены пустыми строками: diff
+        # отдаёт удалённое отдельным участком перед пустой строкой над меткой
+        while начало > 1 and not new[начало - 2].strip():
+            начало -= 1
+        while конец < len(new) and not new[конец - 1].strip():
+            конец += 1
         рядом = [i for i, r in enumerate(new_ranges) if r["start"] <= конец and r["end"] >= начало]
         под_своей = any(new_ranges[i]["start"] in added for i in рядом)
         свободно = own_old if под_своей else old_ranges
@@ -247,10 +253,16 @@ def _стёртые(old, new, hunks, removed, added, old_ranges, own_old, new_ra
 def structure_findings(path, new, added):
     """Вставки, поставленные задачей: открывающая метка без закрывающей и
     вставка вокруг метода, закрытая не на его конце. `added` — номера
-    добавленных задачей строк новой версии."""
+    добавленных задачей строк новой версии.
+
+    Метка над объявлением, чья пара закрывается раньше конца метода, — не
+    вставка вокруг метода, а обёртка объявления (смена сигнатуры: старое
+    объявление комментарием, новое, закрывающая метка сразу за ним): её
+    закрывающая и должна стоять до тела."""
     added = set(added)
     found = []
     unclosed = set(unclosed_markers(new))
+    закрыта_на = {r["start"]: r["end"] for r in marker_ranges(new)}
     for n in sorted(unclosed & added):
         found.append(FileFinding(НЕ_ЗАКРЫТА, "открывающая метка вставки без закрывающей: вставка не закрыта",
                                  path, n))
@@ -264,7 +276,7 @@ def structure_findings(path, new, added):
         while k >= 1 and _шапка(new[k - 1]):
             k -= 1
         if (k >= 1 and marker_kind(new[k - 1]) == "open" and k in added and k not in unclosed
-                and marker_kind(new[end - 1]) != "close"):
+                and marker_kind(new[end - 1]) != "close" and not закрыта_на.get(k, end) < end):
             found.append(FileFinding(
                 МЕТОД_НЕ_НА_КОНЦЕ, f"вставка вокруг метода {name} (метка на строке {k}): закрывающая "
                                    f"метка должна стоять на строке {new[end - 1].strip()}", path, end))
