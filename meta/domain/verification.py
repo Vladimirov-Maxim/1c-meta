@@ -12,6 +12,7 @@
 """
 
 import re
+from collections import Counter
 
 from .changes import changed_lines
 from .edits import (
@@ -157,20 +158,17 @@ def marker_findings(path, old, new, hunks, task=None):
 
     new_ranges = marker_ranges(new)
     old_ranges = marker_ranges(old)
-    комментарии = {строка.strip()[2:].strip() for строка in new if строка.strip().startswith("//")}
+    свои_старые = [r for r in old_ranges if task is None or r["task"] == task]
 
-    def внутри(n, ranges):
-        return any(r["start"] <= n <= r["end"] for r in ranges)
-
-    вне = [n for n in added if not внутри(n, new_ranges)]
-    стёрто = [n for n in removed if not внутри(n, old_ranges)
-              and old[n - 1].strip() not in комментарии]
+    вне = [n for n in added if not _внутри(n, new_ranges)]
+    стёрто = _стёртые(old, new, hunks, set(removed), set(added), old_ranges, свои_старые, new_ranges)
     if вне or стёрто:
         части = []
         if вне:
             части.append(f"добавленных вне вставок: {len(вне)} (стр. {_номера(вне)})")
         if стёрто:
-            части.append(f"удалённых вне вставок: {len(стёрто)} (стр. {_номера(стёрто)} прежней версии)")
+            части.append(f"удалённых без комментария в своей вставке: {len(стёрто)} "
+                         f"(стр. {_номера(стёрто)} прежней версии)")
         found.append(FileFinding(ВНЕ_ВСТАВКИ, "; ".join(части), path))
 
     if task:
@@ -185,6 +183,64 @@ def marker_findings(path, old, new, hunks, task=None):
                                  f"{len(чужие)} (стр. {_номера([n for n, _ in чужие])}) — нужна своя "
                                  "вставка поверх", path))
     return found
+
+
+def _внутри(n, ranges):
+    return any(r["start"] <= n <= r["end"] for r in ranges)
+
+
+def _закомментировано(line):
+    """Текст закомментированной строки без `//` и отступа; не комментарий — None."""
+    s = line.strip()
+    return s[2:].strip() if s.startswith("//") else None
+
+
+def _стёртые(old, new, hunks, removed, added, old_ranges, own_old, new_ranges):
+    """Удалённые строки, не сохранённые комментарием, — номера прежней версии.
+
+    Удалённая строка должна найтись закомментированной во вставке, которая
+    накрывает её участок, — по копии на строку. Совпадение текста где-то ещё
+    в модуле — не сохранение: так проходил бы физически удалённый вызов, если
+    такой же комментарий стоит в другом методе.
+
+    Строка внутри прежней вставки освобождена, как и раньше: правка в чужой
+    вставке без своей — забота правила `ПРАВКА-В-ЧУЖОЙ-ВСТАВКЕ`. Но если
+    участок накрыт вставкой, которую поставила сама задача (ИЗМЕНЕН поверх
+    кода внутри старой вставки), освобождены только строки своих прежних
+    вставок (`own_old`): задача назвала правку изменением — значит, прежнее
+    сохранено в ней.
+
+    Строка, которая в том же участке вернулась тем же текстом, не удалена:
+    так git показывает файл, у которого сменились только переводы строк, —
+    одним участком на весь файл. Вне своей вставки не удалена и строка,
+    вернувшаяся с другими пробелами: это смена пробелов, её судит своё
+    правило. Под своей ИЗМЕНЕН — удалена: прежний код, перенесённый с другим
+    отступом, а не закомментированный, следа правки не оставляет."""
+    запас = [Counter(текст for текст in map(_закомментировано, new[r["start"] - 1:r["end"]]) if текст)
+             for r in new_ranges]
+    стёрто = []
+    for h in hunks:
+        начало = h.new_start
+        конец = h.new_start + h.new_count - 1 if h.new_count else h.new_start + 1
+        рядом = [i for i, r in enumerate(new_ranges) if r["start"] <= конец and r["end"] >= начало]
+        под_своей = any(new_ranges[i]["start"] in added for i in рядом)
+        свободно = own_old if под_своей else old_ranges
+        как = (lambda s: s) if под_своей else str.strip
+        вернулись = Counter(как(new[k - 1]) for k in range(h.new_start, h.new_start + h.new_count))
+        for n in range(h.old_start, h.old_start + h.old_count):
+            if n not in removed or _внутри(n, свободно):
+                continue
+            if вернулись[как(old[n - 1])] > 0:
+                вернулись[как(old[n - 1])] -= 1
+                continue
+            текст = old[n - 1].strip()
+            for i in рядом:
+                if запас[i][текст] > 0:
+                    запас[i][текст] -= 1
+                    break
+            else:
+                стёрто.append(n)
+    return стёрто
 
 
 def structure_findings(path, new, added):
