@@ -604,6 +604,18 @@ SCHEMA = {
             Field("комментарий", "Comment", TEXT, always=True),
             Field("цвет", "Color", TEXT, always=True, dictionary=COLOR),
         ]),
+    # Предопределённый элемент справочника. В выгрузке — элемент `Item` файла
+    # `Ext/Predefined.xml`, которого инструмент не пишет (отказ на площадке
+    # выгрузки); в проекте EDT — `items` блока `predefined` карточки, его
+    # собирает площадка EDT. Схема здесь — состав полей для сверки с доменом.
+    "ПредопределенныйЭлемент": KindSchema(
+        "Item", None, None, [
+            Field("имя", "Name", TEXT),
+            Field("наименование", "Description", TEXT),
+            Field("код", "Code", TEXT),
+            Field("группа", "IsFolder", BOOLEAN),
+            Field("родитель", "Parent", TEXT),
+        ]),
     # Табличная часть. Порождаемых типов два, и приставка у них зависит от вида
     # хозяина: справочник даёт `CatalogTabularSection`, документ —
     # `DocumentTabularSection` (снято по всем 3466 табличным частям корпуса).

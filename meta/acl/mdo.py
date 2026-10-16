@@ -116,12 +116,28 @@ def _reference(текст):
         return dm.PlatformType(текст)
 
 
+def _predefined_items(node):
+    """Элементы блока `predefined` — с элементами групп (`content`) на любой глубине."""
+    for ребёнок in node.children:
+        if _tag(ребёнок.tag) in ("items", "content", "childItems"):
+            yield ребёнок
+            yield from _predefined_items(ребёнок)
+
+
 def composition_from_node(node):
     """Разобранная карточка EDT -> `domain.plan.Состав`: группы детей объекта
     с типами. Вложенное (реквизиты табличных частей) в состав не входит — так
     же, как у выгрузки."""
-    члены = {}
+    # Предопределённые EDT держит в карточке — группа есть всегда, пусть и
+    # пустая: её отсутствие значит «формат её не читает» (выгрузка).
+    члены = {"предопределенные": {}}
     for ребёнок in node.children:
+        if _tag(ребёнок.tag) == "predefined":
+            for элемент in _predefined_items(ребёнок):
+                имя = name_of(элемент)
+                if имя:
+                    члены["предопределенные"][имя] = ()
+            continue
         группа = CHILD_GROUPS.get(_tag(ребёнок.tag))
         if группа is None:
             continue

@@ -36,7 +36,7 @@ from lxml import etree
 from ..acl import edt_card, mapping, vocabulary
 from ..domain.model import Refuse
 from . import edt_xml, serializer
-from .designer import DesignerDump
+from .designer import PREDEFINED, DesignerDump
 from .forms import registry as form_formats
 from .layout import OBJECT_FOLDERS
 from .repository import Plan, ReferenceSource, _read_bytes
@@ -278,6 +278,99 @@ class EdtDump(DesignerDump):
             self._register(registry, card)
         plan.add(registry_path, self._encode(self.tree.serialize(registry), registry_path), False)
         return plan
+
+    # --- предопределённые элементы справочника ---------------------------
+
+    #: Где предопределённые лежат в дереве выгрузки: переходник `EdtRaw` со
+    #: свойством `predefined` — перекладка его не понимает и проносит как был.
+    PREDEFINED_FEATURE = "predefined"
+
+    def translate_node_for(self, spec, uuid, host, owner=None, new_id=None):
+        if spec.kind != PREDEFINED:
+            return super().translate_node_for(spec, uuid, host, owner, new_id)
+        # Узел — сразу в форме переходника: текст атрибутом `edtText`. Тип
+        # значения кода (строка или число) знает только справочник — его
+        # ставит `prepare_addition`, читая карточку.
+        дети = [mapping.Node("name", attrs={edt_card.RAW_TEXT: spec.get("имя")})]
+        if spec.get("наименование"):
+            дети.append(mapping.Node("description", attrs={edt_card.RAW_TEXT: spec.get("наименование")}))
+        дети.append(mapping.Node("code", attrs={"type": "core:StringValue"}, children=[
+            mapping.Node("value", attrs={edt_card.RAW_TEXT: str(spec.get("код") or "")})]))
+        if spec.get("группа"):
+            дети.append(mapping.Node("isFolder", attrs={edt_card.RAW_TEXT: "true"}))
+        return mapping.Node("items", attrs={"id": uuid, "родитель": spec.get("родитель") or ""},
+                            children=дети)
+
+    def prepare_addition(self, additions):
+        свои = [a for a in additions if a[3] == PREDEFINED]
+        if not свои:
+            return super().prepare_addition(additions)
+        прочие = [a for a in additions if a[3] != PREDEFINED]
+        общие = {a[0][0] for a in свои} & {a[0][0] for a in прочие}
+        if общие:
+            raise Refuse("предопределённые элементы и другие части того же объекта ("
+                         + ", ".join(f"{k}.{n}" for k, n in sorted(общие))
+                         + ") — отдельными заданиями")
+        plan = super().prepare_addition(прочие) if прочие else Plan()
+        self._writable()
+        opened = OrderedDict()
+        for path, node, name, kind, shown in свои:
+            if len(path) != 1 or path[0][0] != "Справочник":
+                raise Refuse("предопределённый элемент добавляется в справочник: путь «Справочник.<Имя>», "
+                             "получено «" + ".".join(f"{k}.{n}" for k, n in path) + "»")
+            file_path, document, _ = self.resolve(path)
+            document = opened.setdefault(file_path, document)
+            self._add_predefined(document, node, name, path[0][1])
+            plan.note(f"добавить «{shown}» ({kind}) в {path[0][0]}.{path[0][1]}")
+        for file_path, document in opened.items():
+            plan.add(file_path, self._encode(self.tree.serialize(document), file_path), False)
+        return plan
+
+    def _add_predefined(self, document, node, name, owner):
+        """Элемент — в конец блока `predefined` карточки (или группы-родителя);
+        блока нет — заводится: место ему по метамодели найдёт перекладка."""
+        объект = self.tree.find(document, [])
+        свойства = next(c for c in объект if etree.QName(c).localname == "Properties")
+        переходник = next((c for c in свойства if etree.QName(c).localname == edt_card.RAW
+                           and c.get("feature") == self.PREDEFINED_FEATURE), None)
+        if переходник is None:
+            переходник = self.tree.build(mapping.Node(edt_card.RAW, attrs={"feature": self.PREDEFINED_FEATURE},
+                                                      children=[mapping.Node("predefined")]))
+            свойства.append(переходник)
+        блок = переходник[0]
+
+        def местное(e):
+            return etree.QName(e).localname
+
+        def имя_элемента(e):
+            return next((c.get(edt_card.RAW_TEXT) for c in e if местное(c) == "name"), None)
+
+        элементы = [e for e in блок.iter() if местное(e) in ("items", "content")]
+        if name in {имя_элемента(e) for e in элементы}:
+            raise Refuse(f"предопределённый элемент «{name}» уже есть в «Справочник.{owner}»")
+
+        родитель_имя = node.attrs.pop("родитель", "")
+        куда, тег = блок, "items"
+        if родитель_имя:
+            куда = next((e for e in элементы if имя_элемента(e) == родитель_имя), None)
+            if куда is None or not any(местное(c) == "isFolder" and c.get(edt_card.RAW_TEXT) == "true"
+                                       for c in куда):
+                raise Refuse(f"группы «{родитель_имя}» среди предопределённых «Справочник.{owner}» нет")
+            тег = "content"
+
+        числовой = (self.tree.property_text(объект, "CodeType") or "String") == "Number"
+        код = next(c for c in node.children if c.tag == "code")
+        значение = код.children[0].attrs[edt_card.RAW_TEXT]
+        if числовой:
+            if not значение.isdigit():
+                raise Refuse(f"у «Справочник.{owner}» код числовой — «{значение}» не число"
+                             if значение else f"у «Справочник.{owner}» код числовой — задайте «код»")
+            код.attrs["type"] = "core:NumberValue"
+        длина = self.tree.property_text(объект, "CodeLength")
+        if значение and длина and длина.isdigit() and int(длина) and len(значение) > int(длина):
+            raise Refuse(f"код «{значение}» длиннее кода «Справочник.{owner}» ({длина})")
+        node.tag = тег
+        куда.append(self.tree.build(node))
 
     # --- удаление и переименование: каталог объекта ----------------------
 
