@@ -11,6 +11,7 @@
 лежат роли, — знание площадки: правила получают его готовым.
 """
 
+import difflib
 import re
 from collections import Counter
 
@@ -222,6 +223,12 @@ def _стёртые(old, new, hunks, removed, added, old_ranges, own_old, new_ra
     for h in hunks:
         начало = h.new_start
         конец = h.new_start + h.new_count - 1 if h.new_count else h.new_start + 1
+        # участок и вставка рядом с ним бывают разделены пустыми строками: diff
+        # отдаёт удалённое отдельным участком перед пустой строкой над меткой
+        while начало > 1 and not new[начало - 2].strip():
+            начало -= 1
+        while конец < len(new) and not new[конец - 1].strip():
+            конец += 1
         рядом = [i for i, r in enumerate(new_ranges) if r["start"] <= конец and r["end"] >= начало]
         под_своей = any(new_ranges[i]["start"] in added for i in рядом)
         свободно = own_old if под_своей else old_ranges
@@ -246,10 +253,16 @@ def _стёртые(old, new, hunks, removed, added, old_ranges, own_old, new_ra
 def structure_findings(path, new, added):
     """Вставки, поставленные задачей: открывающая метка без закрывающей и
     вставка вокруг метода, закрытая не на его конце. `added` — номера
-    добавленных задачей строк новой версии."""
+    добавленных задачей строк новой версии.
+
+    Метка над объявлением, чья пара закрывается раньше конца метода, — не
+    вставка вокруг метода, а обёртка объявления (смена сигнатуры: старое
+    объявление комментарием, новое, закрывающая метка сразу за ним): её
+    закрывающая и должна стоять до тела."""
     added = set(added)
     found = []
     unclosed = set(unclosed_markers(new))
+    закрыта_на = {r["start"]: r["end"] for r in marker_ranges(new)}
     for n in sorted(unclosed & added):
         found.append(FileFinding(НЕ_ЗАКРЫТА, "открывающая метка вставки без закрывающей: вставка не закрыта",
                                  path, n))
@@ -263,7 +276,7 @@ def structure_findings(path, new, added):
         while k >= 1 and _шапка(new[k - 1]):
             k -= 1
         if (k >= 1 and marker_kind(new[k - 1]) == "open" and k in added and k not in unclosed
-                and marker_kind(new[end - 1]) != "close"):
+                and marker_kind(new[end - 1]) != "close" and not закрыта_на.get(k, end) < end):
             found.append(FileFinding(
                 МЕТОД_НЕ_НА_КОНЦЕ, f"вставка вокруг метода {name} (метка на строке {k}): закрывающая "
                                    f"метка должна стоять на строке {new[end - 1].strip()}", path, end))
@@ -350,24 +363,33 @@ def cosmetic_findings(path, old, new, hunks):
     """Строка, заменённая на себя же с другими пробелами. В изменениях она
     выглядит правкой, к задаче отношения не имеет и при обновлении вендора даёт
     ложный конфликт. Пустые строки не в счёт: пустая строка вставки на месте
-    пустой строки с отступом — следствие оформления, а не правка."""
-    removed, added = [], []
-    for hunk in hunks:
-        removed += [old[o - 1] for o in hunk.old_lines if o <= len(old)]
-        added += [(n, new[n - 1]) for n in hunk.new_lines if n <= len(new)]
-    по_сути = {}
-    for n, text in added:
-        по_сути.setdefault(re.sub(r"\s+", "", text), []).append((n, text))
+    пустой строки с отступом — следствие оформления, а не правка.
+
+    Пара ищется внутри одного участка и по порядку строк (выравниванием без
+    пробелов), а не общим пулом файла: иначе удалённый в одном месте тег
+    `<field>` «находил пару» в добавленном с другим отступом совсем в другом
+    месте, и вставка соседнего блока XML давала россыпь ложных находок.
+    Строка, точная копия которой есть среди добавленных участка, не
+    изменилась — она лишь сдвинулась."""
     found = []
-    for text in removed:
-        суть = re.sub(r"\s+", "", text)
-        if not суть:
-            continue
-        пара = next(((n, a) for n, a in по_сути.get(суть, ()) if a != text), None)
-        if пара is not None:
-            показ = суть if len(суть) <= 60 else суть[:60] + "…"
-            found.append(FileFinding(ТОЛЬКО_ПРОБЕЛЫ, f"строка отличается от прежней только пробелами: «{показ}»",
-                                     path, пара[0]))
+    for hunk in hunks:
+        было = [old[o - 1] for o in hunk.old_lines if o <= len(old)]
+        стало = [(n, new[n - 1]) for n in hunk.new_lines if n <= len(new)]
+        копии = Counter(text for _, text in стало)
+        суть_было = [re.sub(r"\s+", "", text) for text in было]
+        суть_стало = [re.sub(r"\s+", "", text) for _, text in стало]
+        matcher = difflib.SequenceMatcher(None, суть_было, суть_стало, autojunk=False)
+        for tag, i1, i2, j1, _ in matcher.get_opcodes():
+            if tag != "equal":
+                continue
+            for k in range(i2 - i1):
+                text, (n, a) = было[i1 + k], стало[j1 + k]
+                суть = суть_было[i1 + k]
+                if not суть or a == text or копии[text]:
+                    continue
+                показ = суть if len(суть) <= 60 else суть[:60] + "…"
+                found.append(FileFinding(ТОЛЬКО_ПРОБЕЛЫ, f"строка отличается от прежней только пробелами: «{показ}»",
+                                         path, n))
     return found
 
 

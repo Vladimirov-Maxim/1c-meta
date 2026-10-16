@@ -138,6 +138,17 @@ def test_a_whole_file_hunk_with_an_own_marker_does_not_remove_unchanged_lines():
     assert not any("удалённых" in f.message for f in found), found
 
 
+def test_a_removal_hunk_separated_from_its_insertion_by_a_blank_line_is_kept():
+    """diff отдаёт удалённое объявление отдельным участком, а вставка с его
+    комментарием начинается через пустую строку."""
+    from meta.domain.changes import Hunk as H
+    old = ["// Описание.", "Функция Ф(А) Экспорт", "\tВозврат А;", "КонецФункции"]
+    new = ["// Описание.", "", СВОЯ, "//Функция Ф(А) Экспорт", "Функция Ф(А, Б) Экспорт", СВОЯ_КОНЕЦ, "\tВозврат А;",
+           "КонецФункции"]
+    found = v.marker_findings("М.bsl", old, new, [H(2, 1, 1, 0), H(3, 0, 2, 5)], "TASK-1")
+    assert not any("удалённых" in f.message for f in found), found
+
+
 def test_each_removed_line_needs_its_own_commented_copy():
     old = ["Процедура А()", "\tШаг();", "\tШаг();", "КонецПроцедуры"]
     new = ["Процедура А()", СВОЯ, "\t//Шаг();", "\tНовое();", СВОЯ_КОНЕЦ, "КонецПроцедуры"]
@@ -290,6 +301,20 @@ def test_bom_and_line_endings():
     assert коды(смесь) == ["ФАЙЛ-ПЕРЕВОДЫ-СМЕШАНЫ"] and смесь[0].level == "предупреждение"
 
 
+def test_a_marker_wrapping_only_the_declaration_is_not_a_method_insertion():
+    """Смена сигнатуры: метка ИЗМЕНЕН над описанием-комментарием не нужна,
+    старое объявление комментарием, новое, закрывающая метка сразу за ним —
+    не вставка вокруг метода, закрывать её на КонецФункции не нужно."""
+    new = ["// Описание метода.", "// {[*](фрагмент ИЗМЕНЕН), 31.08.2026, #TEAM Автор #TASK-1",
+           "//Функция Ф(А) Экспорт", "Функция Ф(А, Б) Экспорт", "// } Автор, 31.08.2026", "\tВозврат А;",
+           "КонецФункции"]
+    assert v.structure_findings("a.bsl", new, [2, 3, 4, 5]) == []
+
+    вокруг = ["// {[+](фрагмент ДОБАВЛЕН), 31.08.2026, #TEAM Автор #TASK-1", "Функция Ф(А) Экспорт",
+              "\tВозврат А;", "КонецФункции", "// } Автор, 31.08.2026"]
+    assert коды(v.structure_findings("a.bsl", вокруг, [1, 2, 3, 4, 5])) == ["ВСТАВКА-МЕТОДА-НЕ-НА-КОНЦЕ"]
+
+
 def test_trailing_whitespace_lost_against_the_baseline():
     assert v.trailing_findings("a.bsl", b"\xd0\x90  \r\n\xd0\x91\r\n", b"\xd0\x90\r\n\xd0\x91\r\n") \
         and v.trailing_findings("a.bsl", b"\xd0\x90\r\n", b"\xd0\x90\r\n") == []
@@ -301,6 +326,34 @@ def test_a_line_replaced_by_itself_with_other_whitespace():
     found = v.cosmetic_findings("a.bsl", old, new, hunks_between(old, new))
     assert [(f.code, f.line) for f in found] == [("ПРАВКА-ТОЛЬКО-ПРОБЕЛЫ", 2)]
     assert "«Значение=1;»" in found[0].message
+
+
+def test_a_neighbouring_xml_block_is_not_whitespace_only():
+    """Удалено поле верхнего уровня, в другом месте добавлено поле в группе:
+    теги совпадают без пробелов, но это разные строки, а не смена отступа."""
+    old = ["<fields>", "\t<field>", "\t\t<valueType>А</valueType>", "\t</field>", "\t<group>", "\t</group>",
+           "</fields>"]
+    new = ["<fields>", "\t<group>", "\t\t<field>", "\t\t\t<valueType>Б</valueType>", "\t\t</field>", "\t</group>",
+           "</fields>"]
+    assert v.cosmetic_findings("Template.dcs", old, new, hunks_between(old, new)) == []
+
+
+def test_a_block_moved_to_another_hunk_is_not_whitespace_only():
+    """Перенос кода в другое место модуля — не «та же строка с другими
+    пробелами»: пара ищется внутри участка."""
+    old = ["Процедура А()", "\tШаг();", "\tДругое();", "КонецПроцедуры", "", "Процедура Б()", "КонецПроцедуры"]
+    new = ["Процедура А()", "\tДругое();", "КонецПроцедуры", "", "Процедура Б()", "\tЕсли Да Тогда",
+           "\t\tШаг();", "\tКонецЕсли;", "КонецПроцедуры"]
+    assert v.cosmetic_findings("a.bsl", old, new, hunks_between(old, new)) == []
+
+
+def test_a_line_with_an_exact_copy_among_added_is_not_whitespace_only():
+    """Весь файл одним участком (сменились переводы строк): строка, вернувшаяся
+    тем же текстом, не изменилась."""
+    old = ["Процедура А()", "\tКонецЕсли;", "\t\tКонецЕсли;", "КонецПроцедуры"]
+    new = ["Процедура А()", "\t\tКонецЕсли;", "\tКонецЕсли;", "КонецПроцедуры"]
+    from meta.domain.changes import Hunk as H
+    assert v.cosmetic_findings("a.bsl", old, new, [H(1, 4, 1, 4)]) == []
 
 
 # --- права на новые объекты ------------------------------------------------------------------

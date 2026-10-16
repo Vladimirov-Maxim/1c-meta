@@ -267,8 +267,12 @@ class GitChanges(_Layout):
             found = whole_file(self.lines(path, AFTER) or [])
         else:
             ревизии = [self.base] + ([self.rev] if self.rev else [])
+            # histogram, а не алгоритм по умолчанию: тот относит неизменённый
+            # КонецПроцедуры чужого метода к добавленным, когда за вложенной
+            # вставкой в его конце следует новый метод, — и правка «в чужой
+            # вставке» находится там, где её нет
             вывод = self._ok(self._git("diff", "--relative", "--no-renames", "--no-color", "--no-ext-diff",
-                                       "-U0", *ревизии, "--", path,
+                                       "--diff-algorithm=histogram", "-U0", *ревизии, "--", path,
                                        why=f"не могу получить различия «{path}»"), f"различия «{path}»")
             found = []
             for строка in вывод.splitlines():

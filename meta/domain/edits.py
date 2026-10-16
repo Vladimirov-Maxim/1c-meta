@@ -583,7 +583,7 @@ def indent_warning(new_block, ind):
     return "; ВНИМАНИЕ: " + "; ".join(notes) + " — не потерян ли таб в задании" if notes else ""
 
 
-def separate(block, lines, first, last, ind, count):
+def separate(block, lines, first, last, ind, count, declaration=False):
     """Пустая строка СНАРУЖИ вставки — она отделяет правку от соседнего чужого кода,
     чтобы граница была видна при чтении вендорского модуля.
 
@@ -592,6 +592,11 @@ def separate(block, lines, first, last, ind, count):
     рядом с меткой, стоящей отдельной строкой: строка метки сама граница, а
     пустая строка между нашей меткой и меткой чужой вставки внутри неё только
     раздвигала бы чужой блок.
+
+    Правка объявления метода (`declaration`) — без пустой строки снизу: под
+    закрывающей меткой тело метода, и пустая строка оказалась бы в нём; и без
+    пустой строки сверху, если над объявлением описание или директива: она
+    отрывала бы описание от метода.
     """
     out = list(block)
     before = lines[first - 2] if first >= 2 else None
@@ -599,9 +604,10 @@ def separate(block, lines, first, last, ind, count):
     # оказывается сама строка-якорь: она сдвинется вниз, а не исчезнет
     tail_index = last if count > 0 else first - 1
     after = lines[tail_index] if tail_index < len(lines) else None
-    if before is not None and before.strip() and not bare_marker(before):
+    шапка = before is not None and before.strip().startswith(("//", "&"))
+    if before is not None and before.strip() and not bare_marker(before) and not (declaration and шапка):
         out.insert(0, ind)
-    if after is not None and after.strip() and not bare_marker(after):
+    if after is not None and after.strip() and not bare_marker(after) and not declaration:
         out.append(ind)
     return out
 
@@ -622,12 +628,16 @@ def close_marker(ind, author, date):
     return f"{ind}// }} {author}, {date}"
 
 
-def build_insertion(kind, ind, old_block, new_block, meta):
+def build_insertion(kind, ind, old_block, new_block, meta, compact=False):
     """Тело вставки по шаблонам ИЗМЕНЕН, ДОБАВЛЕН и УДАЛЕН.
 
     ИЗМЕНЕН: закомментированный старый код, пустая строка, новый код — пустые строки
     внутри вставки не декоративны, они разделяют смысловые блоки.
     ДОБАВЛЕН и УДАЛЕН внутренних границ не имеют, код идёт вплотную к меткам.
+
+    `compact` — ИЗМЕНЕН без пустых строк: в тексте запроса (пустая строка без
+    `|` внутри литерала недопустима) и в правке объявления метода (пустая
+    строка за новым объявлением оказалась бы в теле метода).
     """
     out = [open_marker(kind, ind, meta["date"], meta["author"], meta["task"], meta.get("tag"))]
     # Пустые строки по краям нового кода — привычка набора (перевод строки в
@@ -640,11 +650,13 @@ def build_insertion(kind, ind, old_block, new_block, meta):
     whole = kind != TYPE_REMOVED and new_block and is_whole_method(new_block)
 
     if kind == TYPE_CHANGED:
-        out.append(ind)
+        if not compact:
+            out.append(ind)
         out.extend(comment_out(строка, ind) for строка in old_block)
-        out.append(ind)
+        if not compact:
+            out.append(ind)
         out.extend(new_block)
-        if not whole:
+        if not whole and not compact:
             out.append(ind)
     elif kind == TYPE_ADDED:
         out.extend(new_block)
@@ -1159,6 +1171,12 @@ def marked(item, lines, meta, nested_in=None):
     # метка с фигурными скобками, попавшая в текст запроса, разбирается
     # компоновщиком как расширение {ВЫБРАТЬ}/{ГДЕ}.
     in_query = is_query_line(anchor) or (old_block and any(is_query_line(строка) for строка in old_block))
+    # Смена сигнатуры (регламент команды, п. 1.1.1): ИЗМЕНЕН оборачивает только
+    # объявление — вплотную под описанием, без пустых строк внутри и под меткой.
+    объявление = (kind == TYPE_CHANGED and bool(DECLARATION.match(old_block[0]))
+                  and any(DECLARATION.match(строка) for строка in new_block[:1])
+                  and not any(METHOD_END.match(code_part(строка).strip()) for строка in new_block))
+    компактно = bool(in_query or объявление)
 
     # Несколько частей разом — каждый метод и каждый кусок прочего кода в своей
     # вставке, директивы областей без меток, между частями пустая строка.
@@ -1174,9 +1192,11 @@ def marked(item, lines, meta, nested_in=None):
             else:
                 block.extend(build_insertion(kind, ind, [], part, meta))
     else:
-        block = build_insertion(kind, ind, old_block, new_block, meta)
+        block = build_insertion(kind, ind, old_block, new_block, meta, compact=компактно)
 
-    block = separate(block, lines, first, last, ind, count)
+    # в тексте запроса пустых строк снаружи тоже нет: метки — вплотную к его строкам
+    if not in_query:
+        block = separate(block, lines, first, last, ind, count, declaration=объявление)
     if nested_in:
         чья = nested_in["task"] or "без ИД"
         заменяемое = ("деактивирована только заменяемая строка" if count == 1
