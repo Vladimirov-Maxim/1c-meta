@@ -145,6 +145,8 @@ def test_writing_outside_the_allowed_roots_is_refused(выгрузка, tmp_path
     чужая = str(tmp_path)
     assert "вне разрешённых" in вызвать(сервер, "forms_check", repo=чужая, forms=НОВАЯ)
     assert "вне разрешённых" in вызвать(сервер, "show", repo=чужая, address="Справочник.Х")
+    # белый список читается при запуске: отказ говорит, что правка .mcp.json требует перезапуска
+    assert "переподключите сервер" in вызвать(сервер, "show", repo=чужая, address="Справочник.Х")
     assert "вне разрешённых" in вызвать(
         сервер, "metadata_check", repo=чужая, deletions=["Справочник.Х"])
     # подкаталог разрешённого — внутри; сосед с похожим именем — снаружи

@@ -115,6 +115,11 @@ def соглашения_из_окружения():
     return соглашения_из_файла(путь) if путь else НЕЙТРАЛЬНЫЕ
 
 
+#: Когда процесс прочитал окружение: белый список берётся из него при запуске,
+#: и правка `.mcp.json` после этого до сервера не доходит.
+ЗАПУСК = datetime.datetime.now()
+
+
 def roots_from_environment():
     """Разрешённые выгрузки из «META_ROOTS» (через «;»). Пусто — никуда."""
     return tuple(путь.strip() for путь in (os.environ.get(ROOTS_VARIABLE) or "").split(";")
@@ -137,7 +142,10 @@ def _inside(repo, roots):
         полный = os.path.normcase(os.path.abspath(корень))
         if цель == полный or цель.startswith(полный + os.sep):
             return
-    raise Refuse(f"выгрузка «{repo}» вне разрешённых: " + "; ".join(roots))
+    raise Refuse(f"выгрузка «{repo}» вне разрешённых: " + "; ".join(roots)
+                 + f" — список взят из «{ROOTS_VARIABLE}» при запуске сервера "
+                 f"({ЗАПУСК:%d.%m.%Y %H:%M}); если настройку (.mcp.json) меняли позже, "
+                 "переподключите сервер — без перезапуска процесс её не увидит")
 
 
 def _allowed(repo, roots):
