@@ -47,7 +47,7 @@ def смешанный(tmp_path):
     """Проект EDT, взятый до включения настройки: в индексе и в рабочей копии LF (до
     `core.autocrlf`), теперь `core.autocrlf=true` и `core.safecrlf=true`."""
     repo = tmp_path / "repo"
-    src = repo / "BF" / "src"
+    src = repo / "project" / "src"
     src.mkdir(parents=True)
     git(repo, "init", "-q")
     настроить(repo, user_email="t@example.local", user_name="Фикстуры", core_quotepath="false",
@@ -71,7 +71,7 @@ def только_crlf(данные):
 def принимает_git(repo, *пути):
     """Примет ли git файлы: только названные — файлы фикстуры записаны в ту же
     секунду, что и коммит, и git перепроверил бы их все («racy git»)."""
-    done = git(repo, "add", "--", *("BF/src/" + путь for путь in пути), check=False)
+    done = git(repo, "add", "--", *("project/src/" + путь for путь in пути), check=False)
     return done.returncode == 0, done.stderr.decode("utf-8", "replace")
 
 
@@ -110,7 +110,7 @@ def test_a_new_object_is_written_as_git_checks_it_out_and_git_accepts_it(сме�
         assert только_crlf(прочитать(src, rel)), rel
     принято, почему = принимает_git(repo, *записанные)
     assert принято, почему
-    реестр = git(repo, "diff", "--cached", "--numstat", "--", "BF/src/Configuration/Configuration.mdo")
+    реестр = git(repo, "diff", "--cached", "--numstat", "--", "project/src/Configuration/Configuration.mdo")
     добавлено, удалено = map(int, реестр.stdout.decode().split()[:2])
     assert добавлено <= 2 and удалено <= 1          # не весь файл: в индексе переводы сведены
 
