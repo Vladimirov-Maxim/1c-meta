@@ -4,7 +4,7 @@
 Проект EDT отличается от выгрузки конфигуратора раскладкой и видом текста:
 объект — `<Каталог>/<Имя>/<Имя>.mdo`, модули — в каталоге объекта без `Ext`,
 права роли — `Roles/<Роль>/Rights.rights`, файлы — UTF-8 без BOM и LF.
-Исходники лежат глубже корня репозитория (`BF/src`), и пути находок — от них.
+Исходники лежат глубже корня репозитория (`project/src`), и пути находок — от них.
 
 Кейсы — те же, что у выгрузки (`test_verify.py`), и кейсы конвейера для EDT:
 префикс у нового `.mdo`, право в `Rights.rights`, необёрнутая правка
@@ -74,16 +74,16 @@ def зафиксировать(repo, сообщение="базлайн"):
 
 
 def проект(tmp_path, autocrlf=False):
-    """(репозиторий, исходники): проект EDT в `BF/src`, вендорский документ и модуль в базе."""
+    """(репозиторий, исходники): проект EDT в `project/src`, вендорский документ и модуль в базе."""
     repo = tmp_path / "repo"
-    src = repo / "BF" / "src"
+    src = repo / "project" / "src"
     src.mkdir(parents=True)
     git(repo, "init", "-q")
     for ключ, значение in (("user.email", "t@example.local"), ("user.name", "Фикстуры"),
                            ("core.autocrlf", "true" if autocrlf else "false"),
                            ("core.quotepath", "false")):
         git(repo, "config", ключ, значение)
-    написать(repo, "BF/DT-INF/PROJECT.PMF", ["Manifest-Version: 1.0"])
+    написать(repo, "project/DT-INF/PROJECT.PMF", ["Manifest-Version: 1.0"])
     написать(src, "Configuration/Configuration.mdo", карточка("Configuration", "Конфигурация"))
     написать(src, "Documents/Вендорский/Вендорский.mdo", карточка("Document", "Вендорский"))
     написать(src, ВЕНДОРСКИЙ, ["Процедура ПередЗаписью(Отказ, РежимЗаписи, РежимПроведения)",
@@ -127,7 +127,7 @@ def test_paths_are_from_the_sources_and_files_outside_them_are_not_in_scope(tmp_
     """Исходники в подкаталоге репозитория: пути — от них, служебный файл проекта
     выше них в предмет проверок не входит; новый `.mdo` без приставки пойман."""
     repo, src = проект(tmp_path)
-    написать(repo, "BF/DT-INF/PROJECT.PMF", ["Manifest-Version: 2.0"])
+    написать(repo, "project/DT-INF/PROJECT.PMF", ["Manifest-Version: 2.0"])
     написать(src, "Catalogs/Чужой/Чужой.mdo", карточка("Catalog", "Чужой"))
     код, текст, данные = проверить(capsys, профиль, src, "--задача", "TASK-1")
     assert код == 1 and коды(данные) == ["МД-ПРЕФИКС", "ПРАВА-НЕ-ВЫДАНЫ"], текст
