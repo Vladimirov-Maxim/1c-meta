@@ -1171,7 +1171,7 @@ def marked(item, lines, meta, nested_in=None):
     # метка с фигурными скобками, попавшая в текст запроса, разбирается
     # компоновщиком как расширение {ВЫБРАТЬ}/{ГДЕ}.
     in_query = is_query_line(anchor) or (old_block and any(is_query_line(строка) for строка in old_block))
-    # Смена сигнатуры (регламент команды, п. 1.1.1): ИЗМЕНЕН оборачивает только
+    # Смена сигнатуры: ИЗМЕНЕН оборачивает только
     # объявление — вплотную под описанием, без пустых строк внутри и под меткой.
     объявление = (kind == TYPE_CHANGED and bool(DECLARATION.match(old_block[0]))
                   and any(DECLARATION.match(строка) for строка in new_block[:1])
