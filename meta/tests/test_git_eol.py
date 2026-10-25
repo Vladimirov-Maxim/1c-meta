@@ -20,6 +20,7 @@ import pytest
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, ROOT)
 
+from meta.acl import edt_model  # noqa: E402
 from meta.add import main  # noqa: E402
 from meta.infra import git as infra_git  # noqa: E402
 
@@ -95,6 +96,7 @@ def test_checkout_line_endings_outside_git_are_unknown(tmp_path):
     assert infra_git.checkout_eol(str(tmp_path), "Module.bsl") is None
 
 
+@pytest.mark.skipif(not edt_model.available(), reason="таблица метамодели EDT не сгенерирована")
 def test_a_new_object_is_written_as_git_checks_it_out_and_git_accepts_it(смешанный, tmp_path, профиль):
     """Новый общий модуль среди карточек с LF: карточка, модуль и реестр — CRLF,
     как кладёт git; `git add` проходит, в индексе реестр не переписан целиком."""

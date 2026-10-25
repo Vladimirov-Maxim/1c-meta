@@ -988,3 +988,19 @@ def test_the_ready_edits_say_who_puts_the_indent(выгрузка):
     сервер = форма_с_модулем(выгрузка)
     ответ = вызвать(сервер, "forms_check", repo=выгрузка, forms=[надпись("мой_Чеки")])
     assert "отступ вызова до уровня места ставит инструмент" in ответ, ответ
+
+
+def test_object_names_cannot_lead_outside_the_dump(выгрузка):
+    """Имя в адресе объекта — не путь: «Справочник.C:/чужое» и «../» не читают файлы вне выгрузки."""
+    outside = tempfile.mkdtemp(prefix="meta-outside-")
+    try:
+        with open(os.path.join(outside, "secret.xml"), "w", encoding="utf-8") as file:
+            file.write("<secret>outside-marker</secret>")
+        server = mcp_server(roots=[выгрузка])
+        for address in ("Справочник." + os.path.join(outside, "secret"),
+                        "Справочник.../../" + os.path.basename(outside) + "/secret"):
+            answer = вызвать(server, "show", repo=выгрузка, address=address)
+            assert "outside-marker" not in answer
+            assert answer.startswith("ОТКАЗ"), answer
+    finally:
+        shutil.rmtree(outside, ignore_errors=True)

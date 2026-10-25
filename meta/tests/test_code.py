@@ -1896,3 +1896,27 @@ def test_a_missing_object_module_of_a_dump_is_created_with_bom_and_crlf(репо
     assert строки == ["Процедура ПередЗаписью(Отказ)", "\tВозврат;", "КонецПроцедуры"]
     assert bom and crlf == 3 and bare_lf == 0
 
+
+
+def test_module_paths_outside_the_dump_are_refused(репо):
+    """Путь модуля из задания агента не выводит за выгрузку: ни `..`, ни абсолютный."""
+    root = репо(ТЕСТ)
+    outside = os.path.join(os.path.dirname(root), "outside")
+    os.makedirs(outside)
+    with open(os.path.join(outside, "Module.bsl"), "w", encoding="utf-8") as file:
+        file.write("Процедура Чужая()\nКонецПроцедуры\n")
+    server = mcp_server(roots=[root])
+
+    def call(name, **arguments):
+        answer = asyncio.run(server.call_tool(name, arguments))
+        if isinstance(answer, tuple):
+            answer = answer[0]
+        return "\n".join(block.text for block in answer)
+
+    for path in ("../outside/Module.bsl", os.path.join(outside, "Module.bsl")):
+        job = {"repo": root, "task": "TASK-1", "date": "31.08.2026", "author": АВТОР,
+               "modules": [{"path": path,
+                            "edits": [{"line": 1, "lines": 0, "code": "\tПроверка();"}]}]}
+        answer = call("code_check", **job)
+        assert "внутри выгрузки" in answer, answer
+        assert "Чужая" not in answer

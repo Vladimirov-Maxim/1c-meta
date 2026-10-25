@@ -39,6 +39,7 @@ from . import edt_xml, serializer
 from .designer import PREDEFINED, DesignerDump
 from .forms import registry as form_formats
 from .layout import OBJECT_FOLDERS
+from .paths import check_part
 from .repository import Plan, ReferenceSource, _read_bytes
 from .shape import shape_of
 from .tree_lxml import LxmlCardTree
@@ -150,22 +151,24 @@ class EdtDump(DesignerDump):
 
     def subsystem_path(self, chain):
         """Вложенная подсистема EDT: `Subsystems/А/Subsystems/Б/Б.mdo`."""
+        for part in chain:
+            check_part(part)
         путь = os.path.join(self.root, "Subsystems", chain[0])
         for имя in chain[1:]:
             путь = os.path.join(путь, "Subsystems", имя)
         return os.path.join(путь, chain[-1] + ".mdo")
 
     def _module_path(self, name):
-        return os.path.join(self.root, "CommonModules", name, "Module.bsl")
+        return os.path.join(self.root, "CommonModules", check_part(name), "Module.bsl")
 
     def _rights_path(self, role):
-        return os.path.join(self.root, "Roles", role, "Rights.rights")
+        return os.path.join(self.root, "Roles", check_part(role), "Rights.rights")
 
     def template_path(self, kind, name, template):
         card = self.object_path(kind, name)
         if card is None:
             return None
-        return os.path.join(os.path.dirname(card), "Templates", template, "Template.dcs")
+        return os.path.join(os.path.dirname(card), "Templates", check_part(template), "Template.dcs")
 
     # --- формат -----------------------------------------------------------
 
