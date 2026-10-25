@@ -28,6 +28,7 @@ from ..domain.model import Configuration, Refuse, Собранные
 from . import git, serializer
 from .format import FORMAT_VERSION
 from .layout import OBJECT_FOLDERS
+from .paths import check_part, within
 from .tree_lxml import LxmlCardTree
 
 #: Файл, где бывают ссылки: путь, держатель для сообщения, адрес держателя,
@@ -236,7 +237,7 @@ class Repository(Configuration):
 
     def _rights_path(self, role):
         """Файл прав роли."""
-        return os.path.join(self.root, "Roles", role, "Ext", "Rights.xml")
+        return os.path.join(self.root, "Roles", check_part(role), "Ext", "Rights.xml")
 
     def _source_text(self, path, data):
         """Байты файла-источника ссылок -> текст в форме выгрузки."""
@@ -245,7 +246,7 @@ class Repository(Configuration):
     # --- чтение: порт домена -------------------------------------------------
 
     def _module_path(self, name):
-        return os.path.join(self.root, "CommonModules", name, "Ext", "Module.bsl")
+        return os.path.join(self.root, "CommonModules", check_part(name), "Ext", "Module.bsl")
 
     def common_module_exists(self, name):
         return os.path.isfile(self._module_path(name))
@@ -328,7 +329,7 @@ class Repository(Configuration):
             folder = vocabulary.FOLDERS.get(kind)
         if folder is None:
             return None
-        return os.path.join(self._folder(folder), name + ".xml")
+        return within(self.root, os.path.join(self._folder(folder), check_part(name) + ".xml"))
 
     def read_card(self, kind, name):
         """Карточку -> дерево. `None`, если её нет или вид без каталога.
@@ -615,7 +616,9 @@ class Repository(Configuration):
         if owner is None:
             base = os.path.join(self.root, "CommonForms")
         else:
-            base = os.path.join(self._folder(mapping.container_of(owner[0])), owner[1], "Forms")
+            base = os.path.join(self._folder(mapping.container_of(owner[0])), check_part(owner[1]),
+                                "Forms")
+        check_part(name)
         return (os.path.join(base, name + ".xml"),
                 os.path.join(base, name, "Ext", "Form.xml"),
                 os.path.join(base, name, "Ext", "Form", "Module.bsl"))
@@ -740,6 +743,8 @@ class Repository(Configuration):
     def subsystem_path(self, chain):
         """Карточка подсистемы по цепочке имён от корневой:
         `Subsystems/А/Subsystems/Б.xml`."""
+        for part in chain:
+            check_part(part)
         путь = os.path.join(self._folder("Subsystems"), chain[0])
         for имя in chain[1:-1]:
             путь = os.path.join(путь, "Subsystems", имя)
@@ -750,7 +755,7 @@ class Repository(Configuration):
         card = self.object_path(kind, name)
         if card is None:
             return None
-        return os.path.join(os.path.dirname(card), name, "Templates", template,
+        return os.path.join(os.path.dirname(card), name, "Templates", check_part(template),
                             "Ext", "Template.xml")
 
     def resolve(self, path):

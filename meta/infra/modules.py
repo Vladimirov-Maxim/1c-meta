@@ -29,6 +29,7 @@ from ..application.ports import Modules
 from ..domain.model import Refuse
 from ..domain.modules import MODULES_OF_KIND
 from . import git, layout
+from .paths import check_relative, within
 from .repository import Plan
 
 
@@ -45,7 +46,7 @@ class DumpModules(Modules):
     def relative(self, ref):
         """Путь модуля относительно корня выгрузки, через «/»."""
         if ref.path is not None:
-            return ref.path.replace("\\", "/")
+            return check_relative(ref.path).replace("\\", "/")
         return "/".join(self.files.module_file(ref.address))
 
     def address(self, ref):
@@ -54,7 +55,7 @@ class DumpModules(Modules):
         return self.files.address_of_file(self.relative(ref).split("/"))
 
     def full_path(self, ref):
-        return os.path.join(self.root, *self.relative(ref).split("/"))
+        return within(self.root, os.path.join(self.root, *self.relative(ref).split("/")))
 
     def _missing(self, ref):
         """Модуля нет — отказ, и по адресу сказано, какие модули у объекта есть."""
