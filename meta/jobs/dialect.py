@@ -390,11 +390,41 @@ def change_job_from_json(data):
     for field in getattr(REGISTRY.get(kind), "object_lists", ()) or ():
         if field in поля:
             перечни[field] = list_edit_from_json(field, поля.pop(field))
+    for field in getattr(REGISTRY.get(kind), "text_fields", ()) or ():
+        if isinstance(поля.get(field), (dict, list)):
+            перечни[field] = text_edit_from_json(field, поля.pop(field))
     fields = dict(child_spec_from_json(kind, поля).fields) if поля else {}
     fields.update(перечни)
     if not fields:
         raise Refuse("в правке не указано ни одного поля")
     return path, fields
+
+
+TEXT_EDIT_KEYS = ("line", "lines", "first_line", "last_line", "code")
+
+
+def text_edit_from_json(field, value):
+    """Правка текста фрагментами: объект или список объектов
+    {"line", "lines", "first_line", "last_line", "code"} — как правка кода;
+    номера строк — от начала текста поля."""
+    пункты = value if isinstance(value, list) else [value]
+    правки = []
+    for пункт in пункты:
+        if not isinstance(пункт, dict):
+            raise Refuse(f"«{field}»: фрагмент правки — объект {{\"line\", \"lines\", \"first_line\", "
+                         "\"last_line\", \"code\"}")
+        лишние = sorted(set(пункт) - set(TEXT_EDIT_KEYS))
+        if лишние:
+            raise Refuse(f"«{field}»: ключи фрагмента — {', '.join(TEXT_EDIT_KEYS)}; лишние: {', '.join(лишние)}")
+        line, lines = пункт.get("line"), пункт.get("lines")
+        if not isinstance(line, int) or isinstance(line, bool) or line < 1:
+            raise Refuse(f"«{field}»: «line» — номер строки от 1, получено {line!r}")
+        if not isinstance(lines, int) or isinstance(lines, bool) or lines < 0:
+            raise Refuse(f"«{field}»: «lines» — сколько строк заменяется, число от 0, получено {lines!r}")
+        правки.append({ключ: пункт.get(ключ) for ключ in TEXT_EDIT_KEYS})
+    if not правки:
+        raise Refuse(f"«{field}»: правка без фрагментов")
+    return dm.TextEdit(правки)
 
 
 def list_edit_from_json(field, value):

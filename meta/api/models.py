@@ -197,7 +197,9 @@ class FieldChange(_Model):
     model_config = _config("ИзменениеПолей")
 
     путь: str = Field(description="«Справочник.мой_Х» или часть: «Справочник.мой_Х.Реквизит.Комментарий»")
-    поля: dict[str, Any] = Field(description="новые значения полей — тем же языком, что fields")
+    поля: dict[str, Any] = Field(description="новые значения полей — тем же языком, что fields; "
+                                             "«запрос» набора данных — и фрагментами [{line, lines, "
+                                             "first_line, last_line, code}]")
 
 
 class Deletion(_Model):
