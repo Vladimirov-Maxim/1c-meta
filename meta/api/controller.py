@@ -86,11 +86,12 @@ class Controller:
         сценарий = self.normalize_case(repo=repo, base=base, baseline=baseline, target=target)
         return сценарий.execute(apply_now=apply_now)
 
-    def plan_check(self, objects, repo=None, base="HEAD", rev=None, baseline=None, target=None):
+    def plan_check(self, objects, repo=None, base="HEAD", rev=None, baseline=None, target=None,
+                   only_declared=False):
         """Сверка плана с фактом: объекты плана моделями -> язык плана -> сценарий."""
         план = план_из_json({"объекты": план_в_язык_плана(objects)})
         сценарий = self.plan_check_case(repo=repo, base=base, rev=rev, baseline=baseline, target=target)
-        return сценарий.execute(план)
+        return сценарий.execute(план, только_заявленные=only_declared)
 
     def plan_emit(self, repo=None, base="HEAD", rev=None, baseline=None, target=None):
         """План по факту задачи."""

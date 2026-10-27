@@ -210,6 +210,19 @@ def test_an_own_insertion_rewriting_most_of_another_one_needs_an_outer_wrapper()
     assert метки(old, одна, task="TASK-1") == []
 
 
+def test_an_unclosed_own_marker_inside_another_insertion_with_an_undated_close_is_found():
+    """Чужая вставка закрыта меткой без даты; своя открывающая внутри неё без
+    закрывающей. Разбор отдаёт чужую закрывающую нашей метке — находка всё
+    равно на нашей открывающей."""
+    чужая_без_даты = "\t// } Иванов"
+    old = ["Процедура А()", ЧУЖАЯ, "\tЧужое();", чужая_без_даты, "КонецПроцедуры"]
+    new = ["Процедура А()", ЧУЖАЯ, СВОЯ, "\tНовое();", "\tЧужое();", чужая_без_даты, "КонецПроцедуры"]
+    from meta.domain.changes import changed_lines
+    добавлено, _ = changed_lines(hunks_between(old, new), old, new)
+    found = v.structure_findings("М.bsl", new, добавлено, "TASK-1")
+    assert [(f.code, f.line) for f in found] == [("ВСТАВКА-НЕ-ЗАКРЫТА", 3)]
+
+
 def test_each_removed_line_needs_its_own_commented_copy():
     old = ["Процедура А()", "\tШаг();", "\tШаг();", "КонецПроцедуры"]
     new = ["Процедура А()", СВОЯ, "\t//Шаг();", "\tНовое();", СВОЯ_КОНЕЦ, "КонецПроцедуры"]

@@ -349,7 +349,7 @@ def unbound_findings(path, old, new, привязки):
             for имя, чьё in unbound_handlers(новые, *привязки)]
 
 
-def structure_findings(path, new, added):
+def structure_findings(path, new, added, task=None):
     """Вставки, поставленные задачей: открывающая метка без закрывающей и
     вставка вокруг метода, закрытая не на его конце. `added` — номера
     добавленных задачей строк новой версии.
@@ -361,10 +361,23 @@ def structure_findings(path, new, added):
     added = set(added)
     found = []
     unclosed = set(unclosed_markers(new))
-    закрыта_на = {r["start"]: r["end"] for r in marker_ranges(new)}
+    диапазоны = marker_ranges(new)
+    закрыта_на = {r["start"]: r["end"] for r in диапазоны}
     for n in sorted(unclosed & added):
         found.append(FileFinding(НЕ_ЗАКРЫТА, "открывающая метка вставки без закрывающей: вставка не закрыта",
                                  path, n))
+    # Своя открывающая внутри чужой вставки, у которой закрывающая без даты:
+    # разбор спаривает ту закрывающую с нашей открывающей, и незакрытой
+    # выходит чужая метка — о ней молчат, она не наша. Пара, где открывающую
+    # поставила задача, а закрывающую — нет, и есть наша незакрытая вставка.
+    # Только метки своей задачи: чужую метку, перенесённую с хвоста объявления на
+    # отдельную строку, задача тоже «добавила», но её пара — прежняя и законная.
+    for r in диапазоны:
+        if (task and r["task"] == task and r["start"] in added and r["end"] not in added
+                and not r.get("implicit") and r["start"] not in unclosed):
+            found.append(FileFinding(
+                НЕ_ЗАКРЫТА, f"открывающая метка вставки без своей закрывающей: её закрыла метка на строке "
+                            f"{r['end']}, которой задача не ставила, — вставка не закрыта", path, r["start"]))
     объявления = [(n, m.group(1)) for n, m in ((n, DECLARATION.match(code_part(line)))
                                               for n, line in enumerate(new, start=1)) if m]
     for decl, name in объявления:

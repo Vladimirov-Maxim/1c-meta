@@ -73,8 +73,9 @@ class EditCodeUseCase:
     def _prepare(self, entry, signature):
         lines = self.modules.read(entry.ref)
         if entry.revert:
+            одна = entry.revert if not isinstance(entry.revert, bool) else None
             new_lines, decisions = edits.revert(lines, signature.task,
-                                                self.modules.base(entry.ref, self._base))
+                                                self.modules.base(entry.ref, self._base), одна)
             return entry.ref, new_lines, decisions
         work = list(entry.edits)
         notes = []

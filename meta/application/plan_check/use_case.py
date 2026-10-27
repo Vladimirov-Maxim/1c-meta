@@ -20,7 +20,7 @@ class PlanCheckUseCase:
     source: ChangeSource
     соглашения: Соглашения = НЕЙТРАЛЬНЫЕ
 
-    def execute(self, план):
+    def execute(self, план, только_заявленные=False):
         src = self.source
         неизвестные = Собранные("в плане объекты, которых выгрузка не знает")
         факты = {}
@@ -38,5 +38,10 @@ class PlanCheckUseCase:
                 src, объект.вид, объект.имя, {м: п for м, п in модули.items() if п})
         неизвестные.предъявить()
         тронутые = затронутые(src)
-        findings = self.соглашения.применить(rules.сверить(план, факты, тронутые))
-        return PlanCheckResult(src.describe(), план, sorted(тронутые), findings)
+        findings = self.соглашения.применить(rules.сверить(план, факты, тронутые, только_заявленные))
+        notes = []
+        if только_заявленные:
+            вне = rules.незаявленные(план, тронутые)
+            notes.append("сверены только заявленные объекты"
+                         + (f"; к сведению — тронуто, но не заявлено: {', '.join(вне)}" if вне else ""))
+        return PlanCheckResult(src.describe(), план, sorted(тронутые), findings, notes)
