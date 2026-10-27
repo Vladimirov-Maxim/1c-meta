@@ -1004,3 +1004,26 @@ def test_object_names_cannot_lead_outside_the_dump(выгрузка):
             assert answer.startswith("ОТКАЗ"), answer
     finally:
         shutil.rmtree(outside, ignore_errors=True)
+
+#: Схемы и описания инструментов агент читает в каждом запуске: бюджет держит
+#: их от разрастания (замер: 56 тыс. знаков до сжатия, 30 тыс. после).
+БЮДЖЕТ_СХЕМ = 32000
+
+
+def test_tool_schemas_stay_within_the_budget():
+    import json
+    инструменты = asyncio.run(mcp_server(roots=[]).list_tools())
+    размер = sum(len(и.description or "") + len(json.dumps(и.inputSchema, ensure_ascii=False))
+                 for и in инструменты)
+    assert размер <= БЮДЖЕТ_СХЕМ, размер
+
+
+def test_an_apply_schema_refers_to_its_check_and_has_no_pydantic_noise():
+    import json
+    инструменты = {и.name: и for и in asyncio.run(mcp_server(roots=[]).list_tools())}
+    запись = инструменты["metadata_apply"].inputSchema
+    assert "$defs" not in запись
+    assert запись["properties"]["objects"] == {"description": "то же, что «objects» у metadata_check"}
+    текст = json.dumps([и.inputSchema for и in инструменты.values()], ensure_ascii=False)
+    assert '"title"' not in текст
+    assert ', {"type": "null"}]' not in текст and '[{"type": "null"}' not in текст      # anyOf с null
