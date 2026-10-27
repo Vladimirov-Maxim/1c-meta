@@ -146,3 +146,55 @@ def test_a_form_read_from_edt_is_the_same_form_as_in_the_dump(tmp_path, monkeypa
         assert {k: str(v) for k, v in edt.attributes.items()}             == {k: str(v) for k, v in dump_dir.attributes.items()}, name
         reconciled += 1
     assert reconciled >= 5
+
+
+# --- форма, испорченная правкой в обход EDT ----------------------------------
+
+ROUND_FORM = os.path.join(os.path.dirname(__file__), "эталоны", "edt", "ожидание-формы",
+                          "Documents", "мой_Заявка", "Forms", "мой_Круг", "Form.form")
+
+
+def _designer_text(text):
+    from meta.domain.model import Refuse
+    from meta.infra.forms.edt import designer_text
+    try:
+        return designer_text(text), None
+    except Refuse as refusal:
+        return None, str(refusal)
+
+
+def test_a_form_written_by_edt_is_read():
+    """Обратная сторона: форма, какой её пишет EDT, перекладывается без отказа."""
+    text, refusal = _designer_text(open(ROUND_FORM, encoding="utf-8").read())
+    assert refusal is None and text
+
+
+def test_an_event_named_in_russian_is_named_in_the_refusal():
+    """`<event>ПриСозданииНаСервере</event>` вместо `OnCreateAtServer` EDT не
+    узнаёт — обработчик не вызывается. Отказ называет само событие и слово EDT,
+    а не элемент, на котором круг перекладки не сошёлся первым."""
+    text = open(ROUND_FORM, encoding="utf-8").read().replace(
+        "<event>OnCreateAtServer</event>", "<event>ПриСозданииНаСервере</event>")
+    _, refusal = _designer_text(text)
+    assert "форма: событие «ПриСозданииНаСервере» — в EDT оно называется «OnCreateAtServer»" in refusal
+
+
+def test_an_element_event_named_in_russian_names_the_element():
+    text = open(ROUND_FORM, encoding="utf-8").read().replace(
+        "<event>OnChange</event>", "<event>ПриИзменении</event>", 1)
+    _, refusal = _designer_text(text)
+    assert "элемент «Комментарий»: событие «ПриИзменении» — в EDT оно называется «OnChange»" in refusal
+
+
+@pytest.mark.skipif(not _edt_model.available(), reason="нет таблицы метамодели EDT")
+def test_a_block_written_out_of_edt_order_is_named():
+    """Блок обработчиков формы, дописанный в конец файла: EDT так не пишет, и
+    отказ называет свойство не на месте, а не «не проходит круг»."""
+    text = open(ROUND_FORM, encoding="utf-8").read()
+    start = text.index("  <handlers>\n    <event>OnCreateAtServer")
+    end = text.index("  </handlers>\n", start) + len("  </handlers>\n")
+    block = text[start:end]
+    text = text[:start] + text[end:]
+    text = text.replace("</form:Form>", block + "</form:Form>")
+    _, refusal = _designer_text(text)
+    assert "«handlers» стоит после «extInfo»" in refusal, refusal
