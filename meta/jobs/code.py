@@ -86,8 +86,13 @@ def _module(data):
         if not said.get("from") or not said.get("to"):
             raise Refuse("у «rename» нужны оба имени: «from» и «to»")
         rename = (said["from"], said["to"])
+    revert = data.get("revert")
+    if revert is not None and not isinstance(revert, bool) and not (isinstance(revert, int) and revert > 0):
+        raise Refuse(f"«revert» — true (все вставки задачи в модуле) или номер строки своей вставки; "
+                     f"получено {revert!r}")
     return ModuleJob(ref, tuple(_edit(item) for item in data.get("edits") or ()),
-                     bool(data.get("revert")), rename)
+                     revert if isinstance(revert, int) and not isinstance(revert, bool) else bool(revert),
+                     rename)
 
 
 def _move(data):

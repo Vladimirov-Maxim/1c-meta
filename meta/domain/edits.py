@@ -93,7 +93,9 @@ class ModuleJob:
 
     ref: ModuleRef
     edits: tuple = ()
-    revert: bool = False
+    #: True — снять все вставки задачи в модуле; номер строки — только свою
+    #: вставку, в которой эта строка лежит
+    revert: bool | int = False
     rename: tuple = None
 
 
@@ -1338,6 +1340,18 @@ def classify_all(items, lines, ranges, meta):
                 "её внутрь вставки или расширьте на всю вставку вместе с метками".format(
                     item["first"], item["last"], cut["task"] or "без ИД", cut["start"], cut["end"]))
         where, r = place(item, ranges, meta["task"])
+        # Правка, задевающая метку своей вставки не целиком изнутри, закомментировала
+        # бы собственные метки задачи блоком УДАЛЕН («//// {[+]…»): снимают свою
+        # вставку откатом, а не правкой.
+        своя_метка = next((x for x in ranges if x["task"] == meta["task"] and item["count"] > 0
+                           and where != "own"
+                           and (item["first"] <= x["start"] <= item["last"]
+                                or item["first"] <= x["end"] <= item["last"])), None)
+        if своя_метка is not None:
+            raise Refuse(
+                "строки {}-{}: правка задевает метку своей вставки {} (строки {}-{}) — снимите вставку "
+                "откатом одной вставки («revert»: номер её строки) или сузьте правку внутрь неё".format(
+                    item["first"], item["last"], meta["task"], своя_метка["start"], своя_метка["end"]))
         if where == "own":
             slots.append(plain(item, "правка внутри своей вставки {} — новой обёртки нет, "
                                      "дата прежняя".format(meta["task"]), lines))
@@ -1361,7 +1375,7 @@ def classify_all(items, lines, ranges, meta):
     return decisions
 
 
-def revert_task(lines, task, base=None):
+def revert_task(lines, task, base=None, only=None):
     """Снять вставки указанной задачи, вернув код в состояние до неё.
 
     `base` — строки модуля в базовой версии (HEAD) или None: по ней сверяются
@@ -1391,9 +1405,35 @@ def revert_task(lines, task, base=None):
     out = list(lines)
     decisions = []
     mine = [r for r in marker_ranges(out) if r["task"] == task]
+    if only is not None:
+        # Одна вставка: та своя, в которой лежит строка (самая внутренняя), —
+        # вместе со своими вложенными. Остальные вставки задачи остаются.
+        вокруг = [r for r in mine if r["start"] <= only <= r["end"]]
+        if not вокруг:
+            raise Refuse(f"строка {only}: своей вставки задачи {task} здесь нет — откат одной вставки "
+                         "называет строку внутри неё (метку или код)")
+        цель = max(вокруг, key=lambda r: r["start"])
+        if base is not None:
+            # Стыки одной вставки с базой не совместить: рядом стоят другие
+            # вставки задачи, которых в базе нет. Какие пустые строки на её
+            # стыках — разделители записи, решает полный откат (он с базой
+            # совмещается); они снимаются заранее, и дальше откат идёт без базы.
+            _, все, _ = revert_task(lines, task, base)
+            своё = next((d for d in все if d["start"] == цель["start"]), None)
+            разделители = sorted(set(своё["dropped"])) if своё else []
+            if своё is not None and своё.get("settled"):
+                без = [line for n, line in enumerate(lines, 1) if n not in разделители]
+                сдвиг = sum(1 for n in разделители if n < only)
+                out, решения, notes = revert_task(без, task, None, only - сдвиг)
+                for d in решения:
+                    if d["start"] + sum(1 for n in разделители if n < цель["start"]) == цель["start"]:
+                        d["start"], d["end"] = цель["start"], цель["end"]
+                        d["dropped"], d["settled"] = разделители, True
+                return out, решения, notes
+        mine = [r for r in mine if цель["start"] <= r["start"] and r["end"] <= цель["end"]]
     if not mine:
         return out, decisions, []
-    заведённые, notes = task_regions(out, mine, base)
+    заведённые, notes = task_regions(out, mine, base) if only is None else ([], [])
     for имя, начало, конец in заведённые:
         внутри = [r for r in mine if начало < r["start"] and r["end"] < конец]
         mine = [r for r in mine if r not in внутри]
@@ -1910,10 +1950,10 @@ def edit_module(lines, edits, signature, new_module, notes=(), markers=True):
                        + [Decision(0, 0, 0, False, None, n, True) for n in notes])
 
 
-def revert(lines, task, base=None):
+def revert(lines, task, base=None, only=None):
     """Снять вставки задачи: (новые строки, решения). `base` — строки модуля в
     базовой версии (HEAD), по ним сверяются пустые строки на стыках."""
-    new_lines, reverted, notes = revert_task(lines, task, base)
+    new_lines, reverted, notes = revert_task(lines, task, base, only)
     edge = {None: "; пустые строки на стыке не сверены — базовой версии модуля нет, проверьте diff",
             True: "; пустые строки на стыке — как в базовой версии",
             False: "; пустые строки на стыке не сверены — в базовой версии это место другое, "
