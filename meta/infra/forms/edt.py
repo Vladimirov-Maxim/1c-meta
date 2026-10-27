@@ -198,13 +198,66 @@ def _assignment_of(main, main_type, name, owner):
     return "Произвольная"
 
 
+def _foreign_events(root):
+    """События, записанные не словом EDT: `<event>ПриОткрытии</event>` вместо
+    `<event>OnOpen</event>`. EDT называет события только латиницей, и такое
+    событие он не узнаёт — обработчик не вызывается. Круг перекладки на нём не
+    сходится, но падает там, где сошёлся первым не он, и отказ назвал бы
+    невиновный элемент. Поэтому событие ищется заранее и называется само."""
+    found = []
+
+    def walk(node, owner, table):
+        for child in node.children:
+            if child.tag == "handlers":
+                event = next((c.text for c in child.children if c.tag == "event"), "") or ""
+                if re.search("[А-Яа-яЁё]", event):
+                    english = table.get(event)
+                    found.append(f"{owner}: событие «{event}» — "
+                                 + (f"в EDT оно называется «{english}»" if english
+                                    else "в EDT события называются латиницей"))
+            elif child.tag in ("items", *SATELLITES):
+                name = next((c.text for c in child.children if c.tag == "name"), "") or child.tag
+                walk(child, f"элемент «{name}»", voc.ELEMENT_EVENTS)
+
+    walk(root, "форма", voc.FORM_EVENTS)
+    return found
+
+
+def _misplaced(root):
+    """Свойства формы не на своём месте: EDT пишет их в порядке метамодели, и
+    чужой порядок (блок, дописанный в конец файла) круг перекладки не пройдёт.
+    Пусто, если порядок верный или таблицы метамодели нет."""
+    if not edt_model.available():
+        return []
+    cls = FORM + "Form"
+    found, last, last_tag = [], -1, None
+    for child in root.children:
+        place = edt_model.position(cls, child.tag)
+        if place < 0 or child.tag == last_tag:
+            continue
+        if place < last:
+            found.append(f"«{child.tag}» стоит после «{last_tag}»")
+        else:
+            last, last_tag = place, child.tag
+    return found
+
+
 def designer_text(edt_text):
     """`Form.form` -> текст `Form.xml`, из которого `edt_files` вернёт тот же
     `Form.form` байт в байт."""
     from .registry import for_version  # реестр знает и эту реализацию
+    root = edt_xml.parse(edt_text.encode("utf-8"))
+    foreign = _foreign_events(root)
+    if foreign:
+        raise Refuse("форма EDT испорчена — имя события записано не словом EDT, такой обработчик "
+                     "не вызывается (поправьте в EDT или в файле): " + "; ".join(foreign))
     try:
-        tree = edt_form.ReverseForm().form(edt_xml.parse(edt_text.encode("utf-8")))
+        tree = edt_form.ReverseForm().form(root)
     except ValueError as problem:
+        misplaced = _misplaced(root)
+        if misplaced:
+            raise Refuse("форма EDT записана не в порядке EDT — так её пишет не EDT, а правка "
+                         "в обход него (пересохраните форму в EDT): " + "; ".join(misplaced)) from problem
         raise Refuse(f"форма EDT не перекладывается в форму выгрузки: {problem}") from problem
     return for_version("2.21").document_text(tree)
 
