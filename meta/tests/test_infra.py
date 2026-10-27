@@ -43,7 +43,7 @@ from meta.infra.repository import (
 )
 from meta.jobs import dialect as job_dialect  # noqa: E402
 from meta.tests import corpus  # noqa: E402
-from meta.tests.conftest import ТЕСТ  # noqa: E402
+from meta.tests.conftest import TEST  # noqa: E402
 from meta.tests.corpus import CORPUS as SOURCES  # noqa: E402
 
 SUBSCRIPTIONS = os.path.join(SOURCES, "EventSubscriptions")
@@ -429,7 +429,7 @@ def test_broken_invariant_never_reaches_disk():
     try:
         fields = dict(subscription_spec().fields)
         fields["имя"] = "БезПрефикса"
-        result = AddObjectUseCase(DesignerDump(root), ТЕСТ).execute(Spec("ПодпискаНаСобытие", fields), apply_now=True)
+        result = AddObjectUseCase(DesignerDump(root), TEST).execute(Spec("ПодпискаНаСобытие", fields), apply_now=True)
         assert not result.ok
         assert result.plan is None and result.written == []
         assert os.listdir(os.path.join(root, "EventSubscriptions")) == []
@@ -558,11 +558,11 @@ def test_application_runs_on_foreign_platform():
 
         #: Что на этой площадке «есть». Отвечать «есть» на всё нельзя:
         #: переименование тогда упирается в занятое имя, а создание — в своё.
-        ЕСТЬ = {("Справочник", "мой_Проба"),
+        EXISTING = {("Справочник", "мой_Проба"),
                 ("Документ", "РеализацияТоваровУслуг")}
 
         def object_exists(self, kind, name):
-            return (kind, name) in self.ЕСТЬ
+            return (kind, name) in self.EXISTING
 
         def taken_names(self, path):
             return []
@@ -570,31 +570,31 @@ def test_application_runs_on_foreign_platform():
         def references_to(self, path):
             return []
 
-    площадка = MemoryPlatform()
+    sandbox = MemoryPlatform()
     type_ = {"вид": "Строка", "длина": 10}
-    сценарии = [
-        (AddObjectUseCase(площадка).execute, [subscription_spec()],
+    scenarios = [
+        (AddObjectUseCase(sandbox).execute, [subscription_spec()],
          "создание мой_ЗаявкаПередЗаписью"),
-        (AddChildUseCase(площадка).execute,
+        (AddChildUseCase(sandbox).execute,
          [([("Справочник", "мой_Проба")], job_dialect.spec_from_json(
              {"вид": "Реквизит", "поля": {"имя": "Поле", "синоним": "Поле",
                                           "тип": type_}}))],
          "добавление Поле"),
-        (ChangePropertyUseCase(площадка).execute,
+        (ChangePropertyUseCase(sandbox).execute,
          [([("Справочник", "мой_Проба"), ("Реквизит", "Поле")],
            {"индексирование": "Индексировать"})],
          "правка Поле"),
-        (DeleteUseCase(площадка).execute,
+        (DeleteUseCase(sandbox).execute,
          [[("Справочник", "мой_Проба")]], "удаление мой_Проба"),
-        (RenameUseCase(площадка).execute,
+        (RenameUseCase(sandbox).execute,
          [([("Справочник", "мой_Проба")], "мой_Новое")],
          "переименование мой_Новое"),
     ]
-    for запустить, вход, ожидание in сценарии:
-        result = запустить(вход, apply_now=True)
-        assert result.ok, (ожидание, [str(f) for f in result.errors])
-        assert result.plan.describe() == [f"в памяти: {ожидание}"], ожидание
-    assert written_as == [ожидание for _, _, ожидание in сценарии]
+    for run, entry, expectation in scenarios:
+        result = run(entry, apply_now=True)
+        assert result.ok, (expectation, [str(f) for f in result.errors])
+        assert result.plan.describe() == [f"в памяти: {expectation}"], expectation
+    assert written_as == [expectation for _, _, expectation in scenarios]
 
 
 # --- тесты: чтение конфигурации (порт домена) --------------------------------
@@ -760,7 +760,7 @@ def test_comparison_type_is_a_measured_dictionary():
 #: Значения, которые платформа допускает, а конфигурация не использует.
 #: Список закрытый и с причиной у каждого: иначе гард превращается
 #: в «дописать сюда всё, что не сошлось».
-НЕ_ВСТРЕЧАЮТСЯ = {
+NEVER_MET = {
     ("ChoiceHistoryOnInput", "Use"):
         "история выбора включена явно — в конфигурации везде Авто или Не использовать",
     ("comparisonType", "Like"): "подобно — в схемах не встретилось, в модулях есть",
@@ -786,35 +786,35 @@ def test_every_dictionary_value_occurs_in_its_own_tag():
     if not corpus.available():
         pytest.skip(f"пропущен: нет выгрузки {corpus.CORPUS}")
 
-    ожидается = {}
+    expected_value = {}
     for kind, kind_schema in schema.SCHEMA.items():
         for field in kind_schema.fields:
             if not field.dictionary:
                 continue
             tag = field.tag.rpartition(":")[2]
             for value in field.dictionary.values():
-                ожидается.setdefault((tag, value), []).append(
+                expected_value.setdefault((tag, value), []).append(
                     f"{kind}.{field.domain}")
 
-    tags = sorted({tag for tag, _ in ожидается})
-    образец = re.compile("<(?:[\\w]+:)?(" + "|".join(tags) + ")>([^<]*)</")
-    встречено = collections.defaultdict(set)
-    for directory, папки, files in os.walk(corpus.CORPUS):
-        папки[:] = [d for d in папки if d != "Forms"]
+    tags = sorted({tag for tag, _ in expected_value})
+    sample = re.compile("<(?:[\\w]+:)?(" + "|".join(tags) + ")>([^<]*)</")
+    met = collections.defaultdict(set)
+    for directory, folders, files in os.walk(corpus.CORPUS):
+        folders[:] = [d for d in folders if d != "Forms"]
         for name in files:
             if not name.endswith(".xml"):
                 continue
             text = open(os.path.join(directory, name), encoding="utf-8-sig",
                          errors="replace").read()
-            for tag, value in образец.findall(text):
-                встречено[tag].add(value)
+            for tag, value in sample.findall(text):
+                met[tag].add(value)
 
-    пропало = [
+    vanished = [
         f"<{tag}> не содержит «{value}» (поля: {', '.join(fields)})"
-        for (tag, value), fields in sorted(ожидается.items())
-        if встречено.get(tag) and value not in встречено[tag]
-        and (tag, value) not in НЕ_ВСТРЕЧАЮТСЯ]
-    assert not пропало, ("значения словарей, которых нет в конфигурации:\n   "
-                         + "\n   ".join(пропало))
-    print(f"значений словарей сверено {len(ожидается)} по {len(tags)} тегам")
+        for (tag, value), fields in sorted(expected_value.items())
+        if met.get(tag) and value not in met[tag]
+        and (tag, value) not in NEVER_MET]
+    assert not vanished, ("значения словарей, которых нет в конфигурации:\n   "
+                         + "\n   ".join(vanished))
+    print(f"значений словарей сверено {len(expected_value)} по {len(tags)} тегам")
 

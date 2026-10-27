@@ -18,7 +18,7 @@ sys.path.insert(0, ROOT)
 from meta.acl import mapping, schema  # noqa: E402
 from meta.domain.kinds import kind_of  # noqa: E402
 from meta.domain.model import Configuration, Finding, Refuse, Spec, TypeRef  # noqa: E402
-from meta.tests.conftest import ТЕСТ  # noqa: E402
+from meta.tests.conftest import TEST  # noqa: E402
 
 
 class FakeConfiguration(Configuration):
@@ -85,14 +85,14 @@ def sample():
 
 
 def test_sample_has_no_findings():
-    findings = kind_of("ПодпискаНаСобытие", ТЕСТ).check(sample(), WORLD)
+    findings = kind_of("ПодпискаНаСобытие", TEST).check(sample(), WORLD)
     assert not findings, [str(f) for f in findings]
 
 
 def expect_finding(changes, expected, world=WORLD):
     fields = dict(sample().fields)
     fields.update(changes)
-    findings = kind_of("ПодпискаНаСобытие", ТЕСТ).check(Spec("ПодпискаНаСобытие", fields), world)
+    findings = kind_of("ПодпискаНаСобытие", TEST).check(Spec("ПодпискаНаСобытие", fields), world)
     codes = [f.code for f in findings]
     assert expected in codes, f"ждали {expected}, получили {codes}"
 
@@ -166,7 +166,7 @@ def test_source_missing():
 
 def test_type_set_not_checked_for_existence():
     # «Все документы» не именует объект, проверять нечего
-    findings = kind_of("ПодпискаНаСобытие", ТЕСТ).check(
+    findings = kind_of("ПодпискаНаСобытие", TEST).check(
         Spec("ПодпискаНаСобытие", dict(sample().fields,
              **{"источник": [TypeRef.of_kind("Документ")]})), WORLD)
     assert not [f for f in findings if f.code == "ПОДПИСКА-ИСТОЧНИК-НЕТ"], \
@@ -223,7 +223,7 @@ def test_refuse_instead_of_guess():
 
 
 def test_warning_is_not_error():
-    findings = kind_of("ПодпискаНаСобытие", ТЕСТ).check(
+    findings = kind_of("ПодпискаНаСобытие", TEST).check(
         Spec("ПодпискаНаСобытие", dict(sample().fields,
              **{"источник": [TypeRef("Документ", "мой_Заявка", "Объект")]})), WORLD)
     own_one = [f for f in findings if f.code == "ПОДПИСКА-НА-СВОЙ-ОБЪЕКТ"][0]

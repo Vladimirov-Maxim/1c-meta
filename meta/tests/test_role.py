@@ -31,7 +31,7 @@ from meta.domain.kinds import kind_of  # noqa: E402
 from meta.domain.model import Refuse, Spec  # noqa: E402
 from meta.infra.designer import DesignerDump  # noqa: E402
 from meta.tests import corpus  # noqa: E402
-from meta.tests.conftest import ТЕСТ  # noqa: E402
+from meta.tests.conftest import TEST  # noqa: E402
 
 REGISTRY = ('<?xml version="1.0" encoding="UTF-8"?>\n<MetaDataObject>\n'
             "\t<Configuration>\n\t\t<Properties>\n\t\t\t<Name>ПробнаяКонфигурация</Name>\n"
@@ -40,7 +40,7 @@ REGISTRY = ('<?xml version="1.0" encoding="UTF-8"?>\n<MetaDataObject>\n'
             "\t\t\t<Document>мой_Заявка</Document>\n"
             "\t\t</ChildObjects>\n\t</Configuration>\n</MetaDataObject>")
 
-ДОКУМЕНТ = ('<?xml version="1.0" encoding="UTF-8"?>\n'
+DOCUMENT = ('<?xml version="1.0" encoding="UTF-8"?>\n'
             '<MetaDataObject xmlns="http://v8.1c.ru/8.3/MDClasses"'
             ' xmlns:v8="http://v8.1c.ru/8.1/data/core" version="2.21">\n'
             '\t<Document uuid="00000000-0000-0000-0000-000000000009">\n'
@@ -61,7 +61,7 @@ def dump():
          encoding="utf-8-sig", newline="").write("<Catalog/>")
     os.makedirs(os.path.join(root, "Documents"))
     open(os.path.join(root, "Documents", "мой_Заявка.xml"), "w",
-         encoding="utf-8-sig", newline="").write(ДОКУМЕНТ)
+         encoding="utf-8-sig", newline="").write(DOCUMENT)
     yield root
     shutil.rmtree(root, ignore_errors=True)
 
@@ -73,7 +73,7 @@ def role(**fields):
 
 
 def create(root, spec, apply_now=True):
-    return AddObjectUseCase(DesignerDump(root), ТЕСТ).execute([spec], apply_now=apply_now)
+    return AddObjectUseCase(DesignerDump(root), TEST).execute([spec], apply_now=apply_now)
 
 
 def rights_of(root):
@@ -155,10 +155,10 @@ def test_atomic_roles_come_in_a_pair_by_the_project_template(dump):
     """Пара ролей к документу: имена, синонимы и права — как у атомарных ролей замеренной конфигурации."""
     from meta.application.atomic_roles_use_case import AtomicRolesUseCase
 
-    result = AtomicRolesUseCase(DesignerDump(dump), ТЕСТ).execute(
+    result = AtomicRolesUseCase(DesignerDump(dump), TEST).execute(
         [("Документ", "мой_Заявка", None)], apply_now=True)
     assert result.ok, [str(f) for f in result.errors]
-    for right, ожидаемые in (("Просмотр", ("Read", "View", "InputByString")),
+    for right, expected_items in (("Просмотр", ("Read", "View", "InputByString")),
                              ("Изменение", ("Posting", "UndoPosting", "InteractiveChangeOfPosted"))):
         name = f"мой_атом_Документ_мой_Заявка_{right}"
         card = open(os.path.join(dump, "Roles", name + ".xml"), encoding="utf-8-sig").read()
@@ -166,7 +166,7 @@ def test_atomic_roles_come_in_a_pair_by_the_project_template(dump):
         rights = open(os.path.join(dump, "Roles", name, "Ext", "Rights.xml"),
                       encoding="utf-8-sig").read()
         assert "<name>Document.мой_Заявка</name>" in rights
-        for r in ожидаемые:
+        for r in expected_items:
             assert f"<name>{r}</name>" in rights, r
         # права на конфигурацию, которые ставит конфигуратор новой роли
         assert "<name>Configuration.ПробнаяКонфигурация</name>" in rights
@@ -184,7 +184,7 @@ def test_a_shown_role_carries_its_rights(dump):
     бы пустой — «ещё 5 полей пусты» при заполненном Rights.xml."""
     from meta.application.atomic_roles_use_case import AtomicRolesUseCase
 
-    AtomicRolesUseCase(DesignerDump(dump), ТЕСТ).execute(
+    AtomicRolesUseCase(DesignerDump(dump), TEST).execute(
         [("Документ", "мой_Заявка", ["Просмотр"])], apply_now=True)
     spec, _ = DesignerDump(dump).read_spec([("Роль", "мой_атом_Документ_мой_Заявка_Просмотр")])
     rights = {grant["объект"]: grant["права"] for grant in spec.get("права")}
@@ -197,7 +197,7 @@ def test_atomic_roles_for_a_missing_object_are_refused(dump):
     from meta.application.atomic_roles_use_case import AtomicRolesUseCase
 
     with pytest.raises(Refuse) as refusal:
-        AtomicRolesUseCase(DesignerDump(dump), ТЕСТ).execute([("Документ", "мой_Нет", None)])
+        AtomicRolesUseCase(DesignerDump(dump), TEST).execute([("Документ", "мой_Нет", None)])
     assert "мой_Нет" in str(refusal.value)
 
 
@@ -222,20 +222,20 @@ def test_a_new_object_can_bring_its_atomic_roles_in_the_same_job(dump):
 
 def test_an_unmeasured_kind_is_refused_for_atomic_roles(dump):
     with pytest.raises(Refuse) as refusal:
-        atomic_roles.roles_for("Константа", "мой_Проба", "Проба", schema=ТЕСТ.atomic_roles)
+        atomic_roles.roles_for("Константа", "мой_Проба", "Проба", schema=TEST.atomic_roles)
     assert "типовой состав есть для" in str(refusal.value)
     with pytest.raises(Refuse) as refusal:
         atomic_roles.roles_for("Документ", "мой_Проба", "Проба", ["Удаление"],
-                               schema=ТЕСТ.atomic_roles)
+                               schema=TEST.atomic_roles)
     assert "Просмотр, Изменение" in str(refusal.value).replace("Изменение, Просмотр", "Просмотр, Изменение")
 
 
-def обработка(dump):
+def data_processor(dump):
     """Обработка в выгрузке — карточка с синонимом."""
     os.makedirs(os.path.join(dump, "DataProcessors"))
     open(os.path.join(dump, "DataProcessors", "мой_Помощник.xml"), "w",
          encoding="utf-8-sig", newline="").write(
-        ДОКУМЕНТ.replace("Document", "DataProcessor").replace("мой_Заявка", "мой_Помощник")
+        DOCUMENT.replace("Document", "DataProcessor").replace("мой_Заявка", "мой_Помощник")
         .replace("Заявка на оплату", "Помощник расчета"))
 
 
@@ -244,8 +244,8 @@ def test_a_data_processor_gets_one_role_without_a_suffix(dump):
     имени и синониме нет права и разделителя перед ним."""
     from meta.application.atomic_roles_use_case import AtomicRolesUseCase
 
-    обработка(dump)
-    result = AtomicRolesUseCase(DesignerDump(dump), ТЕСТ).execute(
+    data_processor(dump)
+    result = AtomicRolesUseCase(DesignerDump(dump), TEST).execute(
         [("Обработка", "мой_Помощник", None)], apply_now=True)
     assert result.ok, [str(f) for f in result.errors]
     roles = sorted(f for f in os.listdir(os.path.join(dump, "Roles")) if f.endswith(".xml"))
@@ -260,13 +260,13 @@ def test_a_data_processor_gets_one_role_without_a_suffix(dump):
 
 def test_a_data_processor_role_takes_no_rights_list():
     with pytest.raises(Refuse, match="роль одна, без суффикса"):
-        atomic_roles.roles_for("Обработка", "мой_П", "П", ["Просмотр"], schema=ТЕСТ.atomic_roles)
+        atomic_roles.roles_for("Обработка", "мой_П", "П", ["Просмотр"], schema=TEST.atomic_roles)
 
 
 def test_a_role_without_a_suffix_is_recognised_as_atomic():
     """Роль обработки без суффикса — атомарная по схеме: её находят соседи и
     проверка «пара уже есть»."""
-    schema = ТЕСТ.atomic_roles
+    schema = TEST.atomic_roles
     assert atomic_roles.is_atomic_role(schema, "мой_атом_Обработка_мой_Помощник")
     assert atomic_roles.is_atomic_role(schema, "мой_атом_Документ_мой_Заявка_Просмотр")
 
@@ -275,7 +275,7 @@ def test_atomic_roles_carry_the_comment(dump):
     """Комментарий роли — как у соседей: дата, автор, задача."""
     from meta.application.atomic_roles_use_case import AtomicRolesUseCase
 
-    AtomicRolesUseCase(DesignerDump(dump), ТЕСТ).execute(
+    AtomicRolesUseCase(DesignerDump(dump), TEST).execute(
         [("Документ", "мой_Заявка", ["Просмотр"], None, "08.10.2026, #TEAM Тестов Тест #ТЕСТ-1")],
         apply_now=True)
     card = open(os.path.join(dump, "Roles", "мой_атом_Документ_мой_Заявка_Просмотр.xml"),
@@ -297,7 +297,7 @@ def test_a_register_role_synonym_names_its_kind_in_words():
     синониме пишется словами, а не слитным именем «РегистрСведений»."""
     def synonym(kind):
         spec, _ = atomic_roles.roles_for(kind, "мой_Проба", "Проба", ["Просмотр"],
-                                         schema=ТЕСТ.atomic_roles)[0]
+                                         schema=TEST.atomic_roles)[0]
         return spec.fields["синоним"]
 
     assert synonym("РегистрСведений") == "(Мой) Атом. Регистр сведений - Проба - Просмотр"
@@ -439,7 +439,7 @@ def test_every_rights_host_in_the_configuration_is_known():
 
 # --- схема атомарных ролей ------------------------------------------------------------
 
-ИХ = RoleSchema("их_{вид}_{объект}_{право}", "Атом {вид}: {синоним} ({право})")
+THEIRS = RoleSchema("их_{вид}_{объект}_{право}", "Атом {вид}: {синоним} ({право})")
 
 
 def test_atomic_roles_need_the_team_scheme():
@@ -451,13 +451,13 @@ def test_atomic_roles_need_the_team_scheme():
 
 
 def test_roles_are_named_by_the_team_scheme():
-    (preview, _), (изменение, _) = atomic_roles.roles_for(
-        "РегистрСведений", "Лимиты", "Лимиты оплат", schema=ИХ)
+    (preview, _), (change, _) = atomic_roles.roles_for(
+        "РегистрСведений", "Лимиты", "Лимиты оплат", schema=THEIRS)
     assert preview.get("имя") == "их_РегистрСведений_Лимиты_Просмотр"
-    assert изменение.get("синоним") == "Атом Регистр сведений: Лимиты оплат (Изменение)"
-    (короткая, _), = atomic_roles.roles_for("Документ", "ОченьДлинноеИмя", "Длинное",
-                                            ["Просмотр"], "Короткое", schema=ИХ)
-    assert короткая.get("имя") == "их_Документ_Короткое_Просмотр"
+    assert change.get("синоним") == "Атом Регистр сведений: Лимиты оплат (Изменение)"
+    (short_form, _), = atomic_roles.roles_for("Документ", "ОченьДлинноеИмя", "Длинное",
+                                            ["Просмотр"], "Короткое", schema=THEIRS)
+    assert short_form.get("имя") == "их_Документ_Короткое_Просмотр"
 
 
 def test_a_scheme_that_would_give_clashing_names_is_refused():
@@ -484,22 +484,22 @@ def test_the_advice_counts_the_neighbours_in_this_dump():
     """Доля соседей с типовым составом — по выгрузке, а не числом, снятым с
     чужой конфигурации: в другой выгрузке оно было бы неправдой."""
     is_standard = atomic_roles.TEMPLATES[("Справочник", "Просмотр")]
-    без_ввода = [pt for pt in is_standard if pt != "ВводПоСтроке"]
+    without_input = [pt for pt in is_standard if pt != "ВводПоСтроке"]
     roles = {"их_Справочник_А_Просмотр": grants("Справочник", "А", is_standard),
             "их_Справочник_Б_Просмотр": grants("Справочник", "Б", is_standard),
-            "их_Справочник_В_Просмотр": grants("Справочник", "В", без_ввода),
-            "их_Справочник_Г_Просмотр": grants("Справочник", "Г", без_ввода),
+            "их_Справочник_В_Просмотр": grants("Справочник", "В", without_input),
+            "их_Справочник_Г_Просмотр": grants("Справочник", "Г", without_input),
             "их_Справочник_Г_Изменение": grants("Справочник", "Г", ["Чтение"]),
             "чужая_Справочник_Д_Просмотр": grants("Справочник", "Д", ["Чтение"])}
-    advice = atomic_roles.advice("Справочник", "Просмотр", ИХ, roles)
+    advice = atomic_roles.advice("Справочник", "Просмотр", THEIRS, roles)
     assert "так устроены 2 из 4 ролей «Просмотр»" in advice, advice
     assert "без ВводПоСтроке — 2, например «Роль.их_Справочник_В_Просмотр»" in advice, advice
     assert "их_Справочник_*_Просмотр" in advice
     # почти все по типовому — совета нет; соседей нет или выгрузку не спросить — тоже
-    roles = {f"их_Справочник_{н}_Просмотр": grants("Справочник", н, is_standard) for н in "АБВГДЕЖЗИК"}
-    assert atomic_roles.advice("Справочник", "Просмотр", ИХ, roles) is None
-    assert atomic_roles.advice("Справочник", "Просмотр", ИХ, {}) is None
-    assert atomic_roles.advice("Справочник", "Просмотр", ИХ, None) is None
+    roles = {f"их_Справочник_{nn}_Просмотр": grants("Справочник", nn, is_standard) for nn in "АБВГДЕЖЗИК"}
+    assert atomic_roles.advice("Справочник", "Просмотр", THEIRS, roles) is None
+    assert atomic_roles.advice("Справочник", "Просмотр", THEIRS, {}) is None
+    assert atomic_roles.advice("Справочник", "Просмотр", THEIRS, None) is None
 
 
 def test_a_long_difference_is_named_briefly():

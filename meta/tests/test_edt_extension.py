@@ -29,13 +29,13 @@ from meta.infra.edt_dump import EdtDump  # noqa: E402
 pytestmark = pytest.mark.skipif(not _edt_model.available(), reason="таблица метамодели EDT не сгенерирована: "
                                 "py -3 tools/edt_model_from_xcore.py")
 
-ПРОФИЛЬ = {"приставка": ["ОМ_мой_", "мой_"], "метки": {"тег": "#TEAM"}}
-ОБЪЯВЛЕНИЯ = ('xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '
+PROFILE = {"приставка": ["ОМ_мой_", "мой_"], "метки": {"тег": "#TEAM"}}
+DECLARATIONS = ('xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '
               'xmlns:mdclass="http://g5.1c.ru/v8/dt/metadata/mdclass" '
               'xmlns:mdclassExtension="http://g5.1c.ru/v8/dt/metadata/mdclass/extension"')
 
-РЕЕСТР = f"""<?xml version="1.0" encoding="UTF-8"?>
-<mdclass:Configuration {ОБЪЯВЛЕНИЯ} uuid="8ebe57d7-1182-4eea-bdda-375c1e0262e4">
+REGISTRY = f"""<?xml version="1.0" encoding="UTF-8"?>
+<mdclass:Configuration {DECLARATIONS} uuid="8ebe57d7-1182-4eea-bdda-375c1e0262e4">
   <name>Тесты</name>
   <synonym>
     <key>ru</key>
@@ -65,8 +65,8 @@ pytestmark = pytest.mark.skipif(not _edt_model.available(), reason="таблиц
 </mdclass:Configuration>
 """
 
-ЗАИМСТВОВАННЫЙ = f"""<?xml version="1.0" encoding="UTF-8"?>
-<mdclass:Catalog {ОБЪЯВЛЕНИЯ} uuid="12e6afee-813e-4304-840b-460b335b5a48" \
+BORROWED = f"""<?xml version="1.0" encoding="UTF-8"?>
+<mdclass:Catalog {DECLARATIONS} uuid="12e6afee-813e-4304-840b-460b335b5a48" \
 extendedConfigurationObject="b9e5871f-258c-4beb-bed7-481bf362ae45">
   <producedTypes>
     <objectType typeId="da7fead1-aabd-4531-8841-f9da9a99ea8b" valueTypeId="24bd9b10-95a5-408f-81b4-5e70dfe093c0"/>
@@ -84,7 +84,7 @@ extendedConfigurationObject="b9e5871f-258c-4beb-bed7-481bf362ae45">
 </mdclass:Catalog>
 """
 
-СВОЙ = """<?xml version="1.0" encoding="UTF-8"?>
+OWN_ONE = """<?xml version="1.0" encoding="UTF-8"?>
 <mdclass:CommonModule xmlns:mdclass="http://g5.1c.ru/v8/dt/metadata/mdclass" \
 uuid="00657e40-f22c-4638-ae35-a322d57470cc">
   <name>ЮТест</name>
@@ -98,9 +98,9 @@ uuid="00657e40-f22c-4638-ae35-a322d57470cc">
 </mdclass:CommonModule>
 """
 
-ФАЙЛЫ = {"Configuration/Configuration.mdo": РЕЕСТР,
-         "Catalogs/Договоры/Договоры.mdo": ЗАИМСТВОВАННЫЙ,
-         "CommonModules/ЮТест/ЮТест.mdo": СВОЙ,
+FILES = {"Configuration/Configuration.mdo": REGISTRY,
+         "Catalogs/Договоры/Договоры.mdo": BORROWED,
+         "CommonModules/ЮТест/ЮТест.mdo": OWN_ONE,
          "CommonModules/ЮТест/Module.bsl": "Процедура Проба() Экспорт\nКонецПроцедуры\n"}
 
 
@@ -108,20 +108,20 @@ def git(root, *args):
     subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True)
 
 
-def написать(src, rel, text, eol):
+def write_file(src, rel, text, eol):
     path = os.path.join(str(src), *rel.split("/"))
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "wb") as file:
         file.write(text.replace("\n", eol).encode("utf-8"))
 
 
-def прочитать(src, rel):
+def read_file(src, rel):
     with open(os.path.join(str(src), *rel.split("/")), "rb") as file:
         return file.read()
 
 
 @pytest.fixture
-def расширение(tmp_path):
+def extension_dir(tmp_path):
     """Исходники расширения в git-репозитории, файлы с CRLF (`* -text`)."""
     repo = tmp_path / "repo"
     src = repo / "src"
@@ -131,82 +131,82 @@ def расширение(tmp_path):
                            ("core.autocrlf", "false"), ("core.quotepath", "false")):
         git(repo, "config", key, value)
     (repo / ".gitattributes").write_bytes(b"* -text\n")
-    for rel, text in ФАЙЛЫ.items():
-        написать(src, rel, text, "\r\n")
+    for rel, text in FILES.items():
+        write_file(src, rel, text, "\r\n")
     git(repo, "add", "-A")
     git(repo, "commit", "-q", "-m", "база")
     return src
 
 
 @pytest.fixture
-def профиль(tmp_path):
+def profile(tmp_path):
     path = tmp_path / "профиль.json"
-    path.write_text(json.dumps(ПРОФИЛЬ, ensure_ascii=False), encoding="utf-8")
+    path.write_text(json.dumps(PROFILE, ensure_ascii=False), encoding="utf-8")
     return str(path)
 
 
-def test_extension_cards_go_through_the_adapter_and_back_unchanged(расширение):
+def test_extension_cards_go_through_the_adapter_and_back_unchanged(extension_dir):
     """Реестр расширения, заимствованный и собственный объект: карточка ->
     дерево выгрузки -> карточка даёт те же байты — блок `extension`,
     `objectBelonging` и `extendedConfigurationObject` не теряются."""
-    площадка = EdtDump(str(расширение))
-    for rel in ФАЙЛЫ:
+    sandbox = EdtDump(str(extension_dir))
+    for rel in FILES:
         if not rel.endswith(".mdo"):
             continue
-        before = прочитать(расширение, rel)
-        tree = площадка._designer_text(before)
-        after_ = площадка._edt_text(tree, lambda *_: None).replace("\n", площадка.eol).encode("utf-8")
+        before = read_file(extension_dir, rel)
+        tree = sandbox._designer_text(before)
+        after_ = sandbox._edt_text(tree, lambda *_: None).replace("\n", sandbox.eol).encode("utf-8")
         assert after_ == before, rel
 
 
-def test_a_common_module_is_created_in_the_extension_beside_its_neighbours(расширение, tmp_path, capsys, профиль):
+def test_a_common_module_is_created_in_the_extension_beside_its_neighbours(extension_dir, tmp_path, capsys, profile):
     """Свой общий модуль расширения: карточка и модуль с CRLF, как соседи;
     в реестре — одна новая строка после соседей того же вида, остальное
     (блок `extension`, заимствованные объекты) не тронуто; проверка правок
     записанное принимает."""
-    реестр_до = прочитать(расширение, "Configuration/Configuration.mdo")
-    job_spec = {"repo": str(расширение),
+    registry_before = read_file(extension_dir, "Configuration/Configuration.mdo")
+    job_spec = {"repo": str(extension_dir),
                "objects": [{"вид": "ОбщийМодуль", "поля": {
                    "имя": "ОМ_мой_Проба", "синоним": "Проба", "сервер": True,
                    "текст": "Процедура Проба() Экспорт\nКонецПроцедуры\n"}}]}
     path = tmp_path / "задание.json"
     path.write_text(json.dumps(job_spec, ensure_ascii=False), encoding="utf-8")
-    assert main([str(path), "--apply", "--профиль", профиль]) == 0
+    assert main([str(path), "--apply", "--профиль", profile]) == 0
 
-    card = прочитать(расширение, "CommonModules/ОМ_мой_Проба/ОМ_мой_Проба.mdo")
-    module = прочитать(расширение, "CommonModules/ОМ_мой_Проба/Module.bsl")
+    card = read_file(extension_dir, "CommonModules/ОМ_мой_Проба/ОМ_мой_Проба.mdo")
+    module = read_file(extension_dir, "CommonModules/ОМ_мой_Проба/Module.bsl")
     for data in (card, module):
         assert b"\r\n" in data and b"\n" not in data.replace(b"\r\n", b"")
         assert not data.startswith(b"\xef\xbb\xbf")
     assert "<name>ОМ_мой_Проба</name>" in card.decode("utf-8")
     assert b"objectBelonging" not in card and b"mdclassExtension" not in card
 
-    registry = прочитать(расширение, "Configuration/Configuration.mdo")
+    registry = read_file(extension_dir, "Configuration/Configuration.mdo")
     line = "  <commonModules>CommonModule.ОМ_мой_Проба</commonModules>\r\n".encode()
     neighbour = "  <commonModules>CommonModule.ЮТест</commonModules>\r\n".encode()
-    assert registry == реестр_до.replace(neighbour, neighbour + line)
+    assert registry == registry_before.replace(neighbour, neighbour + line)
 
     answer = tmp_path / "ответ.json"
     capsys.readouterr()
-    main(["--проверить", str(расширение), "--задача", "TASK-1", "--профиль", профиль, "--json", str(answer)])
+    main(["--проверить", str(extension_dir), "--задача", "TASK-1", "--профиль", profile, "--json", str(answer)])
     data = json.loads(answer.read_text(encoding="utf-8"))
     assert data["находки"] == [], capsys.readouterr().out
 
 
-@pytest.mark.parametrize("registry, cards, ожидание", [
+@pytest.mark.parametrize("registry, cards, expectation", [
     ("\r\n", "\r\n", "\r\n"),           # расширение тестов: всё в CRLF
     ("\n", "\n", "\n"),                 # основная конфигурация: всё в LF
     ("\r\n", "\n", "\n"),               # autocrlf: перевыгруженный реестр с CRLF среди LF
 ])
-def test_new_files_take_the_line_endings_of_the_project_cards(tmp_path, registry, cards, ожидание):
+def test_new_files_take_the_line_endings_of_the_project_cards(tmp_path, registry, cards, expectation):
     src = tmp_path / "src"
-    написать(src, "Configuration/Configuration.mdo", РЕЕСТР, registry)
-    написать(src, "Catalogs/Договоры/Договоры.mdo", ЗАИМСТВОВАННЫЙ, cards)
-    написать(src, "CommonModules/ЮТест/ЮТест.mdo", СВОЙ, cards)
-    assert EdtDump(str(src)).eol == ожидание
+    write_file(src, "Configuration/Configuration.mdo", REGISTRY, registry)
+    write_file(src, "Catalogs/Договоры/Договоры.mdo", BORROWED, cards)
+    write_file(src, "CommonModules/ЮТест/ЮТест.mdo", OWN_ONE, cards)
+    assert EdtDump(str(src)).eol == expectation
 
 
 def test_without_object_cards_line_endings_follow_the_registry(tmp_path):
     src = tmp_path / "src"
-    написать(src, "Configuration/Configuration.mdo", РЕЕСТР, "\r\n")
+    write_file(src, "Configuration/Configuration.mdo", REGISTRY, "\r\n")
     assert EdtDump(str(src)).eol == "\r\n"

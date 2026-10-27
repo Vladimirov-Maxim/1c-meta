@@ -16,31 +16,31 @@ import pytest
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, ROOT)
 
-from .test_verify import ПРОФИЛЬ, check, codes, git, выгрузка, зафиксировать, написать  # noqa: E402
+from .test_verify import PROFILE, check, codes, commit, dump_dir, git, write_file  # noqa: E402
 
-МОДУЛЬ = "CommonModules/Чужой/Ext/Module.bsl"
-ЧУЖАЯ = "Процедура Б() Экспорт // {[+](фрагмент ДОБАВЛЕН), 01.01.2025, #TEAM Иванов #TASK-0"
-СВОЯ = "// {[+](фрагмент ДОБАВЛЕН), 31.08.2026, #TEAM Автор #TASK-1"
-СВОЯ_КОНЕЦ = "// } Автор, 31.08.2026"
-БЫЛО = [ЧУЖАЯ, "\tЧ();", "\tЕсли А Тогда", "\t\tЧ();", "\tКонецЕсли;", "КонецПроцедуры", "",
+MODULE = "CommonModules/Чужой/Ext/Module.bsl"
+FOREIGN = "Процедура Б() Экспорт // {[+](фрагмент ДОБАВЛЕН), 01.01.2025, #TEAM Иванов #TASK-0"
+OWN = "// {[+](фрагмент ДОБАВЛЕН), 31.08.2026, #TEAM Автор #TASK-1"
+OWN_END = "// } Автор, 31.08.2026"
+BEFORE = [FOREIGN, "\tЧ();", "\tЕсли А Тогда", "\t\tЧ();", "\tКонецЕсли;", "КонецПроцедуры", "",
         "Процедура В()", "КонецПроцедуры"]
-СТАЛО = БЫЛО[:5] + ["\t" + СВОЯ, "\tЧ();", "\t" + СВОЯ_КОНЕЦ, "КонецПроцедуры", "",
-                    СВОЯ, "Процедура Н()", "\tЧ();", "КонецПроцедуры", СВОЯ_КОНЕЦ] + БЫЛО[6:]
+AFTER = BEFORE[:5] + ["\t" + OWN, "\tЧ();", "\t" + OWN_END, "КонецПроцедуры", "",
+                    OWN, "Процедура Н()", "\tЧ();", "КонецПроцедуры", OWN_END] + BEFORE[6:]
 
 
 @pytest.fixture
-def профиль(tmp_path):
+def profile(tmp_path):
     path = tmp_path / "профиль.json"
-    path.write_text(json.dumps(ПРОФИЛЬ, ensure_ascii=False), encoding="utf-8")
+    path.write_text(json.dumps(PROFILE, ensure_ascii=False), encoding="utf-8")
     return str(path)
 
 
 def test_a_new_method_after_a_nested_insertion_is_not_an_edit_inside_another_tasks_insertion(
-        tmp_path, профиль, capsys):
-    root = выгрузка(tmp_path)
+        tmp_path, profile, capsys):
+    root = dump_dir(tmp_path)
     git(root, "config", "diff.algorithm", "myers")          # настройка репозитория не мешает
-    написать(root, МОДУЛЬ, БЫЛО)
-    зафиксировать(root, "чужой метод")
-    написать(root, МОДУЛЬ, СТАЛО)
-    _, text, data = check(capsys, профиль, root, "--задача", "TASK-1")
+    write_file(root, MODULE, BEFORE)
+    commit(root, "чужой метод")
+    write_file(root, MODULE, AFTER)
+    _, text, data = check(capsys, profile, root, "--задача", "TASK-1")
     assert "ПРАВКА-В-ЧУЖОЙ-ВСТАВКЕ" not in codes(data), text

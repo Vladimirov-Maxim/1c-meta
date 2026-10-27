@@ -22,10 +22,10 @@ sys.path.insert(0, ROOT)
 from meta.add import main  # noqa: E402
 from meta.domain.model import Refuse  # noqa: E402
 
-ВНЕШНИЕ = os.path.join(ROOT, "meta", "tests", "эталоны", "внешние")
-ЗАДАНИЯ = os.path.join(ВНЕШНИЕ, "задания")
-ОЖИДАНИЕ = os.path.join(ВНЕШНИЕ, "ожидание")
-ПРОФИЛЬ = os.path.join(ROOT, "meta", "tests", "профиль-тестов.json")
+EXTERNAL = os.path.join(ROOT, "meta", "tests", "эталоны", "внешние")
+JOBS = os.path.join(EXTERNAL, "задания")
+EXPECTATION = os.path.join(EXTERNAL, "ожидание")
+PROFILE = os.path.join(ROOT, "meta", "tests", "профиль-тестов.json")
 ORACLE_SEED = 20261008
 
 
@@ -40,14 +40,14 @@ def files(root):
 
 def apply(repo, tmp_path, before_=None):
     """Задания по порядку; `до` — имя задания, на котором остановиться."""
-    for name in sorted(os.listdir(ЗАДАНИЯ)):
+    for name in sorted(os.listdir(JOBS)):
         if not name.endswith(".json"):
             continue
-        with open(os.path.join(ЗАДАНИЯ, name), encoding="utf-8") as f:
+        with open(os.path.join(JOBS, name), encoding="utf-8") as f:
             job_spec = json.loads(f.read().replace("{repo}", str(repo).replace("\\", "/")))
         path = tmp_path / "задание.json"
         path.write_text(json.dumps(job_spec, ensure_ascii=False), encoding="utf-8")
-        assert main([str(path), "--apply", "--профиль", ПРОФИЛЬ]) == 0, name
+        assert main([str(path), "--apply", "--профиль", PROFILE]) == 0, name
         if name == before_:
             return
 
@@ -66,11 +66,11 @@ def test_external_objects_are_written_as_the_configurator_dumps_them(directory, 
     наполнение, правка), правка модуля вставкой, отчёт со схемой и формой
     отчёта — каждый файл байт в байт как выгрузка конфигуратора."""
     apply(directory, tmp_path)
-    written_as, reference_node = files(directory), files(ОЖИДАНИЕ)
+    written_as, reference_node = files(directory), files(EXPECTATION)
     assert sorted(written_as) == sorted(reference_node)
-    разные = [pt for pt in reference_node
+    different = [pt for pt in reference_node
               if open(written_as[pt], "rb").read() != open(reference_node[pt], "rb").read()]
-    assert разные == []
+    assert different == []
 
 
 def test_an_external_object_cannot_be_created_in_a_configuration_dump(tmp_path):
@@ -89,7 +89,7 @@ def test_a_configuration_object_cannot_be_created_in_an_external_dump(directory,
         {"вид": "Справочник", "поля": {"имя": "мой_Спр", "синоним": "Спр"}}]},
         ensure_ascii=False), encoding="utf-8")
     with pytest.raises(Refuse, match="в выгрузке внешней обработки объектов вида «Справочник» нет"):
-        main([str(path), "--apply", "--профиль", ПРОФИЛЬ])
+        main([str(path), "--apply", "--профиль", PROFILE])
     assert os.listdir(directory) == []
 
 
@@ -99,7 +99,7 @@ def test_an_external_dump_has_no_common_forms(directory, tmp_path):
         {"форма": "ОбщаяФорма.мой_Вопрос", "создать": {"синоним": "Вопрос"}}]},
         ensure_ascii=False), encoding="utf-8")
     with pytest.raises(Refuse, match="общих форм не бывает"):
-        main([str(path), "--apply", "--профиль", ПРОФИЛЬ])
+        main([str(path), "--apply", "--профиль", PROFILE])
     assert os.listdir(directory) == []
 
 
@@ -113,12 +113,12 @@ def test_the_plan_of_an_external_dump_is_refused_not_reported_as_not_done(tmp_pa
 
     reference_node, copy_ = tmp_path / "эталон", tmp_path / "копия"
     reference_node.mkdir()
-    shutil.copytree(os.path.join(ВНЕШНИЕ, "ожидание"), copy_)
-    сервер = mcp_server(roots=[str(tmp_path)])
+    shutil.copytree(os.path.join(EXTERNAL, "ожидание"), copy_)
+    server = mcp_server(roots=[str(tmp_path)])
     for tool, arguments in (("plan_emit", {}),
                                   ("plan_check", {"objects": [{"вид": "Обработка", "имя": "мой_Обработка",
                                                                "действие": "создать"}]})):
-        answer = asyncio.run(сервер.call_tool(tool, {"baseline": str(reference_node), "target": str(copy_),
+        answer = asyncio.run(server.call_tool(tool, {"baseline": str(reference_node), "target": str(copy_),
                                                           **arguments}))
         text = "\n".join(block.text for block in (answer[0] if isinstance(answer, tuple) else answer))
         assert "сверки плана" in text and "ПЛАН-ОБЪЕКТ-НЕ-СДЕЛАН" not in text, text

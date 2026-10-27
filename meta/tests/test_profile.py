@@ -29,10 +29,10 @@ from meta.domain.model import Refuse, Spec, TypeRef  # noqa: E402
 from meta.domain.modules import ModuleRef  # noqa: E402
 from meta.jobs.code import code_job_from_json  # noqa: E402
 from meta.jobs.profile import conventions  # noqa: E402
-from meta.tests.conftest import ТЕСТ  # noqa: E402
+from meta.tests.conftest import TEST  # noqa: E402
 
 
-class Мир:
+class World:
     """Пустая конфигурация: ничего нет, всё свободно."""
 
     def object_exists(self, kind, name):
@@ -46,16 +46,16 @@ def codes(findings):
     return [f.code for f in findings]
 
 
-def справочник(name):
+def catalog(name):
     return Spec("Справочник", {"имя": name, "синоним": "Проба"})
 
 
 def test_without_a_profile_the_prefix_rule_does_not_apply():
     """Нет соглашения о приставке — проверять нечего: имя без неё не ошибка."""
     kind = kind_of("Справочник")
-    assert "МД-ПРЕФИКС" not in codes(kind.check(kind.fill(справочник("Проба")), Мир()))
-    kind = kind_of("Справочник", ТЕСТ)
-    assert "МД-ПРЕФИКС" in codes(kind.check(kind.fill(справочник("Проба")), Мир()))
+    assert "МД-ПРЕФИКС" not in codes(kind.check(kind.fill(catalog("Проба")), World()))
+    kind = kind_of("Справочник", TEST)
+    assert "МД-ПРЕФИКС" in codes(kind.check(kind.fill(catalog("Проба")), World()))
 
 
 def test_without_a_profile_every_form_is_editable():
@@ -64,75 +64,75 @@ def test_without_a_profile_every_form_is_editable():
     edit_jobs = fm.FormEdits(("Документ", "РеализацияТоваровУслуг"), "ФормаДокумента")
     kind = fm.FormView(("Документ", "РеализацияТоваровУслуг"), "ФормаДокумента")
     assert "ФОРМА-ТИПОВАЯ-ТОЛЬКО-КОДОМ" not in codes(fm.check(edit_jobs, kind, None))
-    assert "ФОРМА-ТИПОВАЯ-ТОЛЬКО-КОДОМ" in codes(fm.check(edit_jobs, kind, None, conventions=ТЕСТ))
+    assert "ФОРМА-ТИПОВАЯ-ТОЛЬКО-КОДОМ" in codes(fm.check(edit_jobs, kind, None, conventions=TEST))
     assert fm.is_ours("РеализацияТоваровУслуг", "ФормаДокумента", None)
-    assert not fm.is_ours("РеализацияТоваровУслуг", "ФормаДокумента", ТЕСТ.prefix)
+    assert not fm.is_ours("РеализацияТоваровУслуг", "ФормаДокумента", TEST.prefix)
 
 
 def test_a_rule_can_be_turned_off_or_reweighed():
     """Профиль меняет строгость, а не правило: «выкл» убирает находку,
     «ошибка» делает предупреждение блокирующим."""
-    подписка = Spec("ПодпискаНаСобытие", {
+    subscription = Spec("ПодпискаНаСобытие", {
         "имя": "мой_ПриЗаписи", "синоним": "При записи",
         "источник": [TypeRef("Документ", "мой_Заявка", "Объект")],
         "событие": "ПриЗаписи", "обработчик": "мой_Модуль.ПриЗаписи"})
-    own_item = [f for f in ТЕСТ.apply(kind_of("ПодпискаНаСобытие", ТЕСТ).check(подписка, Мир()))
+    own_item = [f for f in TEST.apply(kind_of("ПодпискаНаСобытие", TEST).check(subscription, World()))
             if f.code == "ПОДПИСКА-НА-СВОЙ-ОБЪЕКТ"]
     assert own_item and not own_item[0].blocking
-    строже = Conventions(prefix="мой_", rules=(("ПОДПИСКА-НА-СВОЙ-ОБЪЕКТ", "ошибка"),))
-    own_item = [f for f in строже.apply(kind_of("ПодпискаНаСобытие", строже).check(подписка, Мир()))
+    stricter = Conventions(prefix="мой_", rules=(("ПОДПИСКА-НА-СВОЙ-ОБЪЕКТ", "ошибка"),))
+    own_item = [f for f in stricter.apply(kind_of("ПодпискаНаСобытие", stricter).check(subscription, World()))
             if f.code == "ПОДПИСКА-НА-СВОЙ-ОБЪЕКТ"]
     assert own_item and own_item[0].blocking
-    мягче = Conventions(prefix="мой_", rules=(("ПОДПИСКА-НА-СВОЙ-ОБЪЕКТ", "выкл"),))
+    softer = Conventions(prefix="мой_", rules=(("ПОДПИСКА-НА-СВОЙ-ОБЪЕКТ", "выкл"),))
     assert "ПОДПИСКА-НА-СВОЙ-ОБЪЕКТ" not in codes(
-        мягче.apply(kind_of("ПодпискаНаСобытие", мягче).check(подписка, Мир())))
+        softer.apply(kind_of("ПодпискаНаСобытие", softer).check(subscription, World())))
 
 
 def test_a_profile_error_is_a_refusal_not_a_guess():
     """Опечатка в профиле молча выключила бы соглашение — поэтому отказ."""
     assert conventions({"приставка": "их_"}).prefix == "их_"
     assert conventions({}) == NEUTRAL
-    for плохой, word in (({"префикс": "их_"}, "неизвестные ключи префикс"),
+    for bad_one, word in (({"префикс": "их_"}, "неизвестные ключи префикс"),
                           ({"приставка": ""}, "непустая строка"),
                           ({"правила": {"МД-ПРЕФИКС": "строго"}}, "допустимы: ошибка"),
                           ({"правила": {"мд префикс": "выкл"}}, "не код находки"),
                           ([], "ожидается объект")):
         with pytest.raises(Refuse) as refusal:
-            conventions(плохой)
+            conventions(bad_one)
         assert word in str(refusal.value), refusal.value
 
 
 def test_a_profile_file_is_read_or_refused(tmp_path):
-    профиль = tmp_path / "профиль.json"
-    профиль.write_text('{"приставка": "их_"}', encoding="utf-8")
-    assert conventions_from_file(str(профиль)).prefix == "их_"
-    битый = tmp_path / "битый.json"
-    битый.write_text("{приставка", encoding="utf-8")
+    profile = tmp_path / "профиль.json"
+    profile.write_text('{"приставка": "их_"}', encoding="utf-8")
+    assert conventions_from_file(str(profile)).prefix == "их_"
+    broken_file = tmp_path / "битый.json"
+    broken_file.write_text("{приставка", encoding="utf-8")
     with pytest.raises(Refuse, match="не JSON"):
-        conventions_from_file(str(битый))
+        conventions_from_file(str(broken_file))
     with pytest.raises(Refuse, match="не прочитан"):
         conventions_from_file(str(tmp_path / "нет.json"))
 
 
-def через_терминал(argv):
-    буфер = io.StringIO()
-    with redirect_stdout(буфер):
+def via_terminal(argv):
+    buffer = io.StringIO()
+    with redirect_stdout(buffer):
         try:
             add.main(list(argv))
         except Refuse as refusal:
             print(f"ОТКАЗ: {refusal}")
-    return буфер.getvalue()
+    return buffer.getvalue()
 
 
 def job_spec(tmp_path, name):
     """Задание на справочник в пустую выгрузку (только просмотр)."""
-    выгрузка = tmp_path / "cf"
-    выгрузка.mkdir()
-    (выгрузка / "Configuration.xml").write_text(
+    dump_dir = tmp_path / "cf"
+    dump_dir.mkdir()
+    (dump_dir / "Configuration.xml").write_text(
         open(os.path.join(os.path.dirname(__file__), "эталоны", "формы", "Configuration.xml"),
              encoding="utf-8-sig").read(), encoding="utf-8")
     file = tmp_path / "задание.json"
-    file.write_text(json.dumps({"repo": str(выгрузка), "objects": [
+    file.write_text(json.dumps({"repo": str(dump_dir), "objects": [
         {"вид": "Справочник", "поля": {"имя": name, "синоним": "Проба"}}]}, ensure_ascii=False),
         encoding="utf-8")
     return str(file)
@@ -141,12 +141,12 @@ def job_spec(tmp_path, name):
 def test_the_terminal_key_wins_over_the_environment(tmp_path):
     """`--профиль` у терминала важнее `META_PROFILE`: тесты задают тестовый
     профиль переменной, а ключ его перекрывает."""
-    другой = tmp_path / "другой.json"
-    другой.write_text('{"приставка": "их_"}', encoding="utf-8")
+    other = tmp_path / "другой.json"
+    other.write_text('{"приставка": "их_"}', encoding="utf-8")
     file = job_spec(tmp_path, "мой_Проба")
-    assert "МД-ПРЕФИКС" not in через_терминал([file])
-    assert "МД-ПРЕФИКС" in через_терминал([file, "--профиль", str(другой)])
-    assert "после ключа нужен путь" in через_терминал([file, "--профиль"])
+    assert "МД-ПРЕФИКС" not in via_terminal([file])
+    assert "МД-ПРЕФИКС" in via_terminal([file, "--профиль", str(other)])
+    assert "после ключа нужен путь" in via_terminal([file, "--профиль"])
 
 
 def test_the_mcp_server_takes_the_profile_from_its_environment(tmp_path, monkeypatch):
@@ -157,8 +157,8 @@ def test_the_mcp_server_takes_the_profile_from_its_environment(tmp_path, monkeyp
     with open(file, encoding="utf-8") as f:
         job = json.load(f)
 
-    def check(сервер):
-        answer = asyncio.run(сервер.call_tool("metadata_check", {
+    def check(server):
+        answer = asyncio.run(server.call_tool("metadata_check", {
             "repo": job["repo"], "objects": job["objects"]}))
         answer = answer[0] if isinstance(answer, tuple) else answer
         return "\n".join(block.text for block in answer)
@@ -172,14 +172,14 @@ def test_the_mcp_server_takes_the_profile_from_its_environment(tmp_path, monkeyp
 
 # --- метка команды в метках вставок -----------------------------------------------
 
-ТЕЛО = ["Процедура Проба()", "\tЗначение = 1;", "КонецПроцедуры"]
+BODY = ["Процедура Проба()", "\tЗначение = 1;", "КонецПроцедуры"]
 
 
-class Модули:
+class Modules:
     """Один модуль в памяти: сценарию кода файлы не нужны, нужны строки."""
 
     def read(self, ref):
-        return list(ТЕЛО)
+        return list(BODY)
 
     def address(self, ref):
         return None
@@ -197,45 +197,45 @@ class Модули:
         return None
 
 
-def открывающая(соглашения_команды):
+def opening(team_conventions):
     """Открывающая метка чистой вставки перед «КонецПроцедуры» по соглашениям."""
     job_spec = CodeJob(Signature("ЗАДАЧА-1", "06.10.2026", "Петров"),
                       (ModuleJob(ModuleRef(path="Модуль.bsl"),
                                  (Edit(line=3, code="\tПроверка();"),)),))
-    результат = EditCodeUseCase(Модули(), conventions=соглашения_команды).execute([job_spec])
-    (_, decisions), = результат.per_module
-    return next(line.strip() for решение in decisions for line in решение.block
+    outcome = EditCodeUseCase(Modules(), conventions=team_conventions).execute([job_spec])
+    (_, decisions), = outcome.per_module
+    return next(line.strip() for decision in decisions for line in decision.block
                 if "фрагмент ДОБАВЛЕН" in line)
 
 
 def test_the_team_tag_comes_from_the_profile_not_from_the_job():
     """Метка команды — соглашение команды: без него метка без тега, с ним —
     тег команды перед автором, какой бы он ни был."""
-    assert открывающая(NEUTRAL) == "// {[+](фрагмент ДОБАВЛЕН), 06.10.2026, Петров #ЗАДАЧА-1"
-    assert открывающая(Conventions(marker_tag="#ITS")) == (
+    assert opening(NEUTRAL) == "// {[+](фрагмент ДОБАВЛЕН), 06.10.2026, Петров #ЗАДАЧА-1"
+    assert opening(Conventions(marker_tag="#ITS")) == (
         "// {[+](фрагмент ДОБАВЛЕН), 06.10.2026, #ITS Петров #ЗАДАЧА-1")
 
 
-def правленое(соглашения_команды, edit_jobs):
+def edited_text(team_conventions, edit_jobs):
     """Модуль после правок задания — без файлов."""
     job_spec = CodeJob(Signature("ЗАДАЧА-1", "06.10.2026", "Петров"),
                       (ModuleJob(ModuleRef(path="Модуль.bsl"), tuple(edit_jobs)),))
-    результат = EditCodeUseCase(Модули(), conventions=соглашения_команды).execute([job_spec])
-    (_, decisions), = результат.per_module
+    outcome = EditCodeUseCase(Modules(), conventions=team_conventions).execute([job_spec])
+    (_, decisions), = outcome.per_module
     return decisions
 
 
 def test_without_markers_an_edit_goes_in_place():
     """«метки.ставить»: false — замена на месте без закомментированной копии,
     удаление удаляет, вставка — как есть; ни одной метки."""
-    без_меток = Conventions(marker_tag="#ITS", markers=False)
+    without_markers = Conventions(marker_tag="#ITS", markers=False)
     for edit_job in (Edit(line=2, lines=1, first_line="\tЗначение = 1;", last_line="\tЗначение = 1;",
                         code="\tЗначение = 2;"),
                    Edit(line=2, lines=1, first_line="\tЗначение = 1;", last_line="\tЗначение = 1;",
                         code=""),
                    Edit(line=3, code="\tПроверка();")):
-        decisions = правленое(без_меток, [edit_job])
-        text = "\n".join(line for решение in decisions for line in решение.block)
+        decisions = edited_text(without_markers, [edit_job])
+        text = "\n".join(line for decision in decisions for line in decision.block)
         assert "фрагмент" not in text and "//Значение" not in text
         assert any("метки вставок выключены профилем" in (rr.reason or "") for rr in decisions)
         assert not any(rr.marker for rr in decisions)
@@ -257,33 +257,33 @@ def test_markers_of_any_team_are_parsed():
                    "// {[+](фрагмент ДОБАВЛЕН), 24.12.2021, #ITS Кто #ЗАДАЧА-7",
                    "// {[+](фрагмент ДОБАВЛЕН), 24.12.2021, Кто #ЗАДАЧА-7"):
         assert marker_kind(line) == "open", line
-        (вставка,) = marker_ranges([line, "А();", "// } Кто, 24.12.2021"])
-        assert вставка["task"] == "ЗАДАЧА-7", line
+        (insertion,) = marker_ranges([line, "А();", "// } Кто, 24.12.2021"])
+        assert insertion["task"] == "ЗАДАЧА-7", line
     assert marker_kind("// #ITS {Обычный комментарий}") is None
 
 
 def test_a_tag_in_the_author_is_cut_whatever_team_it_is():
     """Тег, переписанный из соседней метки в автора, — не имя: его ставит
     инструмент по профилю. Другой «#» в авторе — отказ."""
-    def автор(who):
+    def author(who):
         return code_job_from_json({"task": "ЗАДАЧА-1", "date": "06.10.2026", "author": who,
                                    "path": "Модуль.bsl", "edits": [{"line": 1, "code": "А();"}]}
                                   ).signature.author
-    assert автор("#ITS Петров") == "Петров" and автор("#TEAM Петров") == "Петров"
+    assert author("#ITS Петров") == "Петров" and author("#TEAM Петров") == "Петров"
     with pytest.raises(Refuse, match="метку команды и ИД задачи ставит инструмент"):
-        автор("Петров #ЗАДАЧА-1")
+        author("Петров #ЗАДАЧА-1")
 
 
 def test_the_marker_section_of_a_profile_is_checked():
     assert conventions({"метки": {"тег": "#ITS"}}).marker_tag == "#ITS"
     assert conventions({"приставка": "их_"}).marker_tag is None
-    for плохой, word in (({"метки": "#ITS"}, "«метки» — объект"),
+    for bad_one, word in (({"метки": "#ITS"}, "«метки» — объект"),
                           ({"метки": {"метка": "#ITS"}}, "неизвестные ключи метка"),
                           ({"метки": {"тег": "ITS"}}, "«#» и слово без пробелов"),
                           ({"метки": {"тег": "#I TS"}}, "«#» и слово без пробелов"),
                           ({"метки": {"тег": "#A#B"}}, "«#» и слово без пробелов")):
         with pytest.raises(Refuse) as refusal:
-            conventions(плохой)
+            conventions(bad_one)
         assert word in str(refusal.value), refusal.value
 
 
@@ -292,15 +292,15 @@ def test_the_server_tells_the_team_conventions_up_front():
     отказа; без профиля инструкция не называет ничьей приставки."""
     assert "«их_»" in instructions(Conventions(prefix="их_", marker_tag="#ITS"))
     assert "«#ITS»" in instructions(Conventions(prefix="их_", marker_tag="#ITS"))
-    нейтральная = instructions(NEUTRAL)
-    assert "приставки доработок нет" in нейтральная and "мой_" not in нейтральная
+    neutral = instructions(NEUTRAL)
+    assert "приставки доработок нет" in neutral and "мой_" not in neutral
 
 
 def test_the_scheme_section_of_a_profile_is_checked():
     schema = conventions({"атомарныеРоли": {"имя": "их_{вид}_{объект}_{право}",
                                           "синоним": "А {синоним} {право}"}}).atomic_roles
     assert schema == RoleSchema("их_{вид}_{объект}_{право}", "А {синоним} {право}")
-    for плохой, word in (({"атомарныеРоли": "их_"}, "«атомарныеРоли» — объект"),
+    for bad_one, word in (({"атомарныеРоли": "их_"}, "«атомарныеРоли» — объект"),
                           ({"атомарныеРоли": {"имя": "их_{вид}_{объект}_{право}"}},
                            "нужны «имя» и «синоним»"),
                           ({"атомарныеРоли": {"имя": "а", "синоним": "б", "кто": "в"}},
@@ -308,7 +308,7 @@ def test_the_scheme_section_of_a_profile_is_checked():
                           ({"атомарныеРоли": {"имя": "их_{вид}", "синоним": "б"}},
                            "каждое ровно один раз")):
         with pytest.raises(Refuse) as refusal:
-            conventions(плохой)
+            conventions(bad_one)
         assert word in str(refusal.value), refusal.value
 
 
@@ -321,6 +321,6 @@ def test_a_prefix_list_names_the_main_prefix_first():
     findings = kind_of("ОбщийМодуль", command).check(
         Spec("ОбщийМодуль", {"имя": "ОМ_мой_Тест", "синоним": "Тест"}), None)
     assert "МД-ПРЕФИКС" not in [f.code for f in findings]
-    for плохо in ([], ["мой_", ""], ["мой_", 7]):
+    for badly in ([], ["мой_", ""], ["мой_", 7]):
         with pytest.raises(Refuse, match="непустая строка или список строк"):
-            conventions({"приставка": плохо})
+            conventions({"приставка": badly})
