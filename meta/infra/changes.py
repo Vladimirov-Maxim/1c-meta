@@ -33,7 +33,7 @@ from ..domain.changes import (
 from ..domain.model import Refuse
 from ..domain.modules import COMMAND_MARK, CONFIGURATION, FORM_MARK, ModuleAddress
 from ..domain.plan import Состав
-from . import git, layout
+from . import form_bindings, git, layout
 from .repository import Plan
 from .tree_lxml import LxmlCardTree
 
@@ -109,6 +109,14 @@ class _Layout(ChangeSource):
 
     def is_module(self, path):
         return self.layout.is_module(path)
+
+    def form_bindings(self, path):
+        описание = form_bindings.form_file(path)
+        данные = self.data(описание, AFTER) if описание else None
+        if данные is None:
+            return None
+        привязаны, элементы = form_bindings.bindings(данные.decode("utf-8-sig", "replace"))
+        return привязаны, элементы, form_bindings.FORM_EVENT_NAMES
 
     def is_text(self, path):
         return self.layout.is_text(path)

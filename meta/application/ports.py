@@ -228,6 +228,12 @@ class ChangeSource:
         (выгрузка конфигуратора), False — без (проект EDT)."""
         raise NotImplementedError
 
+    def form_bindings(self, path):
+        """(привязанные процедуры, имена элементов, события формы) по описанию
+        формы, чей модуль — `path`, в новой версии; не модуль формы или
+        описания нет — None."""
+        return None
+
     def is_module(self, path):
         """Файл — модуль кода."""
         raise NotImplementedError
@@ -345,6 +351,11 @@ class Modules:
         """[(ссылка, новые строки)] -> `Plan`. Ничего не пишет; формат файла
         (кодировка, BOM, переводы строк) сохраняется таким, каким был."""
         raise NotImplementedError
+
+    def form_bindings(self, ref):
+        """(привязанные процедуры, имена элементов, события формы) по описанию
+        формы рядом с модулем; не модуль формы — None."""
+        return None
 
     def file_format(self, ref):
         """Формат прочитанного модуля словами — «CRLF, BOM» — или None: модуль

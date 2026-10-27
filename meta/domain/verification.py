@@ -20,6 +20,7 @@ from .edits import (
     DECLARATION,
     METHOD_END,
     code_part,
+    declared_names,
     insertion_code,
     marker_kind,
     marker_ranges,
@@ -28,6 +29,7 @@ from .edits import (
     revert_task,
     unclosed_markers,
 )
+from .form_events import unbound_handlers, unbound_message
 from .model import Finding, Refuse, TypeRef
 
 # --- коды правил ---------------------------------------------------------------
@@ -54,6 +56,7 @@ from .model import Finding, Refuse, TypeRef
 ПРАВА_НЕ_ВЫДАНЫ = "ПРАВА-НЕ-ВЫДАНЫ"
 СОСТАВ_ТИПОВ_УЖЕ = "СОСТАВ-ТИПОВ-УЖЕ"
 НУЖНА_ОБЁРТКА = "ВСТАВКА-НУЖНА-ОБЁРТКА"
+НЕ_ПРИВЯЗАН = "ФОРМА-ОБРАБОТЧИК-НЕ-ПРИВЯЗАН"
 
 ОШИБКА, ПРЕДУПРЕЖДЕНИЕ = Finding.ERROR, Finding.WARNING
 
@@ -81,6 +84,8 @@ from .model import Finding, Refuse, TypeRef
     СОСТАВ_ТИПОВ_УЖЕ: (ПРЕДУПРЕЖДЕНИЕ, "у похожих составных членов задачи — один состав ссылочных типов"),
     НУЖНА_ОБЁРТКА: (ПРЕДУПРЕЖДЕНИЕ, "правка, переписывающая больше половины чужой вставки, — обёрткой "
                                    "снаружи, а не вложенной вставкой"),
+    НЕ_ПРИВЯЗАН: (ПРЕДУПРЕЖДЕНИЕ, "новая процедура модуля формы с именем события привязана в описании "
+                                 "формы"),
 }
 
 
@@ -329,6 +334,19 @@ def _стёртые(old, new, hunks, removed, added, old_ranges, own_old, new_ra
             else:
                 стёрто.append(n)
     return стёрто
+
+
+def unbound_findings(path, old, new, привязки):
+    """Новые процедуры модуля формы, названные как событие формы или элемента,
+    без привязки в описании формы: платформа их не вызовет. `привязки` —
+    (привязанные процедуры, имена элементов, события формы)."""
+    было = set(declared_names(old))
+    новые = [имя for имя in declared_names(new) if имя not in было]
+    строки = {имя: n for n, имя in ((n, m.group(1)) for n, m in
+                                    ((n, DECLARATION.match(code_part(line))) for n, line in enumerate(new, 1))
+                                    if m)}
+    return [FileFinding(НЕ_ПРИВЯЗАН, unbound_message(имя, чьё), path, строки.get(имя))
+            for имя, чьё in unbound_handlers(новые, *привязки)]
 
 
 def structure_findings(path, new, added):
