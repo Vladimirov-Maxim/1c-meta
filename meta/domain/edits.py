@@ -681,6 +681,11 @@ def checked(edit, lines):
 
     Словарь: `first`/`last` — заменяемые строки (у чистой вставки обе — якорь),
     `count` — сколько заменяется, `block` — новый код строками, `edit` — сама правка.
+
+    Беды правки копятся и называются одним отказом: по первой было бы видно
+    одну, следующая — только после исправления, и пачка правок стоила бы
+    нескольких кругов (отступ первой строки, затем текст `last_line`). Выход за
+    границы модуля — сразу: остальные проверки читают строки по номерам.
     """
     first = edit.line
     count = edit.lines
@@ -689,30 +694,31 @@ def checked(edit, lines):
 
     if count < 0 or first < 1 or (count > 0 and last > len(lines)) or (count == 0 and first > len(lines) + 1):
         raise Refuse(f"строка {first}: выход за границы модуля (в модуле {len(lines)} строк)")
+    беды = []
     заглушка = placeholder(code)
     if заглушка:
-        raise Refuse(f"строка {first}: в коде заглушка «{заглушка}» — подставьте настоящее имя")
+        беды.append(f"строка {first}: в коде заглушка «{заглушка}» — подставьте настоящее имя")
     # Проверяется только написанный код: закомментированный и перенесённый
     # чужой — как был.
     символы = [] if edit.carried else invalid_characters(code)
     if символы:
-        raise Refuse(f"строка {first}: в коде символы, которые bsl-ls считает ошибкой "
-                     "(InvalidCharacterInFile, стандарт «Тексты модулей» #std456) — "
-                     + described(символы, "строка кода"))
+        беды.append(f"строка {first}: в коде символы, которые bsl-ls считает ошибкой "
+                    "(InvalidCharacterInFile, стандарт «Тексты модулей» #std456) — "
+                    + described(символы, "строка кода"))
     ёлочки = [] if edit.carried else guillemet_lines(code)
     if ёлочки:
-        raise Refuse(f"строка {first}: в коде кавычки-ёлочки ({line_numbers(ёлочки)} кода) — "
-                     "в коде — и в комментариях, и в текстах сообщений — кавычки прямые, "
-                     "внутри строкового литерала — удвоенные (\"\")")
+        беды.append(f"строка {first}: в коде кавычки-ёлочки ({line_numbers(ёлочки)} кода) — "
+                    "в коде — и в комментариях, и в текстах сообщений — кавычки прямые, "
+                    "внутри строкового литерала — удвоенные (\"\")")
     плоский = None if edit.carried else flat_method(code.split("\n") if code else [])
     if плоский:
         имя, номер = плоский
-        raise Refuse(f"строка {first}: тело метода «{имя}» без отступа (строка {номер} кода) — "
-                     "инструмент сдвигает блок целиком до уровня места правки, а отступы "
-                     "внутри кода не ставит: передайте тело метода с табуляцией")
+        беды.append(f"строка {first}: тело метода «{имя}» без отступа (строка {номер} кода) — "
+                    "инструмент сдвигает блок целиком до уровня места правки, а отступы "
+                    "внутри кода не ставит: передайте тело метода с табуляцией")
     повтор = duplicate_region(lines, first, last, count, code.split("\n") if code else [])
     if повтор:
-        raise Refuse(повтор)
+        беды.append(повтор)
 
     # Код встаёт на уровень своего места и сдвигается туда целиком, если пришёл
     # мельче; пустые строки переданного кода получают отступ здесь, а не остаются
@@ -728,10 +734,11 @@ def checked(edit, lines):
         for field, num in (("first_line", first), ("last_line", last)):
             expected = getattr(edit, field)
             if expected is None:
-                raise Refuse(f"строка {first}: не задано поле «{field}» — якорь без проверки не принимается")
+                беды.append(f"строка {first}: не задано поле «{field}» — якорь без проверки не принимается")
+                continue
             actual = lines[num - 1]
             if actual.rstrip() != expected.rstrip():
-                raise Refuse(mismatch(num, expected, actual, lines))
+                беды.append(mismatch(num, expected, actual, lines))
     else:
         # У чистой вставки заменяемых границ нет, но переданный текст — тот же
         # якорь: молча его не сверять значит промахнуться так же, как без него.
@@ -739,14 +746,21 @@ def checked(edit, lines):
         for field in ("first_line", "last_line"):
             expected = getattr(edit, field)
             if expected is not None and actual.rstrip() != expected.rstrip():
-                raise Refuse(mismatch(first, expected, actual, lines,
-                                      f" — при вставке «{field}» сверяется со строкой-якорем"))
+                беды.append(mismatch(first, expected, actual, lines,
+                                     f" — при вставке «{field}» сверяется со строкой-якорем"))
     if not new_block and count == 0:
-        raise Refuse(f"строка {first}: правка пуста — нечего ни добавить, ни удалить")
+        беды.append(f"строка {first}: правка пуста — нечего ни добавить, ни удалить")
     if count == 0:
         разрыв = directive_split(lines, first)
         if разрыв:
-            raise Refuse(разрыв)
+            беды.append(разрыв)
+    # одна строка — и первая, и последняя: одно расхождение, а не два одинаковых
+    беды = list(dict.fromkeys(беды))
+    if len(беды) == 1:
+        raise Refuse(беды[0])
+    if беды:
+        raise Refuse(f"строка {first}: в правке бед {len(беды)}:\n"
+                     + "\n".join(f"    - {беда}" for беда in беды))
     return {"edit": edit, "first": first, "last": last, "count": count, "block": new_block,
             "level": level, "shift": delta}
 
