@@ -11,7 +11,7 @@ from ...domain import plan as rules
 from ...domain.conventions import NEUTRAL, Conventions
 from ...domain.model import Collected
 from ..dto import PlanCheckResult
-from ..plan_facts import touched, факт_объекта
+from ..plan_facts import object_fact, touched
 from ..ports import ChangeSource
 
 
@@ -22,26 +22,26 @@ class PlanCheckUseCase:
 
     def execute(self, plan, declared_only=False):
         src = self.source
-        неизвестные = Collected("в плане объекты, которых выгрузка не знает")
+        unknown = Collected("в плане объекты, которых выгрузка не знает")
         facts = {}
         for obj in plan.objects:
             if src.card_path(obj.kind, obj.name) is None:
-                неизвестные.add(f"«{obj.kind}.{obj.name}»: вид «{obj.kind}» выгрузке неизвестен")
+                unknown.add(f"«{obj.kind}.{obj.name}»: вид «{obj.kind}» выгрузке неизвестен")
                 continue
             modules = {}
             for module in obj.modules:
                 path = src.module_path(obj.kind, obj.name, module)
                 if path is None:
-                    неизвестные.add(f"«{obj.kind}.{obj.name}»: модуля «{module}» у вида не бывает")
+                    unknown.add(f"«{obj.kind}.{obj.name}»: модуля «{module}» у вида не бывает")
                 modules[module] = path
-            facts[(obj.kind, obj.name)] = факт_объекта(
-                src, obj.kind, obj.name, {м: pt for м, pt in modules.items() if pt})
-        неизвестные.raise_collected()
-        тронутые = touched(src)
-        findings = self.conventions.apply(rules.reconcile(plan, facts, тронутые, declared_only))
+            facts[(obj.kind, obj.name)] = object_fact(
+                src, obj.kind, obj.name, {mm: pt for mm, pt in modules.items() if pt})
+        unknown.raise_collected()
+        touched_files = touched(src)
+        findings = self.conventions.apply(rules.reconcile(plan, facts, touched_files, declared_only))
         notes = []
         if declared_only:
-            outside = rules.undeclared(plan, тронутые)
+            outside = rules.undeclared(plan, touched_files)
             notes.append("сверены только заявленные объекты"
                          + (f"; к сведению — тронуто, но не заявлено: {', '.join(outside)}" if outside else ""))
-        return PlanCheckResult(src.describe(), plan, sorted(тронутые), findings, notes)
+        return PlanCheckResult(src.describe(), plan, sorted(touched_files), findings, notes)

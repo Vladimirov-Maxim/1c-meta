@@ -198,7 +198,7 @@ import os
 from ..application.dto import CodeResult
 from ..domain.model import Refuse
 from ..jobs import families
-from ..report import Подсказки
+from ..report import Hints
 from ..report.code import code_lines
 from ..report.forms import element_properties, shown_form
 from ..report.normalize import normalize_lines
@@ -209,11 +209,11 @@ from ..report.result import result_lines
 from ..report.verify import verify_json, verify_lines
 
 #: Как терминал говорит «сделай ещё что-то»: ключами запуска.
-ПОДСКАЗКИ = Подсказки(
+HINTS = Hints(
     fields="--поля {вид}",
-    записать="повторите с --apply",
+    write="повторите с --apply",
     detailed="«--подробно»",
-    подвал_обзора=(
+    overview_footer=(
         "\nПоля вида:  --поля <Вид>        Описание типа:  --поля Тип        "
         "Правка кода:  --поля Код",
         "Что лежит в выгрузке:  --показать <выгрузка> <адрес> [<элемент формы>]\n"
@@ -222,11 +222,11 @@ from ..report.verify import verify_json, verify_lines
         "Просмотр со всеми решёнными за вас значениями:  --подробно",
     ),
     code="заданием на код этого же инструмента (ключ «modules»), сначала без --apply",
-    ветвь="третьего аргумента --показать",
+    branch="третьего аргумента --показать",
 )
 
 
-def печать(lines):
+def printed(lines):
     for line in lines:
         print(line)
 
@@ -234,15 +234,15 @@ def печать(lines):
 #: Ключи запуска — один список для проверки и для текста отказа: вписанный в
 #: оба места по отдельности, новый ключ добавлялся бы в одно из двух и
 #: отвергался бы сообщением, где его же и нет.
-КЛЮЧИ = ("--apply", "--поля", "--показать", "--подробно", "--проверить", "--нормализовать",
+KEYS = ("--apply", "--поля", "--показать", "--подробно", "--проверить", "--нормализовать",
          "--сверить-план", "--план-по-факту", "--help", "-h")
 
 #: Ключи проверки правок, у которых есть значение.
-КЛЮЧИ_ПРОВЕРКИ = ("--база", "--ревизия", "--эталон", "--копия", "--задача", "--только", "--файлы",
+CHECK_KEYS = ("--база", "--ревизия", "--эталон", "--копия", "--задача", "--только", "--файлы",
                   "--json")
-КЛЮЧИ_НОРМАЛИЗАЦИИ = ("--база", "--эталон", "--копия")
-КЛЮЧИ_ПЛАНА = ("--план", "--база", "--ревизия", "--эталон", "--копия", "--json")
-КЛЮЧИ_ФАКТА = ("--база", "--ревизия", "--эталон", "--копия", "--json")
+NORMALIZE_KEYS = ("--база", "--эталон", "--копия")
+PLAN_KEYS = ("--план", "--база", "--ревизия", "--эталон", "--копия", "--json")
+FACT_KEYS = ("--база", "--ревизия", "--эталон", "--копия", "--json")
 
 
 def _no_duplicates(pairs):
@@ -267,33 +267,33 @@ def _code_path(job, job_path, address):
     Файл, а не буфер: текст идёт в задание на код, а оно берёт вставку
     из файла, который человек собирает рядом.
     """
-    сказано = job.get("файлКода")
-    if сказано:
-        return сказано if os.path.isabs(сказано) else os.path.join(
-            os.path.dirname(os.path.abspath(job_path)), сказано)
+    stated = job.get("файлКода")
+    if stated:
+        return stated if os.path.isabs(stated) else os.path.join(
+            os.path.dirname(os.path.abspath(job_path)), stated)
     name = address.replace(".", "_") + ".bsl"
     return os.path.join(os.path.dirname(os.path.abspath(job_path)), name)
 
 
-def show(controller, repo, address, detailed=False, ветвь=None):
+def show(controller, repo, address, detailed=False, branch=None):
     """`--показать`: объект или форма из выгрузки; у формы — третьим
     аргументом имя элемента, чтобы показать только его ветку."""
     if not os.path.isdir(repo):
         print(f"ОТКАЗ: каталога «{repo}» не существует")
         return 2
     try:
-        ответ = controller.show(repo, address)
+        answer = controller.show(repo, address)
     except Refuse as refusal:
         print(f"ОТКАЗ: {refusal}")
         return 1
-    if ответ[0] == "форма":
-        _, view, name, form_file, module_file, своя = ответ
-        печать(shown_form(view, name, form_file, module_file, detailed, ПОДСКАЗКИ, ветвь=ветвь,
-                          своя=своя))
+    if answer[0] == "форма":
+        _, view, name, form_file, module_file, own_item = answer
+        printed(shown_form(view, name, form_file, module_file, detailed, HINTS, branch=branch,
+                          own_item=own_item))
     else:
-        _, spec, file = ответ
-        печать(shown_object(spec, file, ПОДСКАЗКИ, полностью=detailed))
-        if ветвь:
+        _, spec, file = answer
+        printed(shown_object(spec, file, HINTS, fully=detailed))
+        if branch:
             print("третий аргумент — ветка дерева формы; у объекта не применяется")
     return 0
 
@@ -301,68 +301,68 @@ def show(controller, repo, address, detailed=False, ветвь=None):
 def fields(controller, kind_name=None):
     """`--поля`: обзор видов, поля вида, свойства элемента формы или описание типа."""
     if not kind_name:
-        печать(overview(controller.kinds(), ПОДСКАЗКИ))
+        printed(overview(controller.kinds(), HINTS))
         return 0
     if kind_name in ("Тип", "Типы"):
-        печать(types())
+        printed(types())
         return 0
     if kind_name in CODE_WORDS:
-        печать(code_rules(ПОДСКАЗКИ))
+        printed(code_rules(HINTS))
         return 0
     found = controller.kind(kind_name)
     if found is not None:
-        печать(kind_fields(kind_name, *found))
+        printed(kind_fields(kind_name, *found))
         return 0
     props = element_properties(kind_name)
     if props is not None:
-        печать(props)
+        printed(props)
         return 0
     if is_a_type_word(kind_name):
-        печать(types())
+        printed(types())
         return 0
     print("вида «{}» нет; есть: {}".format(kind_name, ", ".join(controller.kind_names())))
     return 2
 
 
-def _разобрать(argv, команда, со_значением):
+def _parse(argv, command, with_value):
     """argv -> (позиционные, {ключ: значение}). Неизвестный ключ и ключ без
     значения — отказ: молча проглоченный ключ сменил бы предмет проверки."""
-    позиционные, values, i = [], {}, 0
+    positional, values, i = [], {}, 0
     while i < len(argv):
         word = argv[i]
-        if word == команда:
+        if word == command:
             i += 1
-        elif word in со_значением:
+        elif word in with_value:
             if i + 1 >= len(argv) or argv[i + 1].startswith("--"):
                 raise Refuse(f"{word}: после ключа нужно значение")
             values[word] = argv[i + 1]
             i += 2
         elif word.startswith("-"):
-            raise Refuse(f"{команда}: не знаю ключа {word}; известны: {', '.join(со_значением)}")
+            raise Refuse(f"{command}: не знаю ключа {word}; известны: {', '.join(with_value)}")
         else:
-            позиционные.append(word)
+            positional.append(word)
             i += 1
-    return позиционные, values
+    return positional, values
 
 
 def verify(controller, argv):
     """`--проверить`: правки задачи против базы; код 2 — ошибка входа, а не «чисто»."""
     try:
-        позиционные, ключи = _разобрать(argv, "--проверить", КЛЮЧИ_ПРОВЕРКИ)
-        if len(позиционные) > 1:
-            raise Refuse(f"выгрузка одна, получено: {', '.join(позиционные)}")
-        только = [code.strip() for code in (ключи.get("--только") or "").split(",") if code.strip()]
-        files = [path.strip() for path in (ключи.get("--файлы") or "").split(",") if path.strip()]
-        result = controller.verify(repo=позиционные[0] if позиционные else None,
-                                   base=ключи.get("--база", "HEAD"), rev=ключи.get("--ревизия"),
-                                   baseline=ключи.get("--эталон"), target=ключи.get("--копия"),
-                                   task=ключи.get("--задача"), only=только, paths=files)
+        positional, keys = _parse(argv, "--проверить", CHECK_KEYS)
+        if len(positional) > 1:
+            raise Refuse(f"выгрузка одна, получено: {', '.join(positional)}")
+        only_ = [code.strip() for code in (keys.get("--только") or "").split(",") if code.strip()]
+        files = [path.strip() for path in (keys.get("--файлы") or "").split(",") if path.strip()]
+        result = controller.verify(repo=positional[0] if positional else None,
+                                   base=keys.get("--база", "HEAD"), rev=keys.get("--ревизия"),
+                                   baseline=keys.get("--эталон"), target=keys.get("--копия"),
+                                   task=keys.get("--задача"), only=only_, paths=files)
     except Refuse as refusal:
         print(f"ОТКАЗ: {refusal}")
         return 2
-    печать(verify_lines(result))
-    if ключи.get("--json"):
-        with open(ключи["--json"], "w", encoding="utf-8", newline="\n") as file:
+    printed(verify_lines(result))
+    if keys.get("--json"):
+        with open(keys["--json"], "w", encoding="utf-8", newline="\n") as file:
             json.dump(verify_json(result), file, ensure_ascii=False, indent=1)
     return 0 if result.ok else 1
 
@@ -372,26 +372,26 @@ def normalize(controller, argv):
     есть что исправить, 2 — ошибка входа."""
     apply_now = "--apply" in argv
     try:
-        позиционные, ключи = _разобрать([a for a in argv if a != "--apply"], "--нормализовать",
-                                        КЛЮЧИ_НОРМАЛИЗАЦИИ)
-        if len(позиционные) > 1:
-            raise Refuse(f"выгрузка одна, получено: {', '.join(позиционные)}")
-        result = controller.normalize(repo=позиционные[0] if позиционные else None,
-                                      base=ключи.get("--база", "HEAD"), baseline=ключи.get("--эталон"),
-                                      target=ключи.get("--копия"), apply_now=apply_now)
+        positional, keys = _parse([a for a in argv if a != "--apply"], "--нормализовать",
+                                        NORMALIZE_KEYS)
+        if len(positional) > 1:
+            raise Refuse(f"выгрузка одна, получено: {', '.join(positional)}")
+        result = controller.normalize(repo=positional[0] if positional else None,
+                                      base=keys.get("--база", "HEAD"), baseline=keys.get("--эталон"),
+                                      target=keys.get("--копия"), apply_now=apply_now)
     except Refuse as refusal:
         print(f"ОТКАЗ: {refusal}")
         return 2
-    печать(normalize_lines(result, apply_now, "повторите с --apply"))
+    printed(normalize_lines(result, apply_now, "повторите с --apply"))
     return 0 if apply_now or result.ok else 1
 
 
-def _источник(позиционные, ключи):
+def _source(positional, keys):
     """Источник правок из ключей: выгрузка позиционно или пара «эталон — копия»."""
-    if len(позиционные) > 1:
-        raise Refuse(f"выгрузка одна, получено: {', '.join(позиционные)}")
-    return dict(repo=позиционные[0] if позиционные else None, base=ключи.get("--база", "HEAD"),
-                rev=ключи.get("--ревизия"), baseline=ключи.get("--эталон"), target=ключи.get("--копия"))
+    if len(positional) > 1:
+        raise Refuse(f"выгрузка одна, получено: {', '.join(positional)}")
+    return dict(repo=positional[0] if positional else None, base=keys.get("--база", "HEAD"),
+                rev=keys.get("--ревизия"), baseline=keys.get("--эталон"), target=keys.get("--копия"))
 
 
 def plan_check(controller, argv):
@@ -399,22 +399,22 @@ def plan_check(controller, argv):
     try:
         declared_only = "--только-заявленные" in argv
         argv = [word for word in argv if word != "--только-заявленные"]
-        позиционные, ключи = _разобрать(argv, "--сверить-план", КЛЮЧИ_ПЛАНА)
-        if not ключи.get("--план"):
+        positional, keys = _parse(argv, "--сверить-план", PLAN_KEYS)
+        if not keys.get("--план"):
             raise Refuse("--план <файл.json>: план изменений — JSON с ключом «объекты»")
         try:
-            with open(ключи["--план"], encoding="utf-8-sig") as file:
+            with open(keys["--план"], encoding="utf-8-sig") as file:
                 plan = file.read()
         except OSError as error:
-            raise Refuse(f"план «{ключи['--план']}» не прочитан: {error}") from error
-        result = controller.plan_check(plan, **_источник(позиционные, ключи),
+            raise Refuse(f"план «{keys['--план']}» не прочитан: {error}") from error
+        result = controller.plan_check(plan, **_source(positional, keys),
                                        only_declared=declared_only)
     except Refuse as refusal:
         print(f"ОТКАЗ: {refusal}")
         return 2
-    печать(plan_check_lines(result))
-    if ключи.get("--json"):
-        with open(ключи["--json"], "w", encoding="utf-8", newline="\n") as file:
+    printed(plan_check_lines(result))
+    if keys.get("--json"):
+        with open(keys["--json"], "w", encoding="utf-8", newline="\n") as file:
             json.dump(plan_check_json(result), file, ensure_ascii=False, indent=1)
     return 0 if result.ok else 1
 
@@ -422,15 +422,15 @@ def plan_check(controller, argv):
 def plan_emit(controller, argv):
     """`--план-по-факту`: факт задачи планом — JSON в вывод (и файлом с `--json`)."""
     try:
-        позиционные, ключи = _разобрать(argv, "--план-по-факту", КЛЮЧИ_ФАКТА)
-        result = controller.plan_emit(**_источник(позиционные, ключи))
+        positional, keys = _parse(argv, "--план-по-факту", FACT_KEYS)
+        result = controller.plan_emit(**_source(positional, keys))
     except Refuse as refusal:
         print(f"ОТКАЗ: {refusal}")
         return 2
     text = json.dumps(plan_emit_json(result), ensure_ascii=False, indent=1)
     print(text)
-    if ключи.get("--json"):
-        with open(ключи["--json"], "w", encoding="utf-8", newline="\n") as file:
+    if keys.get("--json"):
+        with open(keys["--json"], "w", encoding="utf-8", newline="\n") as file:
             file.write(text + "\n")
     return 0
 
@@ -464,10 +464,10 @@ def main(argv, controller):
         return 2
     # Порядок слов не значит ничего: иначе `add.py --apply job.json` читался
     # бы как «задание лежит в файле --apply» и падал трассировкой.
-    unknown = [flag for flag in flags if flag not in КЛЮЧИ]
+    unknown = [flag for flag in flags if flag not in KEYS]
     if unknown:
         print("не знаю ключей: {}; известны: {}".format(
-            ", ".join(unknown), ", ".join(КЛЮЧИ)))
+            ", ".join(unknown), ", ".join(KEYS)))
         return 2
     if "--поля" in flags:
         return fields(controller, rest[0] if rest else None)
@@ -502,25 +502,25 @@ def main(argv, controller):
     print(f"Выгрузка: {families.repo_of(job)}")
     result = controller.execute(job, apply_now)
     if isinstance(result, CodeResult):
-        печать(code_lines(result, apply_now, ПОДСКАЗКИ, whole="--подробно" in flags))
+        printed(code_lines(result, apply_now, HINTS, whole="--подробно" in flags))
         return 0
 
     # Фрагмент кода для типовой формы терминал кладёт файлом рядом с
     # заданием: оттуда его берёт задание на код.
-    куда_код = {}
+    code_destination = {}
     if result.ok:
         for address, text in (getattr(result, "code", None) or {}).items():
             path = _code_path(job, job_path, address)
             if apply_now:
                 with open(path, "w", encoding="utf-8-sig", newline="\r\n") as file:
                     file.write(text)
-                куда_код[address] = f"\nЗаписан фрагмент: {path}"
+                code_destination[address] = f"\nЗаписан фрагмент: {path}"
             else:
-                куда_код[address] = f"\nПросмотр: с --apply фрагмент ляжет в {path}"
+                code_destination[address] = f"\nПросмотр: с --apply фрагмент ляжет в {path}"
     # Подробный просмотр — и все поля, и тексты файлов: размер в плане не
     # говорит, что окажется в файле.
-    печать(result_lines(result, принято=job.get("принято"),
+    printed(result_lines(result, accepted=job.get("принято"),
                         detailed="--подробно" in flags, apply_now=apply_now,
-                        подсказки=ПОДСКАЗКИ, куда_код=куда_код,
+                        hints=HINTS, code_destination=code_destination,
                         files="--подробно" in flags))
     return 0 if result.ok else 1

@@ -25,16 +25,16 @@ def touched(source):
     return out
 
 
-def _методы(source, path, side):
+def _methods(source, path, side):
     lines = source.lines(path, side)
     return None if lines is None else declared_methods(lines)
 
 
 def _module(source, path):
-    return rules.FactModule(path, _методы(source, path, AFTER), _методы(source, path, BEFORE) or {})
+    return rules.FactModule(path, _methods(source, path, AFTER), _methods(source, path, BEFORE) or {})
 
 
-def факт_объекта(source, kind, name, modules):
+def object_fact(source, kind, name, modules):
     """`ObjectFact`: состав до и после, модули {модуль: путь} — их методы."""
     return rules.ObjectFact(kind, name, source.card_path(kind, name),
                              source.composition(kind, name, AFTER), source.composition(kind, name, BEFORE),

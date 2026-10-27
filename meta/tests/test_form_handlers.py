@@ -41,11 +41,11 @@ def form(tmp_path):
 
 def test_code_apply_warns_about_event_named_procedures_without_binding(tmp_path, capsys):
     root = form(tmp_path)
-    задание = {"repo": str(root), "task": "TASK-1", "date": "31.08.2026", "author": "Автор",
+    job_spec = {"repo": str(root), "task": "TASK-1", "date": "31.08.2026", "author": "Автор",
                "modules": [{"модуль": "Документ.мой_Наш.Форма.ФормаДокумента", "edits": [
                    {"line": 4, "lines": 0, "code": НОВОЕ}]}]}
     path = tmp_path / "код.json"
-    path.write_text(json.dumps(задание, ensure_ascii=False), encoding="utf-8")
+    path.write_text(json.dumps(job_spec, ensure_ascii=False), encoding="utf-8")
     профиль = tmp_path / "профиль.json"
     профиль.write_text(json.dumps(ПРОФИЛЬ, ensure_ascii=False), encoding="utf-8")
     capsys.readouterr()
@@ -55,9 +55,9 @@ def test_code_apply_warns_about_event_named_procedures_without_binding(tmp_path,
     assert "«НомерПриИзменении» названа как событие «ПриИзменении» элемента «Номер»" in text
     assert "«Посчитать»" not in text
 
-    ответ = tmp_path / "ответ.json"
-    main(["--проверить", str(root), "--задача", "TASK-1", "--профиль", str(профиль), "--json", str(ответ)])
-    findings = [f for f in json.loads(ответ.read_text(encoding="utf-8"))["находки"]
+    answer = tmp_path / "ответ.json"
+    main(["--проверить", str(root), "--задача", "TASK-1", "--профиль", str(профиль), "--json", str(answer)])
+    findings = [f for f in json.loads(answer.read_text(encoding="utf-8"))["находки"]
                if f["код"] == "ФОРМА-ОБРАБОТЧИК-НЕ-ПРИВЯЗАН"]
     assert sorted(f["текст"].split("»")[0] for f in findings) == ["процедура «НомерПриИзменении",
                                                                  "процедура «ПередЗакрытием"]

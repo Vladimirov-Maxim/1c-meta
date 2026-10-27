@@ -31,13 +31,13 @@ from ..domain.model import Collected, Refuse
 from ..domain.modules import FORM_MARK, OWN_MODULES, SINGLE_MODULE
 from ..domain.plan import ACTIONS, GROUPS, WITHOUT_TYPES, Plan, PlanObject
 
-КЛЮЧИ_ОБЪЕКТА = ("вид", "имя", "действие") + GROUPS + ("методы", "модули")
-_БЕЗ_ТИПОВ_У = {"табличныеЧасти": "табличной части", "значения": "значения перечисления",
+OBJECT_KEYS = ("вид", "имя", "действие") + GROUPS + ("методы", "модули")
+_WITHOUT_TYPES_AT = {"табличныеЧасти": "табличной части", "значения": "значения перечисления",
                 "предопределенные": "предопределённого элемента"}
-_ЭКСПОРТ = re.compile(r"\s+Экспорт$")
+_EXPORT = re.compile(r"\s+Экспорт$")
 
 
-def план_из_json(data):
+def plan_from_json(data):
     """JSON плана (словарь или текст) -> `План`. Беды копятся и предъявляются разом."""
     if isinstance(data, str):
         try:
@@ -50,16 +50,16 @@ def план_из_json(data):
     problems = Collected("план не разобран")
     if extra:
         problems.add(f"неизвестные ключи плана: {', '.join(extra)}; известен: объекты")
-    objects, встречены = [], set()
+    objects, encountered = [], set()
     for number, item in enumerate(data["объекты"], start=1):
         obj = _object(item, number, problems)
         if obj is None:
             continue
         key = (obj.kind, obj.name)
-        if key in встречены:
+        if key in encountered:
             problems.add(f"«{obj.kind}.{obj.name}» в плане дважды — объект называется один раз")
             continue
-        встречены.add(key)
+        encountered.add(key)
         objects.append(obj)
     problems.raise_collected()
     return Plan(tuple(objects))
@@ -71,9 +71,9 @@ def _object(data, number, problems):
         return None
     who = f"«{data.get('вид')}.{data.get('имя')}»" if data.get("имя") else f"объект {number}"
     before = len(problems.problems)
-    extra = [key for key in data if key not in КЛЮЧИ_ОБЪЕКТА]
+    extra = [key for key in data if key not in OBJECT_KEYS]
     if extra:
-        problems.add(f"{who}: неизвестные ключи {', '.join(extra)}; известны: {', '.join(КЛЮЧИ_ОБЪЕКТА)}")
+        problems.add(f"{who}: неизвестные ключи {', '.join(extra)}; известны: {', '.join(OBJECT_KEYS)}")
     for key in ("вид", "имя", "действие"):
         if not isinstance(data.get(key), str) or not data[key].strip():
             problems.add(f"{who}: нет «{key}»")
@@ -83,7 +83,7 @@ def _object(data, number, problems):
     for group in GROUPS:
         if data.get(group) is not None:
             members[group] = _group(data[group], f"{who}, «{group}»", group, problems)
-    modules = _модули(data, who, problems)
+    modules = _modules(data, who, problems)
     if len(problems.problems) > before:
         return None
     return PlanObject(data["вид"].strip(), data["имя"].strip(), data["действие"], members, modules)
@@ -103,31 +103,31 @@ def _group(value, where, group, problems):
             problems.add(f"{where}, «{name}»: типы — список строк («Строка(50)», «Справочник.Имя») или null")
             continue
         if types and group in WITHOUT_TYPES:
-            problems.add(f"{where}, «{name}»: у {_БЕЗ_ТИПОВ_У[group]} типов не бывает — список имён "
+            problems.add(f"{where}, «{name}»: у {_WITHOUT_TYPES_AT[group]} типов не бывает — список имён "
                           "или null")
             continue
         members[name] = tuple(tk.strip() for tk in types) if types else None
     return members
 
 
-def _модули(data, who, problems):
+def _modules(data, who, problems):
     kind = data.get("вид")
-    единственный = SINGLE_MODULE.get(kind)
+    sole = SINGLE_MODULE.get(kind)
     modules = {}
-    if единственный == FORM_MARK and (data.get("методы") is not None or data.get("модули") is not None):
+    if sole == FORM_MARK and (data.get("методы") is not None or data.get("модули") is not None):
         problems.add(f"{who}: модуль общей формы — модуль формы; методы форм план не сверяет")
         return {}
     if data.get("методы") is not None:
-        if единственный is None:
+        if sole is None:
             problems.add(f"{who}: «методы» — у вида с одним модулем; у «{kind}» модули называются "
                           f"в «модули»: {', '.join(OWN_MODULES)}")
         else:
-            modules[единственный] = data["методы"]
+            modules[sole] = data["методы"]
     if data.get("модули") is not None:
         if not isinstance(data["модули"], dict):
             problems.add(f"{who}: «модули» — {{модуль: [методы]}}")
         else:
-            allowed = (единственный,) if единственный else OWN_MODULES
+            allowed = (sole,) if sole else OWN_MODULES
             for module, names in data["модули"].items():
                 if module not in allowed:
                     problems.add(f"{who}: модуль «{module}»; у «{kind}» бывают: {', '.join(allowed)}")
@@ -140,11 +140,11 @@ def _модули(data, who, problems):
         if not isinstance(names, list) or not all(isinstance(ii, str) and ii.strip() for ii in names):
             problems.add(f"{who}: методы модуля «{module}» — список имён")
             continue
-        result[module] = tuple(_ЭКСПОРТ.sub("", ii.strip()) for ii in names)
+        result[module] = tuple(_EXPORT.sub("", ii.strip()) for ii in names)
     return result
 
 
-def план_в_json(plan):
+def plan_to_json(plan):
     """`План` -> JSON-словарь того же формата: группы без типов — списком имён,
     методы вида с одним модулем — «методы»."""
     objects = []
@@ -159,9 +159,9 @@ def план_в_json(plan):
             else:
                 data[group] = {name: (list(types) if types is not None else None)
                                   for name, types in members.items()}
-        единственный = SINGLE_MODULE.get(obj.kind)
+        sole = SINGLE_MODULE.get(obj.kind)
         for module, names in obj.modules.items():
-            if module == единственный:
+            if module == sole:
                 data["методы"] = list(names)
             else:
                 data.setdefault("модули", {})[module] = list(names)

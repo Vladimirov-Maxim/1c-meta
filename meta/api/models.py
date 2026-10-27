@@ -147,7 +147,7 @@ class FormJob(_Model):
                           "модуль и имя и выдаст готовый вызов")
 
 
-def в_язык_заданий(forms):
+def to_job_language(forms):
     """Модели -> пункты «forms» языка заданий: словари с теми же ключами.
 
     Незаданное выбрасывается: у языка заданий «ключа нет» и «ключ пуст» —
@@ -162,7 +162,7 @@ def в_язык_заданий(forms):
 # собирать формат из примеров. Поля самого объекта зависят от вида — их сотни, и они
 # остаются словарём: состав по виду отдаёт fields(kind=…), а судит язык заданий.
 
-_ПОЛЯ = ("поля по-русски — состав по виду отдаёт fields(kind=\"<вид>\"): имя, синоним, "
+_FIELDS = ("поля по-русски — состав по виду отдаёт fields(kind=\"<вид>\"): имя, синоним, "
          "тип («Строка(50)», «Справочник.Имя» — fields(kind=\"Тип\")), …")
 
 
@@ -171,7 +171,7 @@ class MetadataObject(_Model):
 
     вид: str = Field(description="Справочник, Документ, РегистрСведений, Перечисление, "
                                  "ОбщийМодуль, ПодпискаНаСобытие, Роль, … — перечень: fields()")
-    поля: dict[str, Any] = Field(description=_ПОЛЯ + "; «атомарныеРоли»: true, список ролей "
+    поля: dict[str, Any] = Field(description=_FIELDS + "; «атомарныеРоли»: true, список ролей "
                                              "или {«права»: […], «сокращение»: «…», «комментарий»: «…»} — роли "
                                              "к объекту")
 
@@ -181,7 +181,7 @@ class AttributeAddition(_Model):
 
     объект: str = Field(description="хозяин: «Справочник.мой_Х» или табличная часть "
                                     "«Документ.мой_Х.ТабличнаяЧасть.Строки»")
-    поля: dict[str, Any] = Field(description=_ПОЛЯ)
+    поля: dict[str, Any] = Field(description=_FIELDS)
 
 
 class ChildAddition(_Model):
@@ -190,7 +190,7 @@ class ChildAddition(_Model):
     путь: str = Field(description="хозяин: «Документ.мой_Заявка»")
     вид: str = Field(description="вид части: ТабличнаяЧасть, Реквизит, Измерение, Ресурс, "
                                  "ЗначениеПеречисления, НаборДанных, Параметр, …")
-    поля: dict[str, Any] = Field(description=_ПОЛЯ)
+    поля: dict[str, Any] = Field(description=_FIELDS)
 
 
 class FieldChange(_Model):
@@ -234,17 +234,17 @@ class AtomicRoles(_Model):
                           "укладывается в 80 символов (#std474)")
 
 
-def метаданные_в_язык_заданий(repo, операции, accepted):
+def metadata_to_job_language(repo, operations, accepted):
     """Модели -> задание на метаданные словарём, с теми же ключами, что в файле
     для терминала. Пункт-строка (удаление, роли) остаётся строкой."""
-    задание = {"repo": repo}
-    for key, пункты in операции.items():
-        if пункты:
-            задание[key] = [pt if isinstance(pt, str) else pt.model_dump(exclude_none=True)
-                             for pt in пункты]
+    job_spec = {"repo": repo}
+    for key, items in operations.items():
+        if items:
+            job_spec[key] = [pt if isinstance(pt, str) else pt.model_dump(exclude_none=True)
+                             for pt in items]
     if accepted:
-        задание["принято"] = list(accepted)
-    return задание
+        job_spec["принято"] = list(accepted)
+    return job_spec
 
 
 # --- задание на код -------------------------------------------------------------
@@ -337,24 +337,24 @@ class MethodMove(_Model):
     to_line: int = Field(description="строка приёмника, перед которой встанет метод")
 
 
-def код_в_язык_заданий(modules, перенос):
+def code_to_job_language(modules, move):
     """Модели -> ключи задания на код, те же, что в файле для терминала."""
-    задание = {"modules": []}
-    for м in modules:
-        data = м.model_dump(by_alias=True, exclude_none=True)
+    job_spec = {"modules": []}
+    for mm in modules:
+        data = mm.model_dump(by_alias=True, exclude_none=True)
         if "module" in data:
             if "модуль" in data:
                 raise Refuse("модуль назван дважды — «module» и «модуль»; нужен один: module")
             data["модуль"] = data.pop("module")
-        задание["modules"].append(data)
-    if перенос is not None:
-        задание["move_method"] = перенос.model_dump(by_alias=True, exclude_none=True)
-    return задание
+        job_spec["modules"].append(data)
+    if move is not None:
+        job_spec["move_method"] = move.model_dump(by_alias=True, exclude_none=True)
+    return job_spec
 
 
 # --- план изменений --------------------------------------------------------------
 
-_СОСТАВ = ("{имя: [типы]} — типы записью показа («Строка(50)», «Справочник.Имя») или "
+_COMPOSITION = ("{имя: [типы]} — типы записью показа («Строка(50)», «Справочник.Имя») или "
            "синтакс-помощника («СправочникСсылка.Имя»), null — тип не сверяется; "
            "или просто список имён")
 
@@ -366,9 +366,9 @@ class PlanObject(_Model):
                                  "Роль, … — вид объекта метаданных")
     имя: str
     действие: str = Field(description="создать, изменить или удалить")
-    реквизиты: dict[str, list[str] | None] | list[str] | None = Field(None, description=_СОСТАВ)
-    измерения: dict[str, list[str] | None] | list[str] | None = Field(None, description=_СОСТАВ)
-    ресурсы: dict[str, list[str] | None] | list[str] | None = Field(None, description=_СОСТАВ)
+    реквизиты: dict[str, list[str] | None] | list[str] | None = Field(None, description=_COMPOSITION)
+    измерения: dict[str, list[str] | None] | list[str] | None = Field(None, description=_COMPOSITION)
+    ресурсы: dict[str, list[str] | None] | list[str] | None = Field(None, description=_COMPOSITION)
     табличныеЧасти: list[str] | dict[str, None] | None = Field(None, description="имена")
     значения: list[str] | dict[str, None] | None = Field(None, description="имена значений перечисления")
     методы: list[str] | None = Field(None, description="методы модуля у вида с одним модулем: "
@@ -379,6 +379,6 @@ class PlanObject(_Model):
                           "МодульМенеджераЗначения")
 
 
-def план_в_язык_плана(objects):
+def plan_to_plan_language(objects):
     """Модели -> объекты плана словарями, теми же ключами, что в файле плана."""
     return [ob.model_dump(exclude_none=True) if hasattr(ob, "model_dump") else ob for ob in objects or ()]

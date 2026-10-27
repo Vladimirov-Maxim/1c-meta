@@ -7,7 +7,7 @@
 """
 
 from ..jobs import dialect, families
-from ..jobs.plan import план_из_json
+from ..jobs.plan import plan_from_json
 
 
 class Controller:
@@ -41,29 +41,29 @@ class Controller:
         """Что лежит по адресу: ("форма", вид, имя, файл, модуль, своя) или ("объект", spec, файл)."""
         if dialect.looks_like_a_form(address):
             owner, name = dialect.form_address(address)
-            view, form_file, module_file, своя = self.show_form(repo).execute(owner, name)
-            return "форма", view, name, form_file, module_file, своя
+            view, form_file, module_file, own_item = self.show_form(repo).execute(owner, name)
+            return "форма", view, name, form_file, module_file, own_item
         spec, file = self.show_object(repo).execute(dialect.path_from_json(address))
         return "объект", spec, file
 
     def verify(self, repo=None, base="HEAD", rev=None, baseline=None, target=None, task=None,
                only=None, paths=None):
         """Проверка правок задачи: выгрузка под git против базы или пара каталогов."""
-        сценарий = self.verify_case(repo=repo, base=base, rev=rev, baseline=baseline, target=target)
-        return сценарий.execute(task=task or None, only=list(only) if only else None,
+        scenario = self.verify_case(repo=repo, base=base, rev=rev, baseline=baseline, target=target)
+        return scenario.execute(task=task or None, only=list(only) if only else None,
                                 paths=list(paths) if paths else None)
 
     def normalize(self, repo=None, base="HEAD", baseline=None, target=None, apply_now=False):
         """Нормализация формата файлов задачи: просмотр или запись."""
-        сценарий = self.normalize_case(repo=repo, base=base, baseline=baseline, target=target)
-        return сценарий.execute(apply_now=apply_now)
+        scenario = self.normalize_case(repo=repo, base=base, baseline=baseline, target=target)
+        return scenario.execute(apply_now=apply_now)
 
     def plan_check(self, plan, repo=None, base="HEAD", rev=None, baseline=None, target=None,
                    only_declared=False):
         """Сверка плана с фактом: план JSON-ом (словарь или текст) -> язык плана -> сценарий."""
-        parsed_plan = план_из_json(plan)
-        сценарий = self.plan_check_case(repo=repo, base=base, rev=rev, baseline=baseline, target=target)
-        return сценарий.execute(parsed_plan, declared_only=only_declared)
+        parsed_plan = plan_from_json(plan)
+        scenario = self.plan_check_case(repo=repo, base=base, rev=rev, baseline=baseline, target=target)
+        return scenario.execute(parsed_plan, declared_only=only_declared)
 
     def plan_emit(self, repo=None, base="HEAD", rev=None, baseline=None, target=None):
         """План по факту задачи."""

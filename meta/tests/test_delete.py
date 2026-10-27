@@ -168,9 +168,9 @@ def test_the_refusal_names_the_attribute_and_its_property(dump):
     assert DesignerDump(dump).references_to([("Справочник", "мой_Цель")]) == [
         "Документ.мой_Приход.Реквизит.Основной (тип)",
         "Документ.мой_Приход.ТабличнаяЧасть.Товары.Реквизит.Склад (тип)"]
-    сказано = delete(dump, "Справочник.мой_Цель", apply_now=False).errors[0].message
-    assert "ссылаются (2)" in сказано
-    assert "ТабличнаяЧасть.Товары.Реквизит.Склад (тип)" in сказано
+    stated = delete(dump, "Справочник.мой_Цель", apply_now=False).errors[0].message
+    assert "ссылаются (2)" in stated
+    assert "ТабличнаяЧасть.Товары.Реквизит.Склад (тип)" in stated
 
 
 JOURNAL = """<?xml version="1.0" encoding="UTF-8"?>
@@ -262,10 +262,10 @@ def test_a_deletion_preview_does_not_speak_of_defaults(dump):
     """
     from meta.report.result import result_lines
 
-    сказано = "\n".join(result_lines(delete(dump, "Справочник.мой_Свободный",
+    stated = "\n".join(result_lines(delete(dump, "Справочник.мой_Свободный",
                                             apply_now=False)))
-    assert "Справочник мой_Свободный" in сказано
-    assert "по умолчанию" not in сказано, сказано
+    assert "Справочник мой_Свободный" in stated
+    assert "по умолчанию" not in stated, stated
 
 
 def test_free_object_is_deleted_whole(dump):
@@ -588,5 +588,5 @@ def test_every_missing_address_is_named_at_once(dump):
             job_dialect.delete_job_from_json("Справочник.мой_Цель.Реквизит.НетА"),
             job_dialect.delete_job_from_json("Справочник.мой_Цель.Реквизит.НетБ"),
         ], apply_now=False)
-    сказано = str(refusal.value)
-    assert "НетА" in сказано and "НетБ" in сказано
+    stated = str(refusal.value)
+    assert "НетА" in stated and "НетБ" in stated

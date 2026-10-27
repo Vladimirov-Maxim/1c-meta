@@ -6,7 +6,7 @@ from ...domain import atomic_roles
 from ...domain.conventions import NEUTRAL, Conventions
 from ...domain.kinds import kind_of
 from ...domain.model import Finding, Refuse, Spec
-from ..dto import Result, при
+from ..dto import Result, within
 from ..ids import new_uuid
 from ..ports import Platform
 
@@ -16,7 +16,7 @@ from ..ports import Platform
 ATOMIC_ROLES = "атомарныеРоли"
 
 
-class _Пачка:
+class _Batch:
     """Конфигурация глазами задания: объекты этой же пачки уже существуют.
 
     Роль-спутник ссылается на объект, который пишется тем же планом,
@@ -57,7 +57,7 @@ class AddObjectUseCase:
         specs, notes = self._with_atomic_roles(specs)
         notes.update(role_notes or {})
         specs = [kind_of(spec.kind, self.conventions).fill(spec) for spec in specs]
-        world = _Пачка(self.platform, ((s.kind, s.get("имя")) for s in specs))
+        world = _Batch(self.platform, ((s.kind, s.get("имя")) for s in specs))
         per_object = [(spec, kind_of(spec.kind, self.conventions).check(spec, world))
                       for spec in specs]
         # Совет о составе прав — у самой роли, предупреждением: шагом плана он
@@ -75,7 +75,7 @@ class AddObjectUseCase:
         uuids = list(uuids or [])
         cards = []
         for i, spec in enumerate(specs):
-            with при(f"{spec.kind} «{spec.get('имя')}»"):
+            with within(f"{spec.kind} «{spec.get('имя')}»"):
                 cards.append(self.platform.translate_card(
                     spec, uuids[i] if i < len(uuids) else new_uuid(), new_uuid))
         plan = self.platform.prepare(cards)

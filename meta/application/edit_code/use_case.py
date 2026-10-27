@@ -8,7 +8,7 @@ from ...domain.conventions import NEUTRAL, Conventions
 from ...domain.edits import Edit, ModuleJob
 from ...domain.model import Refuse
 from ...domain.modules import own_qualifiers
-from ..dto import CodeResult, при
+from ..dto import CodeResult, within
 from ..ports import Modules
 
 
@@ -39,7 +39,7 @@ class EditCodeUseCase:
         # База сверки — общая на всё задание: «создан задачей» и сверка отката
         # спрашивают одну и ту же ревизию до задачи.
         self._base = job.base
-        self._внимание = []
+        self._attention = []
         entries = list(job.modules)
         # Отказы — по всем модулям сразу: по первому видна была бы одна ошибка,
         # следующая — только после исправления. Отказ переноса — один из них.
@@ -53,7 +53,7 @@ class EditCodeUseCase:
             raise Refuse("в задании нет ни одного модуля")
         for entry in entries:
             try:
-                with при(str(entry.ref)):
+                with within(str(entry.ref)):
                     prepared.append(self._prepare(entry, signature))
             except Refuse as refusal:
                 refusals.append(str(refusal))
@@ -65,17 +65,17 @@ class EditCodeUseCase:
         plan = self.modules.prepare([(ref, lines) for ref, lines, _ in prepared])
         written = plan.apply() if apply_now else []
         date = edits.date_note(signature.date, self.today() if self.today else None)
-        форматы = {str(ref): self.modules.file_format(ref) for ref, _, _ in prepared}
+        formats = {str(ref): self.modules.file_format(ref) for ref, _, _ in prepared}
         return CodeResult(signature, [(ref, decisions) for ref, _, decisions in prepared],
-                          plan, written, ([date] if date else []) + self._внимание,
-                          {ref: fmt for ref, fmt in форматы.items() if fmt})
+                          plan, written, ([date] if date else []) + self._attention,
+                          {ref: fmt for ref, fmt in formats.items() if fmt})
 
     def _prepare(self, entry, signature):
         lines = self.modules.read(entry.ref)
         if entry.revert:
-            одна = entry.revert if not isinstance(entry.revert, bool) else None
+            single_one = entry.revert if not isinstance(entry.revert, bool) else None
             new_lines, decisions = edits.revert(lines, signature.task,
-                                                self.modules.base(entry.ref, self._base), одна)
+                                                self.modules.base(entry.ref, self._base), single_one)
             return entry.ref, new_lines, decisions
         work = list(entry.edits)
         notes = []
@@ -86,7 +86,7 @@ class EditCodeUseCase:
         new_lines, decisions = edits.edit_module(lines, work, signature,
                                                  self.modules.is_new(entry.ref, self._base), notes,
                                                  markers=self.conventions.markers)
-        self._внимание += self._unbound(entry.ref, lines, new_lines)
+        self._attention += self._unbound(entry.ref, lines, new_lines)
         return entry.ref, new_lines, decisions
 
     def _unbound(self, ref, lines, new_lines):
@@ -106,7 +106,7 @@ class EditCodeUseCase:
         """Перенос метода: удаление в источнике и добавление в приёмнике — один
         акт. Обе половины идут общим порядком и применяются вместе или никак:
         разъехавшиеся половины — это метод потерянный или задвоенный."""
-        with при(str(move.source)):
+        with within(str(move.source)):
             source = self.modules.read(move.source)
             span = edits.method_range(source, move.method)
             if span is None:

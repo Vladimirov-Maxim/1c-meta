@@ -154,9 +154,9 @@ def test_a_name_used_only_in_a_query_is_reported(dump):
     """
     path = положить_схему(dump)
     результат = rename(dump, "Справочник.мой_Старое", "мой_Новое")
-    сказано = "\n".join(результат.plan.describe())
-    assert "в текстах запросов" in сказано, сказано
-    assert "макет Отчёт" in сказано, сказано
+    stated = "\n".join(результат.plan.describe())
+    assert "в текстах запросов" in stated, stated
+    assert "макет Отчёт" in stated, stated
     # и сам текст запроса остался прежним: язык запросов инструмент не правит
     assert "Справочник.мой_Старое" in text_of(path)
 
@@ -213,9 +213,9 @@ def test_a_rename_preview_does_not_speak_of_defaults(dump):
     """Переименование обращается к существующему объекту: умолчаний у него нет."""
     from meta.report.result import result_lines
 
-    сказано = "\n".join(result_lines(
+    stated = "\n".join(result_lines(
         rename(dump, "Справочник.мой_Старое", "мой_Новое", apply_now=False)))
-    assert "по умолчанию" not in сказано, сказано
+    assert "по умолчанию" not in stated, stated
 
 
 def test_a_kind_whose_root_is_a_prefix_of_another_is_not_touched(dump):

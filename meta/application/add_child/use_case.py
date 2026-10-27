@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from ...domain.conventions import NEUTRAL, Conventions
 from ...domain.kinds import kind_of
 from ...domain.model import Host, presentation
-from ..dto import Result, при
+from ..dto import Result, within
 from ..ids import new_uuid
 from ..ports import Platform
 
@@ -51,7 +51,7 @@ class AddChildUseCase:
         prepared = []
         for path, spec, host_kind, host_name in filled:
             address = ".".join(f"{kind}.{name}" for kind, name in path)
-            with при(f"{address} → {spec.kind} «{presentation(spec)}»"):
+            with within(f"{address} → {spec.kind} «{presentation(spec)}»"):
                 node = self.platform.translate_node_for(
                     spec, new_uuid(), host_kind, host_name, new_uuid)
             # Различим ребёнок по имени, а поле набора и ресурс схемы — по

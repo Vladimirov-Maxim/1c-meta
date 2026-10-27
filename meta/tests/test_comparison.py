@@ -41,7 +41,7 @@ def выгрузка(tmp_path, версия=None):
     return root
 
 
-def задание(tmp_path, data, name="job.json"):
+def job_spec(tmp_path, data, name="job.json"):
     path = tmp_path / name
     path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
     return str(path)
@@ -69,7 +69,7 @@ def test_a_dump_of_another_format_is_not_written(tmp_path, операция):
     root = выгрузка(tmp_path, "2.20")
     before_ = снимок(root)
     with pytest.raises(Refuse, match="выгрузка формата 2.20, а инструмент пишет формат 2.21"):
-        main(["--apply", задание(tmp_path, dict(операция, repo=str(root)))])
+        main(["--apply", job_spec(tmp_path, dict(операция, repo=str(root)))])
     assert снимок(root) == before_
 
 
@@ -78,7 +78,7 @@ def test_the_own_format_is_written(tmp_path):
     root = выгрузка(tmp_path)
     data = {"repo": str(root), "objects": [
         {"вид": "Справочник", "поля": {"имя": "мой_Проба", "синоним": "Проба"}}]}
-    assert main(["--apply", задание(tmp_path, data)]) == 0
+    assert main(["--apply", job_spec(tmp_path, data)]) == 0
     assert (root / "Catalogs" / "мой_Проба.xml").is_file()
 
 
@@ -99,7 +99,7 @@ def test_code_is_edited_in_a_dump_of_any_format(tmp_path):
     data = {"repo": str(root), "task": "TASK-1", "date": "06.10.2026", "author": "Автор",
               "modules": [{"модуль": f"Документ.{ДОКУМЕНТ}.МодульОбъекта",
                            "edits": [{"line": 2, "lines": 0, "code": "\tА = 1;"}]}]}
-    assert main(["--apply", задание(tmp_path, data)]) == 0
+    assert main(["--apply", job_spec(tmp_path, data)]) == 0
     assert "\tА = 1;" in module.read_text(encoding="utf-8-sig")
 
 
@@ -116,12 +116,12 @@ def с_подпиской(tmp_path):
             "имя": "мой_ЗаявкиСервер", "синоним": "Заявки, сервер",
             "текст": "Процедура ЗаявкаПередЗаписью(Источник, Отказ, РежимЗаписи, РежимПроведения) "
                      "Экспорт\nКонецПроцедуры"}}]}
-    assert main(["--apply", задание(tmp_path, objects, "1.json")]) == 0
+    assert main(["--apply", job_spec(tmp_path, objects, "1.json")]) == 0
     подписка = {"repo": str(root), "objects": [{"вид": "ПодпискаНаСобытие", "поля": {
         "имя": "мой_ЗаявкаПередЗаписью", "синоним": "Заявка перед записью",
         "источник": [{"вид": "Документ", "имя": ДОКУМЕНТ}], "событие": "ПередЗаписью",
         "обработчик": "мой_ЗаявкиСервер.ЗаявкаПередЗаписью"}}]}
-    assert main(["--apply", задание(tmp_path, подписка, "2.json")]) == 0
+    assert main(["--apply", job_spec(tmp_path, подписка, "2.json")]) == 0
     return root
 
 
@@ -131,9 +131,9 @@ def test_moving_the_source_checks_the_handler_signature(tmp_path, capsys):
     вместе с событием и обработчиком, которые у подписки уже записаны."""
     root = с_подпиской(tmp_path)
     capsys.readouterr()
-    правка = {"repo": str(root), "changes": [{"путь": "ПодпискаНаСобытие.мой_ЗаявкаПередЗаписью",
+    edit_job = {"repo": str(root), "changes": [{"путь": "ПодпискаНаСобытие.мой_ЗаявкаПередЗаписью",
                                               "поля": {"источник": "Справочник.мой_Партнеры"}}]}
-    assert main([задание(tmp_path, правка, "3.json")]) == 0
+    assert main([job_spec(tmp_path, edit_job, "3.json")]) == 0
     output = capsys.readouterr().out
     assert "ПОДПИСКА-СИГНАТУРА" in output and "параметров 4" in output and "принимает 2" in output
 
@@ -142,9 +142,9 @@ def test_a_change_of_unrelated_field_does_not_ask_about_the_rest(tmp_path, capsy
     """Правка комментария об источнике и обработчике не спрашивает."""
     root = с_подпиской(tmp_path)
     capsys.readouterr()
-    правка = {"repo": str(root), "changes": [{"путь": "ПодпискаНаСобытие.мой_ЗаявкаПередЗаписью",
+    edit_job = {"repo": str(root), "changes": [{"путь": "ПодпискаНаСобытие.мой_ЗаявкаПередЗаписью",
                                               "поля": {"комментарий": "проба"}}]}
-    assert main([задание(tmp_path, правка, "3.json")]) == 0
+    assert main([job_spec(tmp_path, edit_job, "3.json")]) == 0
     assert "ПОДПИСКА-" not in capsys.readouterr().out
 
 
@@ -158,7 +158,7 @@ def test_a_single_source_without_a_list_is_checked_not_crashed(tmp_path, capsys,
         "имя": "мой_ПартнерыПередЗаписью", "синоним": "Партнеры перед записью",
         "источник": source, "событие": "ПередЗаписью",
         "обработчик": "мой_ЗаявкиСервер.ЗаявкаПередЗаписью"}}]}
-    assert main([задание(tmp_path, data, "3.json")]) == 0
+    assert main([job_spec(tmp_path, data, "3.json")]) == 0
     output = capsys.readouterr().out
     assert "ПОДПИСКА-СИГНАТУРА" in output and "Справочник.мой_Партнеры (Объект)" in output
 
@@ -184,15 +184,15 @@ def test_buttons_go_to_the_command_bars_born_by_the_same_job(tmp_path, capsys):
              "родитель": "ФормаКоманднаяПанель"},
             {"вид": "Кнопка", "имя": "мой_СтрокиЗаполнить", "команда": "мой_Заполнить",
              "родитель": "мой_СтрокиКоманднаяПанель"}]}]}
-    assert main(["--apply", задание(tmp_path, data)]) == 0
+    assert main(["--apply", job_spec(tmp_path, data)]) == 0
     assert "ФОРМА-РОДИТЕЛЬ-НЕТ" not in capsys.readouterr().out
     form = (root / "Documents" / ДОКУМЕНТ / "Forms" / "мой_Проба" / "Ext" / "Form.xml").read_text(
         encoding="utf-8-sig")
     панель_формы = form[form.index('<AutoCommandBar name="ФормаКоманднаяПанель"'):]
     assert панель_формы.index('<Button name="ФормаЗаполнить"') < панель_формы.index("</AutoCommandBar>")
-    панель_таблицы = form[form.index('<AutoCommandBar name="мой_СтрокиКоманднаяПанель"'):]
-    assert (панель_таблицы.index('<Button name="мой_СтрокиЗаполнить"')
-            < панель_таблицы.index("</AutoCommandBar>"))
+    table_bar = form[form.index('<AutoCommandBar name="мой_СтрокиКоманднаяПанель"'):]
+    assert (table_bar.index('<Button name="мой_СтрокиЗаполнить"')
+            < table_bar.index("</AutoCommandBar>"))
 
 
 def test_a_column_named_with_its_table_is_warned_about(tmp_path, capsys):
@@ -205,7 +205,7 @@ def test_a_column_named_with_its_table_is_warned_about(tmp_path, capsys):
                        "колонки": [{"имя": "Статья", "тип": "Строка(100)"}]}],
         "элементы": [{"вид": "ТаблицаФормы", "имя": "мой_Строки", "путь": "мой_Строки",
                       "колонки": [{"имя": "мой_СтрокиСтатья"}]}]}]}
-    assert main([задание(tmp_path, data)]) == 0
+    assert main([job_spec(tmp_path, data)]) == 0
     output = capsys.readouterr().out
     assert "ФОРМА-КОЛОНКА-ИМЯ" in output and "«Статья»" in output and "мой_Строкимой_СтрокиСтатья" in output
 

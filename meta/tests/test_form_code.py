@@ -19,8 +19,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 sys.path.insert(0, ROOT)
 
 from meta.acl import platform_code  # noqa: E402
-from meta.api.server import инструкция  # noqa: E402
-from meta.composition import mcp_server, диалект_из_файла, соглашения_из_файла  # noqa: E402
+from meta.api.server import instructions  # noqa: E402
+from meta.composition import conventions_from_file, dialect_from_file, mcp_server  # noqa: E402
 from meta.domain import forms as fm  # noqa: E402
 from meta.domain import model as dm  # noqa: E402
 from meta.domain.conventions import Conventions, FormCode  # noqa: E402
@@ -32,7 +32,7 @@ from meta.jobs.profile import conventions  # noqa: E402
 СБОРЩИК = os.path.join(os.path.dirname(__file__), "диалекты", "сборщик.py")
 
 
-def правки(**kwargs):
+def edit_jobs(**kwargs):
     kwargs.setdefault("owner", ("Документ", "АвансовыйОтчет"))
     kwargs.setdefault("name", "ФормаДокумента")
     kwargs.setdefault("as_code", True)
@@ -52,7 +52,7 @@ def kind(**elements):
 
 
 def образец():
-    return правки(
+    return edit_jobs(
         attributes=[fm.FormAttribute("мой_Состояние", dialect.value_type_from_text("Строка(20)")),
                     fm.FormAttribute("мой_Строки", dialect.value_type_from_text("ТаблицаЗначений")),
                     fm.FormAttribute("Номенклатура", dialect.value_type_from_text("Справочник.Номенклатура"),
@@ -70,7 +70,7 @@ def образец():
 
 def сборщик():
     """Язык учебного диалекта с его настройкой."""
-    return FormCode("сборщик", диалект_из_файла(СБОРЩИК), (("модуль", "мой_Формы"),))
+    return FormCode("сборщик", dialect_from_file(СБОРЩИК), (("модуль", "мой_Формы"),))
 
 
 # --- язык платформы ---------------------------------------------------------------
@@ -111,8 +111,8 @@ def test_the_platform_code_uses_only_platform_methods():
 
 def test_every_element_kind_is_written_by_the_platform():
     for вид_элемента in fm.ELEMENT_KINDS:
-        задание = правки(elements=[fm.FormElement(вид_элемента, "мой_Э", parent="ГруппаШапка")])
-        assert 'Тип("' in platform_code.render(задание, ШАПКА), вид_элемента
+        job_spec = edit_jobs(elements=[fm.FormElement(вид_элемента, "мой_Э", parent="ГруппаШапка")])
+        assert 'Тип("' in platform_code.render(job_spec, ШАПКА), вид_элемента
 
 
 def test_the_platform_writes_composite_types_qualifiers_and_titles():
@@ -128,7 +128,7 @@ def test_the_platform_writes_composite_types_qualifiers_and_titles():
     assert platform_code.type_description(dm.StringType(10, fixed=True)) == (
         'Новый ОписаниеТипов("Строка", , Новый КвалификаторыСтроки(10, '
         'ДопустимаяДлина.Фиксированная))')
-    code = platform_code.render(правки(attributes=[
+    code = platform_code.render(edit_jobs(attributes=[
         fm.FormAttribute("мой_Сумма", dm.NumberType(15, 2), "Сумма к оплате")]))
     assert ('Новый РеквизитФормы("мой_Сумма", Новый ОписаниеТипов("Число", '
             'Новый КвалификаторыЧисла(15, 2)), , "Сумма к оплате")') in code
@@ -137,24 +137,24 @@ def test_the_platform_writes_composite_types_qualifiers_and_titles():
 def test_after_turns_into_before_with_the_neighbours_parent():
     """«После» без родителя: перед следующим соседом и в его родителе — не на
     верхнем уровне формы."""
-    after = правки(elements=[fm.FormElement("ПолеВвода", "мой_П", "Объект.Комментарий",
+    after = edit_jobs(elements=[fm.FormElement("ПолеВвода", "мой_П", "Объект.Комментарий",
                                             after="Дата")])
     assert ('Элемент = Форма.Элементы.Вставить("мой_П", Тип("ПолеФормы"), '
             'Форма.Элементы.ГруппаШапка, Форма.Элементы.Комментарий);') in (
         platform_code.render(after, ШАПКА))
     # последний в группе — в конец той же группы, без места
-    последний = правки(elements=[fm.FormElement("ПолеВвода", "мой_П", "Объект.Комментарий",
+    последний = edit_jobs(elements=[fm.FormElement("ПолеВвода", "мой_П", "Объект.Комментарий",
                                                after="Комментарий")])
     assert ('Элемент = Форма.Элементы.Добавить("мой_П", Тип("ПолеФормы"), '
             'Форма.Элементы.ГруппаШапка);') in platform_code.render(последний, ШАПКА)
     # соседа нет в форме — отказ
     with pytest.raises(Refuse):
-        platform_code.render(правки(elements=[fm.FormElement("ПолеВвода", "мой_П", after="Нет")]),
+        platform_code.render(edit_jobs(elements=[fm.FormElement("ПолеВвода", "мой_П", after="Нет")]),
                              ШАПКА)
 
 
 def test_a_standard_command_is_refused():
-    стандартная = правки(elements=[fm.FormElement("Кнопка", "К", command="Стандартная.Write")])
+    стандартная = edit_jobs(elements=[fm.FormElement("Кнопка", "К", command="Стандартная.Write")])
     with pytest.raises(Refuse, match="стандартную команду"):
         platform_code.render(стандартная, ШАПКА)
 
@@ -172,12 +172,12 @@ def test_platform_code_extends_an_existing_procedure_before_its_end():
     procedure = fm.code_procedure(МОДУЛЬ, "ФормаДокумента_ПриСозданииНаСервере", FormCode())
     assert procedure == fm.CodeProcedure(3, 7, None, 7)
     assert fm.code_procedure(МОДУЛЬ, "ФормаДокумента_ПриСозданииНаСервере", FormCode(), 2) is None
-    задание = правки(code_module="ОбщийМодуль.мой_Платежи")
-    места, пояснения = fm.code_anchors(задание, МОДУЛЬ, None, FormCode())
-    assert места == [fm.CodePlace("дополнение", "ОбщийМодуль.мой_Платежи", 7, "КонецПроцедуры",
+    job_spec = edit_jobs(code_module="ОбщийМодуль.мой_Платежи")
+    places, explanations = fm.code_anchors(job_spec, МОДУЛЬ, None, FormCode())
+    assert places == [fm.CodePlace("дополнение", "ОбщийМодуль.мой_Платежи", 7, "КонецПроцедуры",
                                   None, "код перед её «КонецПроцедуры»")]
-    assert "её «КонецПроцедуры»" in пояснения[0], пояснения
-    assert fm.code_addition("\nЭлемент = 1;\n", места[0], FormCode()) == "Элемент = 1;\n"
+    assert "её «КонецПроцедуры»" in explanations[0], explanations
+    assert fm.code_addition("\nЭлемент = 1;\n", places[0], FormCode()) == "Элемент = 1;\n"
 
 
 # --- профиль: язык и диалект ------------------------------------------------------
@@ -208,7 +208,7 @@ def test_a_dialect_is_found_next_to_the_profile(tmp_path):
     """Путь к диалекту — от файла профиля: профиль и диалект команда держит
     вместе, и на другой машине путь не меняется."""
     shutil.copyfile(СБОРЩИК, tmp_path / "сборщик.py")
-    form_code = соглашения_из_файла(профиль(str(tmp_path), {
+    form_code = conventions_from_file(профиль(str(tmp_path), {
         "язык": "сборщик", "диалект": "сборщик.py", "модуль": "мой_Формы"})).form_code
     assert (form_code.language, form_code.dialect.name, form_code.vocabulary) == (
         "сборщик", "сборщик", {"модуль": "мой_Формы"})
@@ -226,13 +226,13 @@ def test_a_wrong_dialect_is_refused_with_its_reason(tmp_path):
                         "подключён не тот файл"),
                        ({"язык": "сборщик", "диалект": "сборщик.py"}, "одна настройка")):
         with pytest.raises(Refuse) as refusal:
-            соглашения_из_файла(профиль(str(tmp_path), code))
+            conventions_from_file(профиль(str(tmp_path), code))
         assert word in str(refusal.value), (code, refusal.value)
 
 
 def test_the_server_names_the_code_language():
-    assert "методами платформы" in инструкция(Conventions(prefix="их_"))
-    assert "сборщиком форм («мой_Формы.Сборщик(Форма)»)" in инструкция(
+    assert "методами платформы" in instructions(Conventions(prefix="их_"))
+    assert "сборщиком форм («мой_Формы.Сборщик(Форма)»)" in instructions(
         Conventions(prefix="их_", form_code=сборщик()))
 
 
@@ -249,29 +249,29 @@ def test_the_dialect_recognises_and_extends_its_procedure():
     # язык платформы ту же процедуру узнаёт по параметру и дописывает в её конец
     assert fm.code_procedure(module, "ФормаДокумента_ПриСозданииНаСервере",
                              FormCode()).insert_line == 9
-    места, пояснения = fm.code_anchors(правки(code_module="ОбщийМодуль.мой_Формы"), module,
+    places, explanations = fm.code_anchors(edit_jobs(code_module="ОбщийМодуль.мой_Формы"), module,
                                        None, language)
-    assert места[0].where == "код перед «Сборка.Готово();»", места
-    assert "«Сборка.Готово();»" in пояснения[0], пояснения
-    code = language.dialect.code(правки(elements=[fm.FormElement("Надпись", "мой_Н")]), None,
+    assert places[0].where == "код перед «Сборка.Готово();»", places
+    assert "«Сборка.Готово();»" in explanations[0], explanations
+    code = language.dialect.code(edit_jobs(elements=[fm.FormElement("Надпись", "мой_Н")]), None,
                            language.vocabulary)
-    assert fm.code_addition(code, места[0], language) == 'Сборка.Элемент("мой_Н");\n'
+    assert fm.code_addition(code, places[0], language) == 'Сборка.Элемент("мой_Н");\n'
     # повтор узнаётся по заводящему вызову языка
-    repeat = правки(elements=[fm.FormElement("Надпись", "мой_Старое")])
+    repeat = edit_jobs(elements=[fm.FormElement("Надпись", "мой_Старое")])
     assert any(f.code == "ФОРМА-КОД-УЖЕ-В-МОДУЛЕ"
                for f in fm._added_by_code(repeat, module, "в модуле", "повтор", language))
     assert not fm._added_by_code(repeat, module, "в модуле", "повтор", FormCode())
 
 
 def test_the_dialect_speaks_in_the_notes_and_findings():
-    after = правки(elements=[fm.FormElement("ПолеВвода", "мой_П", "Объект.Комментарий",
+    after = edit_jobs(elements=[fm.FormElement("ПолеВвода", "мой_П", "Объект.Комментарий",
                                             after="Дата")])
     assert 'Сборка.Перед("Комментарий")' in fm.placement_notes(after, ШАПКА, сборщик())[0]
     assert "Элементы.Вставить(…, Элементы.Комментарий)" in fm.placement_notes(
         after, ШАПКА, FormCode())[0]
-    с_заголовком = правки(attributes=[fm.FormAttribute("мой_С", dm.BooleanType(), "Флаг")])
-    коды = {f.code for f in fm._check_code_mode(с_заголовком, "мой_", сборщик())}
-    assert "ФОРМА-КОД-СБОРЩИК-ЗАГОЛОВОК" in коды
+    с_заголовком = edit_jobs(attributes=[fm.FormAttribute("мой_С", dm.BooleanType(), "Флаг")])
+    codes = {f.code for f in fm._check_code_mode(с_заголовком, "мой_", сборщик())}
+    assert "ФОРМА-КОД-СБОРЩИК-ЗАГОЛОВОК" in codes
     assert "ФОРМА-КОД-СБОРЩИК-ЗАГОЛОВОК" not in {
         f.code for f in fm._check_code_mode(с_заголовком, "мой_", FormCode())}
 
@@ -293,10 +293,10 @@ def выгрузка():
 def _сервер(выгрузка, conventions):
     сервер = mcp_server(roots=[выгрузка], conventions=conventions)
 
-    def вызвать(инструмент, **arguments):
-        ответ = asyncio.run(сервер.call_tool(инструмент, arguments))
-        ответ = ответ[0] if isinstance(ответ, tuple) else ответ
-        return "\n".join(block.text for block in ответ)
+    def вызвать(tool, **arguments):
+        answer = asyncio.run(сервер.call_tool(tool, arguments))
+        answer = answer[0] if isinstance(answer, tuple) else answer
+        return "\n".join(block.text for block in answer)
     return вызвать
 
 
@@ -319,7 +319,7 @@ def test_a_team_without_a_dialect_gets_platform_code_from_the_server(выгру�
 def test_a_team_dialect_writes_the_code_from_the_server(выгрузка, tmp_path):
     """Профиль с диалектом — заголовок, текст и описание процедуры его словами."""
     shutil.copyfile(СБОРЩИК, tmp_path / "сборщик.py")
-    соглашения_команды = соглашения_из_файла(профиль(str(tmp_path), {
+    соглашения_команды = conventions_from_file(профиль(str(tmp_path), {
         "язык": "сборщик", "диалект": "сборщик.py", "модуль": "мой_Формы"}))
     вызвать = _сервер(выгрузка, соглашения_команды)
     вызвать("forms_apply", repo=выгрузка, forms=[

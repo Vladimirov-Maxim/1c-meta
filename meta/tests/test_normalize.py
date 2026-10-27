@@ -174,11 +174,11 @@ def test_the_agent_normalizes_only_allowed_dumps(tmp_path):
     написать(root, НОВЫЙ, ["Процедура Б() Экспорт", "\tВозврат;", "КонецПроцедуры"], bom=False)
     сервер = mcp_server(roots=[str(root)])
 
-    def вызвать(инструмент, **arguments):
-        ответ = asyncio.run(сервер.call_tool(инструмент, arguments))
-        if isinstance(ответ, tuple):
-            ответ = ответ[0]
-        return "\n".join(block.text for block in ответ)
+    def вызвать(tool, **arguments):
+        answer = asyncio.run(сервер.call_tool(tool, arguments))
+        if isinstance(answer, tuple):
+            answer = answer[0]
+        return "\n".join(block.text for block in answer)
 
     assert "вызовите normalize_apply" in вызвать("normalize_check", repo=str(root))
     assert not прочитать(root, НОВЫЙ)[1]

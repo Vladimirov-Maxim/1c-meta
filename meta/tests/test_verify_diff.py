@@ -16,7 +16,7 @@ import pytest
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, ROOT)
 
-from .test_verify import ПРОФИЛЬ, check, git, выгрузка, зафиксировать, коды, написать  # noqa: E402
+from .test_verify import ПРОФИЛЬ, check, codes, git, выгрузка, зафиксировать, написать  # noqa: E402
 
 МОДУЛЬ = "CommonModules/Чужой/Ext/Module.bsl"
 ЧУЖАЯ = "Процедура Б() Экспорт // {[+](фрагмент ДОБАВЛЕН), 01.01.2025, #TEAM Иванов #TASK-0"
@@ -43,4 +43,4 @@ def test_a_new_method_after_a_nested_insertion_is_not_an_edit_inside_another_tas
     зафиксировать(root, "чужой метод")
     написать(root, МОДУЛЬ, СТАЛО)
     _, text, data = check(capsys, профиль, root, "--задача", "TASK-1")
-    assert "ПРАВКА-В-ЧУЖОЙ-ВСТАВКЕ" not in коды(data), text
+    assert "ПРАВКА-В-ЧУЖОЙ-ВСТАВКЕ" not in codes(data), text

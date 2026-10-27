@@ -499,7 +499,7 @@ def test_application_runs_on_foreign_platform():
     который работает лишь потому, что `DesignerDump` вернул нечто похожее
     на дерево. Площадка ниже не возвращает ничего похожего ни на что.
     """
-    записано = []
+    written_as = []
 
     class MemoryPlan(ports.Plan):
         def __init__(self, what):
@@ -509,7 +509,7 @@ def test_application_runs_on_foreign_platform():
             return [f"в памяти: {self.what}"]
 
         def apply(self):
-            записано.append(self.what)
+            written_as.append(self.what)
             return [self.what]
 
     class MemoryPlatform(ports.Platform):
@@ -594,7 +594,7 @@ def test_application_runs_on_foreign_platform():
         result = запустить(вход, apply_now=True)
         assert result.ok, (ожидание, [str(f) for f in result.errors])
         assert result.plan.describe() == [f"в памяти: {ожидание}"], ожидание
-    assert записано == [ожидание for _, _, ожидание in сценарии]
+    assert written_as == [ожидание for _, _, ожидание in сценарии]
 
 
 # --- тесты: чтение конфигурации (порт домена) --------------------------------

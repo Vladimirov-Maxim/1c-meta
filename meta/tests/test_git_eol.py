@@ -101,39 +101,39 @@ def test_a_new_object_is_written_as_git_checks_it_out_and_git_accepts_it(сме�
     """Новый общий модуль среди карточек с LF: карточка, модуль и реестр — CRLF,
     как кладёт git; `git add` проходит, в индексе реестр не переписан целиком."""
     repo, src = смешанный
-    задание = {"repo": str(src), "objects": [{"вид": "ОбщийМодуль", "поля": {
+    job_spec = {"repo": str(src), "objects": [{"вид": "ОбщийМодуль", "поля": {
         "имя": "мой_Новый", "синоним": "Новый", "сервер": True, "текст": "Процедура А() Экспорт\nКонецПроцедуры\n"}}]}
     path = tmp_path / "задание.json"
-    path.write_text(json.dumps(задание, ensure_ascii=False), encoding="utf-8")
+    path.write_text(json.dumps(job_spec, ensure_ascii=False), encoding="utf-8")
     assert main([str(path), "--apply", "--профиль", профиль]) == 0
     записанные = ("CommonModules/мой_Новый/мой_Новый.mdo", "CommonModules/мой_Новый/Module.bsl",
                   "Configuration/Configuration.mdo")
     for rel in записанные:
         assert только_crlf(прочитать(src, rel)), rel
-    принято, почему = принимает_git(repo, *записанные)
-    assert принято, почему
+    accepted, why = принимает_git(repo, *записанные)
+    assert accepted, why
     registry = git(repo, "diff", "--cached", "--numstat", "--", "project/src/Configuration/Configuration.mdo")
-    добавлено, удалено = map(int, registry.stdout.decode().split()[:2])
-    assert добавлено <= 2 and удалено <= 1          # не весь файл: в индексе переводы сведены
+    added_count, удалено = map(int, registry.stdout.decode().split()[:2])
+    assert added_count <= 2 and удалено <= 1          # не весь файл: в индексе переводы сведены
 
 
 def test_code_apply_rewrites_an_lf_module_as_git_checks_it_out(смешанный, tmp_path, профиль, capsys):
     """Модуль с LF на диске: правка пишет его в CRLF (в индексе изменится одна
     строка) и говорит об этом, а не «так и останется»."""
     repo, src = смешанный
-    задание = {"repo": str(src), "task": "TASK-1", "date": "06.10.2026", "author": "Автор",
+    job_spec = {"repo": str(src), "task": "TASK-1", "date": "06.10.2026", "author": "Автор",
                "modules": [{"модуль": "ОбщийМодуль.ВендорскийМодуль", "edits": [
                    {"line": 5, "lines": 0, "first_line": "#КонецОбласти",
                     "code": "Функция Новая() Экспорт\n\tВозврат 2;\nКонецФункции"}]}]}
     path = tmp_path / "код.json"
-    path.write_text(json.dumps(задание, ensure_ascii=False), encoding="utf-8")
+    path.write_text(json.dumps(job_spec, ensure_ascii=False), encoding="utf-8")
     capsys.readouterr()
     assert main(["--apply", str(path), "--профиль", профиль]) == 0
     text = capsys.readouterr().out
     assert "файл LF, без BOM — станет CRLF" in text and "так и останется" not in text, text
     assert только_crlf(прочитать(src, "CommonModules/ВендорскийМодуль/Module.bsl"))
-    принято, почему = принимает_git(repo, "CommonModules/ВендорскийМодуль/Module.bsl")
-    assert принято, почему
+    accepted, why = принимает_git(repo, "CommonModules/ВендорскийМодуль/Module.bsl")
+    assert accepted, why
     удалено = git(repo, "diff", "--cached", "--numstat").stdout.decode().split()[1]
     assert удалено == "0"
 
@@ -142,11 +142,11 @@ def test_verify_finds_a_file_git_add_refuses_and_normalize_fixes_it(смешан
     repo, src = смешанный
     написать(src, "CommonModules/мой_Прямой/мой_Прямой.mdo", card("CommonModule", "мой_Прямой"), eol="\r\n")
     написать(src, "CommonModules/мой_Прямой/Module.bsl", ["Процедура А() Экспорт", "КонецПроцедуры"])
-    ответ = os.path.join(os.path.dirname(профиль), "ответ.json")
+    answer = os.path.join(os.path.dirname(профиль), "ответ.json")
     capsys.readouterr()
-    main(["--проверить", str(src), "--профиль", профиль, "--json", ответ])
+    main(["--проверить", str(src), "--профиль", профиль, "--json", answer])
     text = capsys.readouterr().out
-    findings = json.load(open(ответ, encoding="utf-8"))["находки"]
+    findings = json.load(open(answer, encoding="utf-8"))["находки"]
     assert [(f["код"], f["файл"]) for f in findings] == [
         ("ФАЙЛ-ПЕРЕВОДЫ-ЧУЖИЕ", "CommonModules/мой_Прямой/Module.bsl")], text
     assert "git add откажет" in findings[0]["текст"]
@@ -155,8 +155,8 @@ def test_verify_finds_a_file_git_add_refuses_and_normalize_fixes_it(смешан
 
     assert main(["--нормализовать", str(src), "--apply"]) == 0
     assert только_crlf(прочитать(src, module))
-    принято, почему = принимает_git(repo, module)
-    assert принято, почему
+    accepted, why = принимает_git(repo, module)
+    assert accepted, why
 
 
 def test_in_a_revision_a_file_committed_whole_in_crlf_is_one_finding(смешанный, профиль, capsys):
@@ -169,11 +169,11 @@ def test_in_a_revision_a_file_committed_whole_in_crlf_is_one_finding(смеша�
               "#КонецОбласти"], eol="\r\n")
     git(repo, "commit", "-q", "-am", "переписан в CRLF")
     настроить(repo, core_autocrlf="true", core_safecrlf="true")
-    ответ = os.path.join(os.path.dirname(профиль), "ответ.json")
+    answer = os.path.join(os.path.dirname(профиль), "ответ.json")
     capsys.readouterr()
-    main(["--проверить", str(src), "--база", "HEAD~1", "--ревизия", "HEAD", "--профиль", профиль, "--json", ответ])
+    main(["--проверить", str(src), "--база", "HEAD~1", "--ревизия", "HEAD", "--профиль", профиль, "--json", answer])
     text = capsys.readouterr().out
-    findings = json.load(open(ответ, encoding="utf-8"))["находки"]
+    findings = json.load(open(answer, encoding="utf-8"))["находки"]
     наши = [f for f in findings if f["код"] == "ФАЙЛ-ПЕРЕВОДЫ-ЧУЖИЕ"]
     assert len(наши) == 1 and "в HEAD~1 файл с LF" in наши[0]["текст"], text
     assert "нормализует их сам" not in text

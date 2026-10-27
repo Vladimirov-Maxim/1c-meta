@@ -266,8 +266,8 @@ def test_dataset_names_a_source_that_exists(dump):
     result = add(dump, SCHEMA_ADDRESS, "НаборДанных",
                {"имя": "Новый", "источникДанных": "ИсточникДанных9",
                 "запрос": "ВЫБРАТЬ 3"}, apply_now=False)
-    коды = [f.code for f in result.findings]
-    assert коды == ["НАБОР-ИСТОЧНИК-НЕИЗВЕСТЕН"], коды
+    codes = [f.code for f in result.findings]
+    assert codes == ["НАБОР-ИСТОЧНИК-НЕИЗВЕСТЕН"], codes
     # и назван тот, который есть, — иначе догадываться о правильном имени
     assert "ИсточникДанных1" in result.findings[0].message
     assert "<name>Новый</name>" not in schema_of(dump)

@@ -35,9 +35,9 @@ class EditFormUseCase:
             return []
         findings = []
         for name, directive, parameters in self.platform.handler_signatures(edits):
-            конфликт = handler_conflict(lines, name, directive, parameters)
-            if конфликт:
-                findings.append(Finding("ФОРМА-ОБРАБОТЧИК-НЕ-ТОТ", конфликт, "обработчики"))
+            conflict = handler_conflict(lines, name, directive, parameters)
+            if conflict:
+                findings.append(Finding("ФОРМА-ОБРАБОТЧИК-НЕ-ТОТ", conflict, "обработчики"))
         return findings
 
     def _own_module(self, edits):
@@ -62,11 +62,11 @@ class EditFormUseCase:
         per_object = []
         items = []
         views = []
-        взятые = {}
+        taken = {}
         for edits in batch:
             own_one = self._own_module(edits)
             if own_one:
-                взятые[edits.address] = own_one
+                taken[edits.address] = own_one
             owner_spec = None
             if edits.owner:
                 try:
@@ -90,25 +90,25 @@ class EditFormUseCase:
         per_object = [(x, self.conventions.apply(f)) for x, f in per_object]
         if any(f.blocking for _, findings in per_object for f in findings):
             return Result(per_object)
-        code, обработчики, пояснения, места = {}, {}, {}, {}
+        code, handlers, explanations, places = {}, {}, {}, {}
         for (edits, _, _), kind, (_, findings) in zip(items, views, per_object, strict=True):
             if edits.as_code:
                 form_code = self.conventions.form_code
-                code[edits.address], обработчики[edits.address] = self.platform.render_form_code(
+                code[edits.address], handlers[edits.address] = self.platform.render_form_code(
                     edits, kind, form_code)
-                места[edits.address], якоря = fm.code_anchors(
+                places[edits.address], anchors = fm.code_anchors(
                     edits,
                     self.platform.common_module_lines(edits.code_module_name)
                     if edits.code_module_name else None,
                     self.platform.form_module_lines(edits.owner, edits.name), form_code)
-                пояснения[edits.address] = якоря + fm.placement_notes(edits, kind, form_code)
-                if edits.address in взятые:
-                    пояснения[edits.address].insert(0, (
-                        f"модуль не назван — взят свой модуль объекта «{взятые[edits.address]}»; "
+                explanations[edits.address] = anchors + fm.placement_notes(edits, kind, form_code)
+                if edits.address in taken:
+                    explanations[edits.address].insert(0, (
+                        f"модуль не назван — взят свой модуль объекта «{taken[edits.address]}»; "
                         "другой — «код»: {«модуль»: «ОбщийМодуль.…»}"))
                 # Процедура доработки уже есть — в неё дописывается код: что
                 # именно, решает язык кода формы.
-                extension = next((м for м in места[edits.address] if м.what == "дополнение"),
+                extension = next((mm for mm in places[edits.address] if mm.what == "дополнение"),
                                   None)
                 if extension:
                     code[edits.address] = fm.code_addition(code[edits.address], extension,
@@ -140,5 +140,5 @@ class EditFormUseCase:
         # и к находкам о коде формы, добавленным после решения о записи
         per_object = [(x, self.conventions.apply(f)) for x, f in per_object]
         language = self.conventions.form_code
-        return Result(per_object, plan, written, code, обработчики, пояснения, места,
+        return Result(per_object, plan, written, code, handlers, explanations, places,
                       (language.dialect.title, language.dialect.purpose(language.vocabulary)))

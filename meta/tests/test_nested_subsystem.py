@@ -29,13 +29,13 @@ from meta.infra import layout  # noqa: E402
 с_edt = pytest.mark.skipif(not edt_model.available(), reason="таблица метамодели EDT не сгенерирована")
 
 
-def задание(tmp_path, data):
+def job_spec(tmp_path, data):
     path = tmp_path / "задание.json"
     path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
     return [str(path), "--apply", "--профиль", ПРОФИЛЬ]
 
 
-def правка(root, composition):
+def edit_job(root, composition):
     return {"repo": str(root), "changes": [{"путь": АДРЕС, "поля": {"состав": composition}}]}
 
 
@@ -58,7 +58,7 @@ def проект(tmp_path):
 @с_edt
 def test_a_nested_subsystem_of_an_edt_project_is_edited_in_its_own_card(проект, tmp_path):
     parent = (проект / "Subsystems" / "мой_Раздел" / "мой_Раздел.mdo").read_bytes()
-    assert main(задание(tmp_path, правка(проект, {"добавить": [
+    assert main(job_spec(tmp_path, edit_job(проект, {"добавить": [
         "Документ.мой_Заявка", "Роль.мой_атом_Документ_мой_Заявка_Просмотр"]}))) == 0
     text = (проект / "Subsystems" / "мой_Раздел" / "Subsystems" / "мой_Вложенный"
              / "мой_Вложенный.mdo").read_text(encoding="utf-8")
@@ -72,10 +72,10 @@ def test_a_nested_subsystem_of_an_edt_project_is_edited_in_its_own_card(прое
 def test_a_role_in_the_composition_reads_back_in_russian(проект, tmp_path, capsys):
     """Роль в составе печатается «Роль.Имя» — так её и пишут в задании, и
     повторное добавление узнаётся, а не дублируется."""
-    assert main(задание(tmp_path, правка(проект, {"добавить": [
+    assert main(job_spec(tmp_path, edit_job(проект, {"добавить": [
         "Роль.мой_атом_Документ_мой_Заявка_Просмотр"]}))) == 0
     capsys.readouterr()
-    assert main(задание(tmp_path, правка(проект, {"добавить": [
+    assert main(job_spec(tmp_path, edit_job(проект, {"добавить": [
         "Роль.мой_атом_Документ_мой_Заявка_Просмотр"]}))) == 0
     assert "ПЕРЕЧЕНЬ-УЖЕ-ЕСТЬ" in capsys.readouterr().out
 
@@ -83,7 +83,7 @@ def test_a_role_in_the_composition_reads_back_in_russian(проект, tmp_path,
 @с_edt
 def test_a_missing_nested_subsystem_is_named_with_its_path(проект, tmp_path):
     with pytest.raises(Refuse, match="подсистемы нет"):
-        main(задание(tmp_path, {"repo": str(проект), "changes": [
+        main(job_spec(tmp_path, {"repo": str(проект), "changes": [
             {"путь": "Подсистема.мой_Раздел.Подсистема.мой_Нет", "поля": {
                 "состав": {"добавить": ["Документ.мой_Заявка"]}}}]}))
 

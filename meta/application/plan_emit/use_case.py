@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from ...domain import plan as rules
 from ..dto import PlanEmitResult
-from ..plan_facts import факт_объекта
+from ..plan_facts import object_fact
 from ..ports import ChangeSource
 
 
@@ -25,5 +25,5 @@ class PlanEmitUseCase:
             module = src.module_of(c.path)
             if module is not None and module[:2] == obj:
                 modules[obj][module[2]] = c.path
-        facts = [факт_объекта(src, kind, name, modules[(kind, name)]) for kind, name in order]
+        facts = [object_fact(src, kind, name, modules[(kind, name)]) for kind, name in order]
         return PlanEmitResult(src.describe(), rules.plan_from_fact(facts))

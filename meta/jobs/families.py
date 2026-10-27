@@ -33,8 +33,8 @@ FAMILIES = (
 WHOLE_JOB = (
     ("code", code.CODE_KEYS, code.code_job_from_json),
 )
-JOB_KEYS = (tuple(key for _, ключи in FAMILIES for key, _ in ключи)
-            + tuple(key for _, ключи, _ in WHOLE_JOB for key in ключи))
+JOB_KEYS = (tuple(key for _, keys in FAMILIES for key, _ in keys)
+            + tuple(key for _, keys, _ in WHOLE_JOB for key in keys))
 #: Ключи верхнего уровня, общие для всех операций: выгрузка, принятые
 #: предупреждения, файл для кода доработки формы (терминал).
 COMMON_KEYS = ("repo", "принято", "файлКода")
@@ -65,8 +65,8 @@ def parse(job):
     порядок применения между семьями не определён, и «создать и переименовать»
     давало бы разный результат от перестановки ключей.
     """
-    for _, ключи in FAMILIES:
-        for key, _ in ключи:
+    for _, keys in FAMILIES:
+        for key, _ in keys:
             value = job.get(key)
             if value and not isinstance(value, list):
                 # Словарь вместо списка перебирался бы по ключам, и пункт-строка
@@ -75,10 +75,10 @@ def parse(job):
                 raise Refuse(f"«{key}» — список пунктов: [{{…}}, {{…}}]; получено "
                              f"{'объект' if isinstance(value, dict) else repr(value)} — "
                              "оберните пункт в [ ]")
-    found = [(name, [parsed(item) for key, parsed in ключи
+    found = [(name, [parsed(item) for key, parsed in keys
                     for item in job.get(key) or []])
-             for name, ключи in FAMILIES
-             if any(job.get(key) for key, _ in ключи)]
+             for name, keys in FAMILIES
+             if any(job.get(key) for key, _ in keys)]
     if len(found) == 1:
         # ключи других операций — забота проверки «операция одна» ниже
         extra = [key for key in job if key not in COMMON_KEYS and key not in JOB_KEYS]
@@ -86,8 +86,8 @@ def parse(job):
             raise Refuse(f"в задании неизвестные ключи: {', '.join(extra)}; на верхнем уровне — "
                          f"{', '.join(COMMON_KEYS)} и одна операция, поля объекта — внутри "
                          "её пунктов")
-    found += [(name, [parsed(job)]) for name, ключи, parsed in WHOLE_JOB
-              if any(job.get(key) for key in ключи)]
+    found += [(name, [parsed(job)]) for name, keys, parsed in WHOLE_JOB
+              if any(job.get(key) for key in keys)]
     if not found:
         raise Refuse("в задании нечего делать: нет ни объектов, ни реквизитов, "
                      "ни правок, ни удалений, ни переименований")

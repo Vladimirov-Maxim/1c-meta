@@ -67,23 +67,23 @@ ROOTS_VARIABLE = "META_ROOTS"
 PROFILE_VARIABLE = "META_PROFILE"
 
 
-def соглашения_из_файла(path):
+def conventions_from_file(path):
     """Профиль соглашений из файла. Нечитаемый или неверный — отказ: молча
     работать без соглашений команды значило бы пропустить её правила."""
-    откуда = f"профиль «{path}»"
+    origin = f"профиль «{path}»"
     try:
         with open(path, encoding="utf-8-sig") as file:
             data = json.load(file)
     except OSError as error:
-        raise Refuse(f"{откуда} не прочитан: {error.strerror or error}") from error
+        raise Refuse(f"{origin} не прочитан: {error.strerror or error}") from error
     except ValueError as error:
-        raise Refuse(f"{откуда} — не JSON: {error}") from error
+        raise Refuse(f"{origin} — не JSON: {error}") from error
     nearby = os.path.dirname(os.path.abspath(path))
     return profile.conventions(
-        data, откуда, диалект_из=lambda name: диалект_из_файла(os.path.join(nearby, name)))
+        data, origin, dialect_from=lambda name: dialect_from_file(os.path.join(nearby, name)))
 
 
-def диалект_из_файла(path):
+def dialect_from_file(path):
     """Язык кода формы из файла-диалекта: модуль Python с объектом `DIALECT`.
 
     Файл подключает профиль команды, то есть его пишет та же команда, что и
@@ -109,15 +109,15 @@ def диалект_из_файла(path):
     return dialect
 
 
-def соглашения_из_окружения():
+def conventions_from_env():
     """Профиль из `META_PROFILE`; не задан — нейтральные соглашения."""
     path = (os.environ.get(PROFILE_VARIABLE) or "").strip()
-    return соглашения_из_файла(path) if path else NEUTRAL
+    return conventions_from_file(path) if path else NEUTRAL
 
 
 #: Когда процесс прочитал окружение: белый список берётся из него при запуске,
 #: и правка `.mcp.json` после этого до сервера не доходит.
-ЗАПУСК = datetime.datetime.now()
+LAUNCH = datetime.datetime.now()
 
 
 def roots_from_environment():
@@ -144,7 +144,7 @@ def _inside(repo, roots):
             return
     raise Refuse(f"выгрузка «{repo}» вне разрешённых: " + "; ".join(roots)
                  + f" — список взят из «{ROOTS_VARIABLE}» при запуске сервера "
-                 f"({ЗАПУСК:%d.%m.%Y %H:%M}); если настройку (.mcp.json) меняли позже, "
+                 f"({LAUNCH:%d.%m.%Y %H:%M}); если настройку (.mcp.json) меняли позже, "
                  "переподключите сервер — без перезапуска процесс её не увидит")
 
 
@@ -158,7 +158,7 @@ def _allowed(repo, roots):
 
 def platform_factory(roots=None):
     """Фабрика площадки. `roots` — белый список (MCP); `None` — без ограничений."""
-    def для(repo):
+    def for_(repo):
         _allowed(repo, roots)
         # Формат — по корню: `Configuration/Configuration.mdo` — проект EDT,
         # `Configuration.xml` — выгрузка конфигуратора, ни того ни другого —
@@ -168,22 +168,22 @@ def platform_factory(roots=None):
         if os.path.isfile(os.path.join(repo, "Configuration.xml")) or not os.path.isdir(repo):
             return DesignerDump(repo)
         return ExternalDump(repo)
-    return для
+    return for_
 
 
 def modules_factory(roots=None):
     """Фабрика модулей кода — с той же политикой доступа, что у площадки."""
-    def для(repo):
+    def for_(repo):
         _allowed(repo, roots)
         return DumpModules(repo)
-    return для
+    return for_
 
 
 def changes_factory(roots=None):
     """Фабрика источника правок: выгрузка под git против базы или пара каталогов
     «эталон — копия». Политика доступа та же, что у площадки: у MCP — только
     разрешённые выгрузки, и пара каталогов — тоже."""
-    def для(repo=None, base="HEAD", rev=None, baseline=None, target=None):
+    def for_(repo=None, base="HEAD", rev=None, baseline=None, target=None):
         if baseline or target:
             if not (baseline and target):
                 raise Refuse("эталон и копия задаются вместе")
@@ -199,10 +199,10 @@ def changes_factory(roots=None):
                          "«эталон — копия»")
         _allowed(repo, roots)
         return GitChanges(repo, base, rev)
-    return для
+    return for_
 
 
-def _план(src):
+def _plan(src):
     """Источник правок для сверки плана. План описывает объекты конфигурации, а
     раскладку внешней обработки и отчёта сверка не знает: факт был бы пуст, и
     вместо отказа выходило бы ложное «объект не сделан»."""
@@ -221,8 +221,8 @@ def _today():
 
 def _controller(cls, platform, modules, conventions=NEUTRAL, changes=None):
     """Контроллер канала с подключёнными сценариями и соглашениями команды."""
-    scenarios = {семья: (lambda repo, сценарий=сценарий: сценарий(platform(repo), conventions))
-                 for семья, сценарий in SCENARIOS.items()}
+    scenarios = {family: (lambda repo, scenario=scenario: scenario(platform(repo), conventions))
+                 for family, scenario in SCENARIOS.items()}
     # Сценарию кода нужна не площадка метаданных, а модули: у правки вставками
     # своя работа с файлами (кодировка, переводы строк, история в git). Часы —
     # тоже отсюда: дата меток сверяется с сегодняшней.
@@ -235,11 +235,11 @@ def _controller(cls, platform, modules, conventions=NEUTRAL, changes=None):
                reference=ReferenceUseCase(DesignerReference()),
                verify=lambda **source: VerifyUseCase(changes(**source), conventions),
                normalize=lambda **source: NormalizeUseCase(changes(**source)),
-               plan_check=lambda **source: PlanCheckUseCase(_план(changes(**source)), conventions),
-               plan_emit=lambda **source: PlanEmitUseCase(_план(changes(**source))))
+               plan_check=lambda **source: PlanCheckUseCase(_plan(changes(**source)), conventions),
+               plan_emit=lambda **source: PlanEmitUseCase(_plan(changes(**source))))
 
 
-def _ключ_профиля(argv):
+def _profile_key(argv):
     """(путь из `--профиль <файл>` или None, остальные аргументы)."""
     if "--профиль" not in argv:
         return None, list(argv)
@@ -254,8 +254,8 @@ def terminal(argv):
     from ..cli.app import main
     from ..cli.controller import Controller
 
-    path, argv = _ключ_профиля(argv)
-    conventions = соглашения_из_файла(path) if path else соглашения_из_окружения()
+    path, argv = _profile_key(argv)
+    conventions = conventions_from_file(path) if path else conventions_from_env()
     return main(argv, _controller(Controller, platform_factory(), modules_factory(), conventions,
                                   changes_factory()))
 
@@ -275,7 +275,7 @@ def mcp_server(roots=None, conventions=None):
     from ..api.server import build
 
     roots = roots_from_environment() if roots is None else tuple(roots)
-    conventions = соглашения_из_окружения() if conventions is None else conventions
+    conventions = conventions_from_env() if conventions is None else conventions
     return build(_controller(Controller, platform_factory(roots), modules_factory(roots), conventions,
                              changes_factory(roots)),
                  conventions)
