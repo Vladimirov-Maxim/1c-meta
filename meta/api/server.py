@@ -17,7 +17,7 @@ from pydantic import Field, ValidationError
 
 from ..domain.conventions import NEUTRAL
 from ..domain.model import Refuse
-from ..report import Подсказки
+from ..report import Hints
 from ..report.code import code_lines
 from ..report.forms import element_properties, shown_form
 from ..report.normalize import normalize_lines
@@ -38,10 +38,10 @@ from .models import (
     MethodMove,
     ObjectRename,
     PlanObject,
-    метаданные_в_язык_заданий,
+    metadata_to_job_language,
 )
 
-ИНСТРУКЦИЯ = """Инструмент исходников конфигурации 1С: пишет объекты метаданных и формы
+INSTRUCTIONS = """Инструмент исходников конфигурации 1С: пишет объекты метаданных и формы
 так же, как конфигуратор (выгрузка в файлы) или 1C:EDT (проект EDT), — без
 ручной правки XML. Формат определяется по каталогу `repo` сам: выгрузка —
 каталог с Configuration.xml, проект EDT — каталог `src` проекта (с
@@ -70,7 +70,7 @@ plan_check (план против факта задачи) и plan_emit (фак�
 которое не выполнится, отвечает строкой «ОТКАЗ: …»."""
 
 
-def инструкция(conventions):
+def instructions(conventions):
     """Инструкция сервера с соглашениями команды: приставку, метку команды и
     язык кода формы агент узнаёт до первого задания, а не из отказа."""
     form_code = conventions.form_code
@@ -85,97 +85,97 @@ def инструкция(conventions):
                      "правится в XML")
     if conventions.marker_tag:
         parts.append(f"метка команды в метках вставок — «{conventions.marker_tag}»")
-    return ИНСТРУКЦИЯ + "\n\nСоглашения команды (профиль): " + "; ".join(parts) + "."
+    return INSTRUCTIONS + "\n\nСоглашения команды (профиль): " + "; ".join(parts) + "."
 
 
-def _подсказки(записать):
-    return Подсказки(
+def _hints(write):
+    return Hints(
         fields='fields(kind="{вид}")',
-        записать=записать,
+        write=write,
         detailed="verbose=true",
         code="code_check, затем code_apply",
-        подвал_обзора=(
+        overview_footer=(
             '\nПоля вида:  fields(kind="<Вид>")        Описание типа:  fields(kind="Тип")'
             '        Правка кода:  fields(kind="Код")',
             "Что лежит в выгрузке:  show(repo, address[, element])\n"
             "   объект — «Справочник.мой_Эталон», "
             "форма — «Документ.мой_Заявка.ФормаДокумента»",
         ),
-        ключ_модуля="module",
+        module_key="module",
         # Формы у MCP — свои инструменты, а не операция рядом с objects:
         # формат задания терминала в эту справку не переносится.
         forms="Формы — не операция metadata_*: их заводят и дополняют инструменты "
               "forms_check / forms_apply, задание на формы описано их схемой; свойства "
               'элемента — fields(kind="ПолеВвода") и т. п.',
-        ветвь="«element»",
+        branch="«element»",
     )
 
 
-ФОРМЫ = _подсказки("вызовите forms_apply с тем же заданием")
-КОД = _подсказки("вызовите code_apply с тем же заданием")
-МЕТАДАННЫЕ = _подсказки("вызовите metadata_apply с тем же заданием")
+FORMS = _hints("вызовите forms_apply с тем же заданием")
+CODE = _hints("вызовите code_apply с тем же заданием")
+METADATA = _hints("вызовите metadata_apply с тем же заданием")
 
 # Описания параметров: без них формат даты и смысл `repo` приходится угадывать.
-Выгрузка = Annotated[str, Field(description="полный путь к корню исходников (что это — в инструкции "
+Dump = Annotated[str, Field(description="полный путь к корню исходников (что это — в инструкции "
                                             "сервера)")]
-Задача = Annotated[str, Field(description="ИД задачи для меток вставок, например ЗАДАЧА-123")]
+Task = Annotated[str, Field(description="ИД задачи для меток вставок, например ЗАДАЧА-123")]
 # Пустое умолчание у даты и автора читается как «необязательны», поэтому
 # сказано прямо: обязательны они для любой правки, пусты — только у отката.
-Дата = Annotated[str, Field(description="дата меток, дд.мм.гггг — обязательна для правок, "
+Date = Annotated[str, Field(description="дата меток, дд.мм.гггг — обязательна для правок, "
                                         "переименования и переноса; пустой — только у "
                                         "чистого отката")]
-Автор = Annotated[str, Field(description="автор меток: только имя — метку команды и ИД "
+Author = Annotated[str, Field(description="автор меток: только имя — метку команды и ИД "
                                          "задачи ставит инструмент; обязателен для правок, "
                                          "переименования и переноса; пустой — только у "
                                          "чистого отката")]
 
-ВыгрузкаПодGit = Annotated[str | None, Field(description="полный путь к исходникам под git — выгрузке "
+GitDump = Annotated[str | None, Field(description="полный путь к исходникам под git — выгрузке "
                                                           "(Configuration.xml) или каталогу src проекта "
                                                           "EDT; или пара baseline + target")]
-База = Annotated[str, Field(description="база сверки — ревизия до задачи (коммит), по умолчанию HEAD")]
-Ревизия = Annotated[str | None, Field(description="ревизия с правками задачи вместо рабочей копии")]
-Эталон = Annotated[str | None, Field(description="каталог «до» — эталон обработки вне репозитория")]
-Копия = Annotated[str | None, Field(description="каталог «после» — правленая копия; вместе с baseline")]
-ЗадачаПроверки = Annotated[str | None, Field(description="ИД задачи: без него правка внутри чужой "
+Base = Annotated[str, Field(description="база сверки — ревизия до задачи (коммит), по умолчанию HEAD")]
+Revision = Annotated[str | None, Field(description="ревизия с правками задачи вместо рабочей копии")]
+Baseline = Annotated[str | None, Field(description="каталог «до» — эталон обработки вне репозитория")]
+CopyDir = Annotated[str | None, Field(description="каталог «после» — правленая копия; вместе с baseline")]
+CheckTask = Annotated[str | None, Field(description="ИД задачи: без него правка внутри чужой "
                                                          "вставки не проверяется")]
-Только = Annotated[list[str] | None, Field(description="коды правил, находки которых нужны "
+Only = Annotated[list[str] | None, Field(description="коды правил, находки которых нужны "
                                                      "(«ФАЙЛ-БЕЗ-BOM», не номера пунктов); пусто — все; "
                                                      "неизвестный код — отказ")]
-Файлы = Annotated[list[str] | None, Field(description="какие файлы правок проверять: путь, каталог или маска "
+Files = Annotated[list[str] | None, Field(description="какие файлы правок проверять: путь, каталог или маска "
                                                     "от корня исходников; пусто — все")]
-ОбъектыПлана = Annotated[list[PlanObject], Field(description="объекты плана — по объекту на "
+PlanObjects = Annotated[list[PlanObject], Field(description="объекты плана — по объекту на "
                                                            "то, что задача создаёт, меняет или удаляет")]
 
 # Смысл `verbose` у каждого инструмента свой — и описание у каждого своё.
-ПодробноПоказ = Annotated[bool, Field(description="показать и спутников элементов формы — "
+DetailedShow = Annotated[bool, Field(description="показать и спутников элементов формы — "
                                                   "меню, подсказки, дополнения таблиц; у объекта — "
                                                   "длинные тексты (запрос набора данных) целиком")]
-ПодробноФормы = Annotated[bool, Field(description="показать XML формы, который будет записан")]
-ПодробноКод = Annotated[bool, Field(description="длинные блоки показа — целиком, а не краями")]
-ПодробноЗапись = Annotated[bool, Field(description="показать записанный текст, а не только "
+DetailedForms = Annotated[bool, Field(description="показать XML формы, который будет записан")]
+DetailedCode = Annotated[bool, Field(description="длинные блоки показа — целиком, а не краями")]
+DetailedWrite = Annotated[bool, Field(description="показать записанный текст, а не только "
                                                    "номера строк")]
-ПодробноМетаданные = Annotated[bool, Field(description="показать все поля, включая решённые "
+DetailedMetadata = Annotated[bool, Field(description="показать все поля, включая решённые "
                                                        "за вас, и XML, который будет записан")]
-Принято = Annotated[list[str] | None, Field(
+Accepted = Annotated[list[str] | None, Field(
     description="коды предупреждений, принятых осознанно, без скобок: [\"РОЛЬ-ШАБЛОН-НЕ-ПРАВИЛО\"]")]
 
 
-def словами(работа):
+def in_words(work):
     """Отказ инструмента — ответ, а не поломка вызова. Слово то же, что в терминале."""
-    @wraps(работа)
-    def обёртка(*args, **named):
+    @wraps(work)
+    def wrapper(*args, **named):
         try:
-            return работа(*args, **named)
+            return work(*args, **named)
         except Refuse as refusal:
             return f"ОТКАЗ: {refusal}"
-    return обёртка
+    return wrapper
 
 
 def text(lines):
     return "\n".join(lines)
 
 
-def с_выгрузкой(repo, lines):
+def with_dump(repo, lines):
     """Строка «Выгрузка: …» перед ответом — но не перед «ОТКАЗ: …»: ответ,
     который не выполнится, начинается этим словом, как и отказ задания, и
     агент узнаёт его по первой строке."""
@@ -185,7 +185,7 @@ def с_выгрузкой(repo, lines):
 
 
 #: Куда идти с параметром, который принадлежит другому инструменту.
-НЕ_ТОТ_ИНСТРУМЕНТ = {
+WRONG_TOOL = {
     "forms": "формы — инструментами forms_check и forms_apply",
     "modules": "код — инструментами code_check и code_apply",
     "move_method": "код — инструментами code_check и code_apply",
@@ -194,14 +194,14 @@ def с_выгрузкой(repo, lines):
 }
 
 #: Ошибки формы запроса словами: валидатор транспорта говорит по-английски.
-ОЖИДАЛОСЬ = {"list_type": "нужен список пунктов [{…}, {…}]", "dict_type": "нужен объект {…}",
+EXPECTED = {"list_type": "нужен список пунктов [{…}, {…}]", "dict_type": "нужен объект {…}",
              "string_type": "нужна строка", "int_type": "нужно целое число",
              "int_parsing": "нужно целое число", "bool_type": "нужно true или false",
              "bool_parsing": "нужно true или false", "missing": "не задано, а оно обязательно",
              "model_type": "нужен объект {…}"}
 
 
-class Сервер(FastMCP):
+class Server(FastMCP):
     """FastMCP, который не теряет запрос молча и отвечает по-русски.
 
     Параметры инструментов описаны типами, и лишний ключ верхнего уровня
@@ -218,12 +218,12 @@ class Сервер(FastMCP):
         extra = [key for key in arguments or {} if known is not None
                   and key not in known]
         if extra:
-            советы = [НЕ_ТОТ_ИНСТРУМЕНТ[key] for key in extra if key in НЕ_ТОТ_ИНСТРУМЕНТ]
+            advices = [WRONG_TOOL[key] for key in extra if key in WRONG_TOOL]
             return [TextContent(type="text", text=(
                 f"ОТКАЗ: у {name} нет {'параметра' if len(extra) == 1 else 'параметров'} "
                 + ", ".join(f"«{key}»" for key in extra)
                 + f"; бывают: {', '.join(known)}"
-                + "".join(f"; {advice}" for advice in dict.fromkeys(советы))))]
+                + "".join(f"; {advice}" for advice in dict.fromkeys(advices))))]
         try:
             return await super().call_tool(name, arguments)
         except ToolError as error:
@@ -231,21 +231,21 @@ class Сервер(FastMCP):
                 raise
             return [TextContent(type="text", text="ОТКАЗ: " + "; ".join(
                 f"«{'.'.join(str(part) for part in e['loc'])}» — "
-                + ОЖИДАЛОСЬ.get(e["type"], e["msg"])
+                + EXPECTED.get(e["type"], e["msg"])
                 for e in error.__cause__.errors()))]
 
 
 def build(controller, conventions=NEUTRAL):
     """Сервер с инструментами поверх данного контроллера."""
-    server = Сервер("1c-meta", instructions=инструкция(conventions))
+    server = Server("1c-meta", instructions=instructions(conventions))
 
     @server.tool(structured_output=False)
-    @словами
-    def show(repo: Выгрузка,
+    @in_words
+    def show(repo: Dump,
              address: Annotated[str, Field(description="«Справочник.мой_Эталон» или форма "
                                                        "«Документ.мой_Заявка.ФормаДокумента» "
                                                        "(или «…Форма.ФормаДокумента», как у bsl-ls)")],
-             verbose: ПодробноПоказ = False,
+             verbose: DetailedShow = False,
              element: Annotated[str | None, Field(
                  description="имя элемента формы: показать только его ветку и путь к ней — "
                              "у типовой формы дерево целиком бывает в сотни строк")] = None) -> str:
@@ -259,28 +259,28 @@ def build(controller, conventions=NEUTRAL):
         подсказки, дополнения таблиц), по умолчанию скрытых, а у объекта —
         длинные тексты (модуль, запрос набора данных) целиком, а не сводкой.
         """
-        ответ = controller.show(repo, address)
-        if ответ[0] == "форма":
-            _, view, name, form_file, module_file, своя = ответ
-            return text(shown_form(view, name, form_file, module_file, verbose, ФОРМЫ,
-                                    ветвь=element, своя=своя))
-        _, spec, file = ответ
+        answer = controller.show(repo, address)
+        if answer[0] == "форма":
+            _, view, name, form_file, module_file, own_item = answer
+            return text(shown_form(view, name, form_file, module_file, verbose, FORMS,
+                                    branch=element, own_item=own_item))
+        _, spec, file = answer
         surplus = ["«element» — ветка дерева формы; у объекта не применяется"] if element else []
-        return text(shown_object(spec, file, МЕТАДАННЫЕ, полностью=verbose) + surplus)
+        return text(shown_object(spec, file, METADATA, fully=verbose) + surplus)
 
     @server.tool(structured_output=False)
-    @словами
+    @in_words
     def fields(kind: str = "") -> str:
         """Какие поля принимает вид объекта; без вида — операции и виды;
         «Тип» — как описывается тип значения; «Код» — правила правки кода
         вставками (метки, разбор, откат); вид элемента формы («ПолеВвода»,
         «ГруппаФормы»…) — его свойства для задания на формы."""
         if not kind:
-            return text(overview(controller.kinds(), МЕТАДАННЫЕ))
+            return text(overview(controller.kinds(), METADATA))
         if kind in ("Тип", "Типы"):
             return text(types())
         if kind in CODE_WORDS:
-            return text(code_rules(КОД))
+            return text(code_rules(CODE))
         found = controller.kind(kind)
         if found is not None:
             return text(kind_fields(kind, *found))
@@ -291,15 +291,15 @@ def build(controller, conventions=NEUTRAL):
             return text(types())
         raise Refuse("вида «{}» нет; есть: {}".format(kind, ", ".join(controller.kind_names())))
 
-    def _формы(repo, forms, accepted, apply_now, verbose=False):
+    def _forms(repo, forms, accepted, apply_now, verbose=False):
         result = controller.forms(repo, forms, apply_now)
-        return text(с_выгрузкой(repo, result_lines(
-            result, принято=accepted, apply_now=apply_now, подсказки=ФОРМЫ, files=verbose)))
+        return text(with_dump(repo, result_lines(
+            result, accepted=accepted, apply_now=apply_now, hints=FORMS, files=verbose)))
 
     @server.tool(structured_output=False)
-    @словами
-    def forms_check(repo: Выгрузка, forms: list[FormJob],
-                    accepted: Принято = None, verbose: ПодробноФормы = False) -> str:
+    @in_words
+    def forms_check(repo: Dump, forms: list[FormJob],
+                    accepted: Accepted = None, verbose: DetailedForms = False) -> str:
         """Просмотр задания на формы: находки и план, на диск не пишется ничего.
 
         `repo` — полный путь к выгрузке, `forms` — пункты задания: завести
@@ -310,28 +310,28 @@ def build(controller, conventions=NEUTRAL):
         останавливает, «принято» только помечает его осознанным; ошибку принять
         нельзя. `verbose` — показать XML, который будет записан.
         """
-        return _формы(repo, forms, accepted, apply_now=False, verbose=verbose)
+        return _forms(repo, forms, accepted, apply_now=False, verbose=verbose)
 
     @server.tool(structured_output=False)
-    @словами
-    def forms_apply(repo: Выгрузка, forms: list[FormJob],
-                    accepted: Принято = None) -> str:
+    @in_words
+    def forms_apply(repo: Dump, forms: list[FormJob],
+                    accepted: Accepted = None) -> str:
         """То же задание на формы с записью. Файлы пишутся все разом или ни один.
         С «код» (типовая форма; и true, и с модулем) не пишет ничего — выдаёт тот
         же фрагмент кода доработки формы, что и forms_check."""
-        return _формы(repo, forms, accepted, apply_now=True)
+        return _forms(repo, forms, accepted, apply_now=True)
 
-    def _код(repo, task, date, author, modules, move_method, apply_now, verbose=False, base="HEAD"):
+    def _code(repo, task, date, author, modules, move_method, apply_now, verbose=False, base="HEAD"):
         result = controller.code(repo, task, date, author, modules, move_method, apply_now,
                                  base=None if base in ("", "HEAD") else base)
-        return text([f"Выгрузка: {repo}"] + code_lines(result, apply_now, КОД, whole=verbose))
+        return text([f"Выгрузка: {repo}"] + code_lines(result, apply_now, CODE, whole=verbose))
 
     @server.tool(structured_output=False)
-    @словами
-    def code_check(repo: Выгрузка, task: Задача, modules: list[CodeModule],
-                   date: Дата = "", author: Автор = "",
-                   move_method: MethodMove | None = None, verbose: ПодробноКод = False,
-                   base: База = "HEAD") -> str:
+    @in_words
+    def code_check(repo: Dump, task: Task, modules: list[CodeModule],
+                   date: Date = "", author: Author = "",
+                   move_method: MethodMove | None = None, verbose: DetailedCode = False,
+                   base: Base = "HEAD") -> str:
         """Просмотр правки кода вставками: решение по каждой
         правке — где она (метод или область) — и текст, который встанет на
         её место, с номерами строк нового модуля; на диск не пишется ничего.
@@ -362,30 +362,30 @@ def build(controller, conventions=NEUTRAL):
 
         Что считается меткой и все правила разбора — fields(kind="Код").
         """
-        return _код(repo, task, date, author, modules, move_method, apply_now=False,
+        return _code(repo, task, date, author, modules, move_method, apply_now=False,
                     verbose=verbose, base=base)
 
     @server.tool(structured_output=False)
-    @словами
-    def code_apply(repo: Выгрузка, task: Задача, modules: list[CodeModule],
-                   date: Дата = "", author: Автор = "",
-                   move_method: MethodMove | None = None, verbose: ПодробноЗапись = False,
-                   base: База = "HEAD") -> str:
+    @in_words
+    def code_apply(repo: Dump, task: Task, modules: list[CodeModule],
+                   date: Date = "", author: Author = "",
+                   move_method: MethodMove | None = None, verbose: DetailedWrite = False,
+                   base: Base = "HEAD") -> str:
         """То же задание на код с записью. Модули пишутся все разом или ни один.
         `verbose` — показать записанный текст, а не только номера строк."""
-        return _код(repo, task, date, author, modules, move_method, apply_now=True,
+        return _code(repo, task, date, author, modules, move_method, apply_now=True,
                     verbose=verbose, base=base)
 
-    def _метаданные(repo, операции, accepted, apply_now, verbose=False):
-        result = controller.metadata(метаданные_в_язык_заданий(repo, операции, accepted),
+    def _metadata(repo, operations, accepted, apply_now, verbose=False):
+        result = controller.metadata(metadata_to_job_language(repo, operations, accepted),
                                      apply_now)
-        return text(с_выгрузкой(repo, result_lines(
-            result, принято=accepted, apply_now=apply_now, подсказки=МЕТАДАННЫЕ,
+        return text(with_dump(repo, result_lines(
+            result, accepted=accepted, apply_now=apply_now, hints=METADATA,
             detailed=verbose, files=verbose)))
 
     @server.tool(structured_output=False)
-    @словами
-    def metadata_check(repo: Выгрузка,
+    @in_words
+    def metadata_check(repo: Dump,
                        objects: list[MetadataObject] | None = None,
                        attributes: list[AttributeAddition] | None = None,
                        additions: list[ChildAddition] | None = None,
@@ -393,8 +393,8 @@ def build(controller, conventions=NEUTRAL):
                        deletions: list[str | Deletion] | None = None,
                        renames: list[ObjectRename] | None = None,
                        atomic_roles: list[str | AtomicRoles] | None = None,
-                       accepted: Принято = None,
-                       verbose: ПодробноМетаданные = False) -> str:
+                       accepted: Accepted = None,
+                       verbose: DetailedMetadata = False) -> str:
         """Просмотр задания на объекты и их части: находки и план, без записи.
 
         Операция в задании одна — один из списков: objects (новые объекты),
@@ -409,15 +409,15 @@ def build(controller, conventions=NEUTRAL):
         будет записан: новые файлы целиком, изменённые — разницей с текущими
         (uuid новых объектов порождаются при каждом вызове заново).
         """
-        return _метаданные(repo, dict(objects=objects, attributes=attributes,
+        return _metadata(repo, dict(objects=objects, attributes=attributes,
                                       additions=additions, changes=changes,
                                       deletions=deletions, renames=renames,
                                       atomic_roles=atomic_roles), accepted,
                            apply_now=False, verbose=verbose)
 
     @server.tool(structured_output=False)
-    @словами
-    def metadata_apply(repo: Выгрузка,
+    @in_words
+    def metadata_apply(repo: Dump,
                        objects: list[MetadataObject] | None = None,
                        attributes: list[AttributeAddition] | None = None,
                        additions: list[ChildAddition] | None = None,
@@ -425,18 +425,18 @@ def build(controller, conventions=NEUTRAL):
                        deletions: list[str | Deletion] | None = None,
                        renames: list[ObjectRename] | None = None,
                        atomic_roles: list[str | AtomicRoles] | None = None,
-                       accepted: Принято = None) -> str:
+                       accepted: Accepted = None) -> str:
         """То же задание на объекты с записью. Файлы пишутся все разом или ни один."""
-        return _метаданные(repo, dict(objects=objects, attributes=attributes,
+        return _metadata(repo, dict(objects=objects, attributes=attributes,
                                       additions=additions, changes=changes,
                                       deletions=deletions, renames=renames,
                                       atomic_roles=atomic_roles), accepted, apply_now=True)
 
     @server.tool(structured_output=False)
-    @словами
-    def verify(repo: ВыгрузкаПодGit = None, base: База = "HEAD", rev: Ревизия = None,
-               baseline: Эталон = None, target: Копия = None, task: ЗадачаПроверки = None,
-               only: Только = None, paths: Файлы = None) -> str:
+    @in_words
+    def verify(repo: GitDump = None, base: Base = "HEAD", rev: Revision = None,
+               baseline: Baseline = None, target: CopyDir = None, task: CheckTask = None,
+               only: Only = None, paths: Files = None) -> str:
         """Проверка правок задачи против базы — только чтение.
 
         Источник один: выгрузка под git (`repo`: рабочая копия вместе с новыми
@@ -458,9 +458,9 @@ def build(controller, conventions=NEUTRAL):
         return text(verify_lines(result))
 
     @server.tool(structured_output=False)
-    @словами
-    def normalize_check(repo: ВыгрузкаПодGit = None, base: База = "HEAD",
-                        baseline: Эталон = None, target: Копия = None) -> str:
+    @in_words
+    def normalize_check(repo: GitDump = None, base: Base = "HEAD",
+                        baseline: Baseline = None, target: CopyDir = None) -> str:
         """Просмотр нормализации формата файлов задачи — на диск не пишется ничего.
 
         Что будет возвращено файлам, которые задача добавила и изменила против
@@ -476,18 +476,18 @@ def build(controller, conventions=NEUTRAL):
         return text(normalize_lines(result, False, "вызовите normalize_apply с теми же параметрами"))
 
     @server.tool(structured_output=False)
-    @словами
-    def normalize_apply(repo: ВыгрузкаПодGit = None, base: База = "HEAD",
-                        baseline: Эталон = None, target: Копия = None) -> str:
+    @in_words
+    def normalize_apply(repo: GitDump = None, base: Base = "HEAD",
+                        baseline: Baseline = None, target: CopyDir = None) -> str:
         """То же с записью: все файлы разом или ни один, только в разрешённых выгрузках."""
         result = controller.normalize(repo=repo, base=base, baseline=baseline, target=target,
                                       apply_now=True)
         return text(normalize_lines(result, True, ""))
 
     @server.tool(structured_output=False)
-    @словами
-    def plan_check(objects: ОбъектыПлана, repo: ВыгрузкаПодGit = None, base: База = "HEAD",
-                   rev: Ревизия = None, baseline: Эталон = None, target: Копия = None,
+    @in_words
+    def plan_check(objects: PlanObjects, repo: GitDump = None, base: Base = "HEAD",
+                   rev: Revision = None, baseline: Baseline = None, target: CopyDir = None,
                    only_declared: Annotated[bool, Field(description="сверять только объекты плана: "
                                                                      "тронутые, но не заявленные — "
                                                                      "к сведению, не находкой")] = False
@@ -506,9 +506,9 @@ def build(controller, conventions=NEUTRAL):
         return text(plan_check_lines(result))
 
     @server.tool(structured_output=False)
-    @словами
-    def plan_emit(repo: ВыгрузкаПодGit = None, base: База = "HEAD", rev: Ревизия = None,
-                  baseline: Эталон = None, target: Копия = None) -> str:
+    @in_words
+    def plan_emit(repo: GitDump = None, base: Base = "HEAD", rev: Revision = None,
+                  baseline: Baseline = None, target: CopyDir = None) -> str:
         """План по факту задачи — JSON того же формата, что принимает plan_check.
 
         Объекты, файлы которых задача тронула; их новые члены с типами записью
@@ -522,26 +522,26 @@ def build(controller, conventions=NEUTRAL):
     # Схемы инструментов читает агент в каждом запуске, и служебное pydantic в
     # них — четверть объёма. Аргументы проверяются по модели функции, а не по
     # показанной схеме, так что сжатие меняет только то, что видит клиент.
-    инструменты = {ii.name: ii for ii in server._tool_manager.list_tools()}
-    for инструмент in инструменты.values():
-        инструмент.parameters = compact_schema(инструмент.parameters)
+    tools = {ii.name: ii for ii in server._tool_manager.list_tools()}
+    for tool in tools.values():
+        tool.parameters = compact_schema(tool.parameters)
     # Пара просмотр — запись: задание одно и то же, и вложенные модели задания
     # (объекты, формы, модули) запись повторяла бы целиком. У `*_apply` они
     # ссылаются на схему `*_check`, которую агент уже видел: перед записью он её
     # и вызывает. Проверяются аргументы записи по-прежнему полностью.
-    for name, инструмент in инструменты.items():
-        просмотр = инструменты.get(name.removesuffix("_apply") + "_check")
-        if name.endswith("_apply") and просмотр is not None:
-            инструмент.parameters = shared_schema(инструмент.parameters, просмотр.name)
+    for name, tool in tools.items():
+        preview = tools.get(name.removesuffix("_apply") + "_check")
+        if name.endswith("_apply") and preview is not None:
+            tool.parameters = shared_schema(tool.parameters, preview.name)
     return server
 
 
-def shared_schema(schema, просмотр):
+def shared_schema(schema, preview):
     """Схема записи со ссылкой на просмотр: поля со вложенными моделями
     (`$ref`) — одной строкой «как у <просмотр>», общие `$defs` — прочь."""
     out = {key: value for key, value in schema.items() if key != "$defs"}
     out["properties"] = {
-        name: ({"description": f"то же, что «{name}» у {просмотр}"} if "$ref" in json.dumps(field) else field)
+        name: ({"description": f"то же, что «{name}» у {preview}"} if "$ref" in json.dumps(field) else field)
         for name, field in (schema.get("properties") or {}).items()}
     return out
 
@@ -562,15 +562,15 @@ def compact_schema(schema):
             out[key] = {name: compact_schema(s) for name, s in value.items()}
         else:
             out[key] = compact_schema(value)
-    варианты = out.get("anyOf")
-    if isinstance(варианты, list) and {"type": "null"} in варианты:
-        варианты = [x for x in варианты if x != {"type": "null"}]
-        if len(варианты) == 1:
+    variants = out.get("anyOf")
+    if isinstance(variants, list) and {"type": "null"} in variants:
+        variants = [x for x in variants if x != {"type": "null"}]
+        if len(variants) == 1:
             out.pop("anyOf")
-            for key, value in варианты[0].items():
+            for key, value in variants[0].items():
                 out.setdefault(key, value)
         else:
-            out["anyOf"] = варианты
+            out["anyOf"] = variants
     if "default" in out and out["default"] is None:
         out.pop("default")
     return out

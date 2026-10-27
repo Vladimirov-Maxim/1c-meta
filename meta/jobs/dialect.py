@@ -66,11 +66,11 @@ def type_ref_from_json(data):
         # Грань — в скобках, как её печатает показ: «Справочник.Контрагенты
         # (Объект)». Иначе скопированная из показа запись читалась бы именем
         # «Контрагенты (Объект)» — источника с таким именем нет.
-        краткая = SHORT_TYPE_REF.fullmatch(data)
-        if краткая is None:
+        brief = SHORT_TYPE_REF.fullmatch(data)
+        if brief is None:
             raise Refuse(f"обозначение «{data}» не разобрано: пишется «Вид.Имя» или "
                          "«Вид.Имя (Грань)», например «Справочник.Контрагенты (Объект)»")
-        kind, name, facet = краткая.groups()
+        kind, name, facet = brief.groups()
         data = {"вид": kind, "имя": name or None}
         if facet:
             data["грань"] = facet
@@ -278,12 +278,12 @@ def value_type_from_json(data):
         _check_keys(data, TYPE_KEYS[kind], kind)
         for (qualifier_kind, field), values in QUALIFIER_VALUES.items():
             if qualifier_kind == kind and field in data and data[field] not in values:
-                близкое = difflib.get_close_matches(
+                close_match = difflib.get_close_matches(
                     str(data[field]), values, n=1, cutoff=0.5)
                 raise Refuse(
                     f"у типа «{kind}» не знаю {field} «{data[field]}»; "
                     f"допустимо: {', '.join(values)}"
-                    + (f" — возможно, {близкое[0]}" if близкое else ""))
+                    + (f" — возможно, {close_match[0]}" if close_match else ""))
         key = QUALIFIER_KEY.get(kind)
         if key and key not in data:
             raise Refuse(
@@ -312,11 +312,11 @@ def value_type_from_json(data):
     # чем ссылка на объект. Совет «допишите имя объекта: {"вид": "Строчка",
     # "имя": "Контрагенты"}» предлагал бы достроить вид, которого не бывает;
     # подсказка — как у опечаток в именах полей.
-    похоже = difflib.get_close_matches(
+    looks_like = difflib.get_close_matches(
         kind or "", list(TYPE_KEYS) + list(PLATFORM_KINDS), n=2, cutoff=0.55)
-    if kind and not name and похоже:
+    if kind and not name and looks_like:
         raise Refuse(f"вида «{kind}» среди типов нет — возможно, "
-                     f"{' или '.join(похоже)}")
+                     f"{' или '.join(looks_like)}")
     # Вид назван, а имя нет — это не «невнятно», это «не хватает имени»,
     # и сказать надо именно так: пересказ всего формата заново заставил бы
     # человека искать в нём ошибку, которой он не делал.
@@ -347,11 +347,11 @@ def attribute_job_from_json(data):
     # бы «получено «»» — сообщение про значение, которого он не писал, вместо
     # сообщения про ключ.
     if isinstance(data, dict) and "объект" not in data:
-        подсказка = (' (в задании есть «путь» — это ключ операции '
+        hint = (' (в задании есть «путь» — это ключ операции '
                      '"additions"; здесь нужен «объект»)'
                      if "путь" in data else "")
         raise Refuse("в реквизите не указан объект-хозяин (ключ «объект»)"
-                     + подсказка)
+                     + hint)
     obj = item_of(data, "attributes").get("объект") or ""
     kind, _, name = obj.partition(".")
     if not kind or not name:
@@ -386,15 +386,15 @@ def change_job_from_json(data):
     path = path_from_json(item_of(data, "changes").get("путь"))
     raw_fields = dict(data.get("поля") or {})
     kind = path[-1][0]
-    перечни = {}
+    list_edits = {}
     for field in getattr(REGISTRY.get(kind), "object_lists", ()) or ():
         if field in raw_fields:
-            перечни[field] = list_edit_from_json(field, raw_fields.pop(field))
+            list_edits[field] = list_edit_from_json(field, raw_fields.pop(field))
     for field in getattr(REGISTRY.get(kind), "text_fields", ()) or ():
         if isinstance(raw_fields.get(field), (dict, list)):
-            перечни[field] = text_edit_from_json(field, raw_fields.pop(field))
+            list_edits[field] = text_edit_from_json(field, raw_fields.pop(field))
     fields = dict(child_spec_from_json(kind, raw_fields).fields) if raw_fields else {}
-    fields.update(перечни)
+    fields.update(list_edits)
     if not fields:
         raise Refuse("в правке не указано ни одного поля")
     return path, fields
@@ -407,24 +407,24 @@ def text_edit_from_json(field, value):
     """Правка текста фрагментами: объект или список объектов
     {"line", "lines", "first_line", "last_line", "code"} — как правка кода;
     номера строк — от начала текста поля."""
-    пункты = value if isinstance(value, list) else [value]
-    правки = []
-    for пункт in пункты:
-        if not isinstance(пункт, dict):
+    items = value if isinstance(value, list) else [value]
+    edit_jobs = []
+    for item in items:
+        if not isinstance(item, dict):
             raise Refuse(f"«{field}»: фрагмент правки — объект {{\"line\", \"lines\", \"first_line\", "
                          "\"last_line\", \"code\"}")
-        extra = sorted(set(пункт) - set(TEXT_EDIT_KEYS))
+        extra = sorted(set(item) - set(TEXT_EDIT_KEYS))
         if extra:
             raise Refuse(f"«{field}»: ключи фрагмента — {', '.join(TEXT_EDIT_KEYS)}; лишние: {', '.join(extra)}")
-        line, lines = пункт.get("line"), пункт.get("lines")
+        line, lines = item.get("line"), item.get("lines")
         if not isinstance(line, int) or isinstance(line, bool) or line < 1:
             raise Refuse(f"«{field}»: «line» — номер строки от 1, получено {line!r}")
         if not isinstance(lines, int) or isinstance(lines, bool) or lines < 0:
             raise Refuse(f"«{field}»: «lines» — сколько строк заменяется, число от 0, получено {lines!r}")
-        правки.append({key: пункт.get(key) for key in TEXT_EDIT_KEYS})
-    if not правки:
+        edit_jobs.append({key: item.get(key) for key in TEXT_EDIT_KEYS})
+    if not edit_jobs:
         raise Refuse(f"«{field}»: правка без фрагментов")
-    return dm.TextEdit(правки)
+    return dm.TextEdit(edit_jobs)
 
 
 def list_edit_from_json(field, value):
@@ -445,13 +445,13 @@ def list_edit_from_json(field, value):
                       f"получено {', '.join(extra) or 'пусто'}")
     if "заменить" in value and len(value) > 1:
         raise Refuse(f"«{field}»: «заменить» задаётся один, без «добавить» и «убрать»")
-    разобрано = {}
+    parsed_count = {}
     for key, what in value.items():
         if not isinstance(what, list):
             raise Refuse(f"«{field}.{key}» — список обозначений «Вид.Имя»")
-        разобрано[key] = [designation_from_json(x) for x in what]
-    return dm.ListEdit(разобрано.get("добавить", ()), разобрано.get("убрать", ()),
-                       разобрано.get("заменить"))
+        parsed_count[key] = [designation_from_json(x) for x in what]
+    return dm.ListEdit(parsed_count.get("добавить", ()), parsed_count.get("убрать", ()),
+                       parsed_count.get("заменить"))
 
 
 def delete_job_from_json(data):

@@ -20,7 +20,7 @@ sys.path.insert(0, ROOT)
 
 from meta import add  # noqa: E402
 
-from .test_code import ВЕНДОРСКИЙ, запустить, одна, правка, прочитать, репо  # noqa: E402,F401
+from .test_code import ВЕНДОРСКИЙ, edit_job, single_one, запустить, прочитать, репо  # noqa: E402,F401
 
 ОТКРЫТА = "// {[+](фрагмент ДОБАВЛЕН), 31.08.2026, #TEAM Петров Петр #TASK-1"
 ИЗМЕНЕН = "// {[*](фрагмент ИЗМЕНЕН), 31.08.2026, #TEAM Петров Петр #TASK-1"
@@ -35,14 +35,14 @@ from .test_code import ВЕНДОРСКИЙ, запустить, одна, пр�
 
 
 def findings(root):
-    ответ = os.path.join(os.path.dirname(root), "ответ.json")
-    add.main(["--проверить", root, "--задача", "TASK-1", "--json", ответ])
-    return [f["код"] for f in json.load(open(ответ, encoding="utf-8"))["находки"]]
+    answer = os.path.join(os.path.dirname(root), "ответ.json")
+    add.main(["--проверить", root, "--задача", "TASK-1", "--json", answer])
+    return [f["код"] for f in json.load(open(answer, encoding="utf-8"))["находки"]]
 
 
 def test_an_added_query_line_has_no_blank_lines_around_its_markers(репо):
     root = репо(ЗАПРОС)
-    code, text = запустить(root, path=ВЕНДОРСКИЙ, edits=[правка(6, code="\t|\tТ.Дата,")])
+    code, text = запустить(root, path=ВЕНДОРСКИЙ, edits=[edit_job(6, code="\t|\tТ.Дата,")])
     assert code == 0, text
     lines = прочитать(root, ВЕНДОРСКИЙ)[0]
     assert lines[3:9] == ["\t\"ВЫБРАТЬ", "\t|\tТ.Номер,", "\t" + ОТКРЫТА, "\t|\tТ.Дата,", "\t" + ЗАКРЫТА,
@@ -51,7 +51,7 @@ def test_an_added_query_line_has_no_blank_lines_around_its_markers(репо):
 
 def test_a_changed_query_line_has_no_blank_lines_inside_the_insertion(репо):
     root = репо(ЗАПРОС)
-    code, text = запустить(root, path=ВЕНДОРСКИЙ, edits=[одна("\t|\tТ.Сумма", "\t|\tТ.Сумма КАК Итого") | {"line": 6}])
+    code, text = запустить(root, path=ВЕНДОРСКИЙ, edits=[single_one("\t|\tТ.Сумма", "\t|\tТ.Сумма КАК Итого") | {"line": 6}])
     assert code == 0, text
     lines = прочитать(root, ВЕНДОРСКИЙ)[0]
     assert lines[4:10] == ["\t|\tТ.Номер,", "\t" + ИЗМЕНЕН, "\t//|\tТ.Сумма", "\t|\tТ.Сумма КАК Итого",
@@ -61,7 +61,7 @@ def test_a_changed_query_line_has_no_blank_lines_inside_the_insertion(репо):
 def test_a_signature_change_wraps_only_the_declaration_under_its_description(репо):
     root = репо(СИГНАТУРА)
     code, text = запустить(root, path=ВЕНДОРСКИЙ, edits=[
-        одна("Функция Выгрузить(Каталог) Экспорт", "Функция Выгрузить(Каталог, Период = Неопределено) Экспорт")
+        single_one("Функция Выгрузить(Каталог) Экспорт", "Функция Выгрузить(Каталог, Период = Неопределено) Экспорт")
         | {"line": 6}])
     assert code == 0, text
     lines = прочитать(root, ВЕНДОРСКИЙ)[0]
@@ -96,7 +96,7 @@ def test_a_new_method_without_markers_is_separated_from_its_neighbours(репо)
     # модуль «создан задачей»: в базовой ревизии его нет
     subprocess.run(["git", "-C", root, "rm", "-q", "--cached", ВЕНДОРСКИЙ], check=True)
     subprocess.run(["git", "-C", root, "commit", "-q", "-m", "без модуля"], check=True)
-    code, text = запустить(root, path=ВЕНДОРСКИЙ, edits=[правка(4, code="Процедура Новая()\nКонецПроцедуры")])
+    code, text = запустить(root, path=ВЕНДОРСКИЙ, edits=[edit_job(4, code="Процедура Новая()\nКонецПроцедуры")])
     assert code == 0, text
     assert прочитать(root, ВЕНДОРСКИЙ)[0] == ["#Область Служебные", "Процедура Старая()", "КонецПроцедуры", "",
                                                "Процедура Новая()", "КонецПроцедуры", "", "#КонецОбласти"]
@@ -108,7 +108,7 @@ def test_every_problem_of_one_edit_comes_at_once(репо):
     ёлочки в коде видны сразу, а не по кругу на каждую."""
     root = репо(["Процедура Тест()", "\tЗначение = 1;", "\tДругое = 2;", "КонецПроцедуры"])
     code, text = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[
-        правка(2, 2, "\tЗначение = 1;", "\tДругое = 3;", "\tА = «б»;")])
+        edit_job(2, 2, "\tЗначение = 1;", "\tДругое = 3;", "\tА = «б»;")])
     assert code == 1 and "в правке бед 2" in text, text
     assert "кавычки-ёлочки" in text and "ожидалось" in text
 
@@ -142,5 +142,5 @@ def test_an_edit_touching_an_own_marker_is_refused(репо):
     блок УДАЛЕН с закомментированными своими метками — отказ с подсказкой."""
     root = репо(ДВЕ)
     code, text = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[
-        правка(3, 4, "", КОНЕЦ, "")])
+        edit_job(3, 4, "", КОНЕЦ, "")])
     assert code != 0 and "задевает метку своей вставки" in text and "revert" in text, text

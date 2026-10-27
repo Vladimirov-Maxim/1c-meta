@@ -315,9 +315,9 @@ def test_register_warning_does_not_claim_the_platform_refuses():
         "имя": "мой_Проба", "синоним": "П"})), World())
         if f.code == "РЕГИСТР-БЕЗ-ИЗМЕРЕНИЙ"]
     assert warning, "предупреждение должно остаться"
-    сказано = warning[0].message
-    assert "платформа не принимает" not in сказано, сказано
-    assert "49 из 1809" in сказано, сказано
+    stated = warning[0].message
+    assert "платформа не принимает" not in stated, stated
+    assert "49 из 1809" in stated, stated
     assert not warning[0].blocking, "это предупреждение, а не запрет"
 
 
@@ -631,10 +631,10 @@ def test_the_metadata_job_takes_the_type_the_way_show_prints_it():
                dm.TypeRef("Документ", "Заявка", "Объект")]
     for type_ in samples:
         record = dm.type_record(type_)
-        разобрано = job_dialect.value_type_from_json(record)
-        assert dm.type_record(разобрано) == record, record
-        assert type(разобрано) is type(type_), record
-        assert getattr(разобрано, "is_set", None) == getattr(type_, "is_set", None), record
+        parsed_count = job_dialect.value_type_from_json(record)
+        assert dm.type_record(parsed_count) == record, record
+        assert type(parsed_count) is type(type_), record
+        assert getattr(parsed_count, "is_set", None) == getattr(type_, "is_set", None), record
     составной = [dm.StringType(10), dm.TypeRef("Справочник", "Склады", "Ссылка")]
     record = dm.type_record(составной)
     assert record == "Строка(10) | Справочник.Склады"
@@ -657,12 +657,12 @@ def test_every_attribute_type_of_the_corpus_is_read_and_reads_back():
         pytest.skip(f"пропущен: нет выгрузки {corpus.CORPUS}")
     root = corpus.CORPUS
     дамп = DesignerDump(root)
-    bad, всего = [], 0
+    bad, total = [], 0
 
     def walk(spec, where):
-        nonlocal всего
+        nonlocal total
         for attribute in spec.get("реквизиты") or []:
-            всего += 1
+            total += 1
             type_ = attribute.get("тип")
             record = dm.type_record(type_)
             if isinstance(type_, dm.AnyType) or "object at" in record:
@@ -682,7 +682,7 @@ def test_every_attribute_type_of_the_corpus_is_read_and_reads_back():
             if file.endswith(".xml"):
                 spec, _ = дамп.read_spec([(kind, file[:-4])])
                 walk(spec, f"{kind}.{file[:-4]}")
-    assert всего > 40000, всего
+    assert total > 40000, total
     assert not bad, bad[:10]
 
 
@@ -736,14 +736,14 @@ def test_a_standard_attribute_name_is_taken_by_the_platform():
         def taken_names(self, path):
             return []
 
-    коды = [f.code for f in kind_of("Измерение").check(
+    codes = [f.code for f in kind_of("Измерение").check(
         Spec("Измерение", {"имя": "Период", "синоним": "П",
                            "тип": dm.StringType(10)}), Мир(), host)]
-    assert "ВЛОЖЕННОЕ-ИМЯ-СТАНДАРТНОЕ" in коды
-    коды = [f.code for f in kind_of("Измерение").check(
+    assert "ВЛОЖЕННОЕ-ИМЯ-СТАНДАРТНОЕ" in codes
+    codes = [f.code for f in kind_of("Измерение").check(
         Spec("Измерение", {"имя": "Организация", "синоним": "О",
                            "тип": dm.StringType(10)}), Мир(), host)]
-    assert "ВЛОЖЕННОЕ-ИМЯ-СТАНДАРТНОЕ" not in коды
+    assert "ВЛОЖЕННОЕ-ИМЯ-СТАНДАРТНОЕ" not in codes
 
 
 def test_a_right_is_checked_against_the_kind():
@@ -792,9 +792,9 @@ def test_a_name_longer_than_anything_measured_is_said_out_loud():
     from meta.domain.kinds import kind_of
     from meta.domain.model import Spec
 
-    коды = [f.code for f in kind_of("Справочник", ТЕСТ).check(
+    codes = [f.code for f in kind_of("Справочник", ТЕСТ).check(
         Spec("Справочник", {"имя": "мой_" + "Я" * 90, "синоним": "Д"}), None)]
-    assert "МД-ИМЯ-ДЛИННОЕ" in коды
+    assert "МД-ИМЯ-ДЛИННОЕ" in codes
 
 def test_all_unknown_values_are_named_at_once():
     """Три непонятых слова — три строки отказа, а не три круга запусков.
@@ -808,9 +808,9 @@ def test_all_unknown_values_are_named_at_once():
             "полнотекстовыйПоиск": "Нет такого",
             "созданиеПриВводе": "И такого",
             "историяДанных": "И этого"})), "uuid")
-    сказано = str(refusal.value)
+    stated = str(refusal.value)
     for field in ("полнотекстовыйПоиск", "созданиеПриВводе", "историяДанных"):
-        assert field in сказано, сказано
+        assert field in stated, stated
 
 
 def test_a_reference_type_without_a_name_says_so():
@@ -832,19 +832,19 @@ def test_an_unknown_right_lists_the_rights_of_that_kind():
     with pytest.raises(Refuse) as refusal:
         mapping.render_rights(Spec("Роль", {"имя": "мой_Роль", "права": [
             {"объект": "Справочник.Валюты", "права": ["Чтенее"]}]}))
-    сказано = str(refusal.value)
-    assert "у вида «Справочник» бывают" in сказано, сказано
-    assert "Проведение" not in сказано, "право документа справочнику не показываем"
+    stated = str(refusal.value)
+    assert "у вида «Справочник» бывают" in stated, stated
+    assert "Проведение" not in stated, "право документа справочнику не показываем"
 
 # --- проверки, без которых запись прошла бы молча ----------------------------
 
-def _находки(kind_name, fields, мир=None, хозяин=None):
+def _findings(kind_name, fields, мир=None, owner_name=None):
     """Задание собирается диалектом: дети должны стать `Spec`, а типы — типами."""
     from meta.jobs import dialect as job_dialect
 
     kind = kind_of(kind_name)
     spec = job_dialect.spec_from_json({"вид": kind_name, "поля": fields})
-    return kind.check(kind.fill(spec), мир, хозяин)
+    return kind.check(kind.fill(spec), мир, owner_name)
 
 
 def test_a_dimension_type_is_checked_like_an_attribute_type():
@@ -855,13 +855,13 @@ def test_a_dimension_type_is_checked_like_an_attribute_type():
     "Справочник", "имя": "мой_ЭталонНесуществующий"}` получал бы «замечаний нет».
     """
     for field, вложенный in (("измерения", "Измерение"), ("ресурсы", "Ресурс")):
-        findings = _находки("РегистрСведений", {
+        findings = _findings("РегистрСведений", {
             "имя": "мой_Проба", "синоним": "П",
             field: [{"имя": "Поле", "синоним": "П",
                     "тип": {"вид": "Справочник",
                             "имя": "мой_НетТакого"}}]}, World())
-        коды = [f.code for f in findings]
-        assert "ТИП-НЕТ" in коды, (вложенный, коды)
+        codes = [f.code for f in findings]
+        assert "ТИП-НЕТ" in codes, (вложенный, codes)
 
 
 def test_qualifier_numbers_are_bounded_by_what_the_platform_does():
@@ -878,13 +878,13 @@ def test_qualifier_numbers_are_bounded_by_what_the_platform_does():
         ({"вид": "Строка", "длина": -5}, "ТИП-ДЛИНА"),
     ]
     for type_, code in случаи:
-        findings = _находки("Справочник", {
+        findings = _findings("Справочник", {
             "имя": "мой_Проба", "синоним": "П",
             "реквизиты": [{"имя": "Поле", "синоним": "П", "тип": type_}]}, World())
-        коды = [f.code for f in findings]
-        assert code in коды, (type_, коды)
+        codes = [f.code for f in findings]
+        assert code in codes, (type_, codes)
     # а годное — молчит
-    ладно = _находки("Справочник", {
+    ладно = _findings("Справочник", {
         "имя": "мой_Проба", "синоним": "П",
         "реквизиты": [{"имя": "Поле", "синоним": "П",
                        "тип": {"вид": "Число", "разрядность": 38,
@@ -899,14 +899,14 @@ def test_code_length_beyond_the_platform_limit_is_refused():
     Длина наименования 200 при этом проходит загрузку и остаётся 200, поэтому
     предел по корпусному максимуму 150 не выдумывается.
     """
-    коды = [f.code for f in _находки("Справочник", {
+    codes = [f.code for f in _findings("Справочник", {
         "имя": "мой_Проба", "синоним": "П", "длинаКода": "9999"})]
-    assert "ДЛИНА-БОЛЬШЕ-ПРЕДЕЛА" in коды, коды
-    коды = [f.code for f in _находки("Справочник", {
+    assert "ДЛИНА-БОЛЬШЕ-ПРЕДЕЛА" in codes, codes
+    codes = [f.code for f in _findings("Справочник", {
         "имя": "мой_Проба", "синоним": "П", "длинаНаименования": "-10"})]
-    assert "ДЛИНА-ОТРИЦАТЕЛЬНА" in коды, коды
+    assert "ДЛИНА-ОТРИЦАТЕЛЬНА" in codes, codes
     # 50 — предел, а не запрет; 200 у наименования платформа принимает
-    спокойно = _находки("Справочник", {
+    спокойно = _findings("Справочник", {
         "имя": "мой_Проба", "синоним": "П", "длинаКода": "50",
         "длинаНаименования": "200"})
     assert not [f for f in спокойно if f.code.startswith("ДЛИНА")], спокойно
@@ -970,7 +970,7 @@ def test_module_name_and_flags_must_agree(fields, code, блокирует):
     состав контекстов, `ПовтИсп`, `ПолныеПрава` (последний в замеренной
     конфигурации почти не используют — 45 привилегированных из 47 без него).
     """
-    findings = _находки("ОбщийМодуль", dict(fields, синоним="П"))
+    findings = _findings("ОбщийМодуль", dict(fields, синоним="П"))
     own = [f for f in findings if f.code == code]
     assert own, [f.code for f in findings]
     assert own[0].blocking is блокирует
@@ -1020,7 +1020,7 @@ def test_document_movements_are_checked(fields, code, блокирует):
     движение, не-регистров ноль; движения при запрете проведения — 7 из 383,
     все «операции», поэтому это предупреждение.
     """
-    findings = _находки("Документ", dict(fields, имя="мой_Проба", синоним="П"),
+    findings = _findings("Документ", dict(fields, имя="мой_Проба", синоним="П"),
                        мир=_Мир(("РегистрНакопления", "мой_Остатки")))
     own = [f for f in findings if f.code == code]
     assert own, [f.code for f in findings]
@@ -1030,7 +1030,7 @@ def test_document_movements_are_checked(fields, code, блокирует):
 def test_document_movements_by_existing_registers_pass():
     мир = _Мир(("РегистрНакопления", "мой_Остатки"), ("РегистрСведений", "мой_Факты"),
                режимы={"мой_Факты": "ПодчинениеРегистратору"})
-    findings = _находки("Документ", {
+    findings = _findings("Документ", {
         "имя": "мой_Проба", "синоним": "П",
         "движения": ["РегистрНакопления.мой_Остатки", "РегистрСведений.мой_Факты"]},
         мир=мир)
@@ -1047,13 +1047,13 @@ def test_an_independent_information_register_cannot_take_movements():
     """
     мир = _Мир(("РегистрСведений", "мой_Настройки"),
                режимы={"мой_Настройки": "Независимо"})
-    findings = _находки("Документ", {"имя": "мой_Проба", "синоним": "П",
+    findings = _findings("Документ", {"имя": "мой_Проба", "синоним": "П",
                                     "движения": ["РегистрСведений.мой_Настройки"]}, мир=мир)
     own = [f for f in findings if f.code == "ДОКУМЕНТ-ДВИЖЕНИЯ-НЕЗАВИСИМЫЙ-РЕГИСТР"]
     assert own and own[0].blocking, [f.code for f in findings]
     # режим не прочитан — предупреждение, а не обвинение
     мир = _Мир(("РегистрСведений", "мой_Настройки"))
-    findings = _находки("Документ", {"имя": "мой_Проба", "синоним": "П",
+    findings = _findings("Документ", {"имя": "мой_Проба", "синоним": "П",
                                     "движения": ["РегистрСведений.мой_Настройки"]}, мир=мир)
     assert [f for f in findings if f.code == "ДОКУМЕНТ-ДВИЖЕНИЯ-РЕЖИМ-НЕПРОВЕРЕН"
             and not f.blocking]
@@ -1122,23 +1122,23 @@ def test_a_qualifier_is_required_in_the_object_form_too():
 
 def test_a_bad_name_says_what_is_wrong_with_it():
     """Отказ говорит, что не так с именем: «не является именем» не объясняет ничего."""
-    findings = [f for f in _находки("Справочник", {
+    findings = [f for f in _findings("Справочник", {
         "имя": "мой_Лимиты Тест-2024", "синоним": "П"})
         if f.code == "МД-ИМЯ-НЕДОПУСТИМО"]
     assert findings, "имя должно быть отвергнуто"
-    сказано = findings[0].message
-    assert "пробел" in сказано and "дефис" in сказано, сказано
+    stated = findings[0].message
+    assert "пробел" in stated and "дефис" in stated, stated
 
 
 def test_a_typo_in_a_field_name_gets_a_suggestion():
     """На опечатку — подсказка, а не все 55 имён полей одной строкой."""
-    findings = [f for f in _находки("Справочник", {
+    findings = [f for f in _findings("Справочник", {
         "имя": "мой_Проба", "синоним": "П", "иерархичный": True})
         if f.code == "МД-ПОЛЕ-НЕИЗВЕСТНО"]
     assert findings
-    сказано = findings[0].message
-    assert "возможно, иерархический" in сказано, сказано
-    assert "их 55, перечень" in сказано, сказано
+    stated = findings[0].message
+    assert "возможно, иерархический" in stated, stated
+    assert "их 55, перечень" in stated, stated
 
 
 def test_an_unknown_field_silences_its_own_consequences():
@@ -1148,10 +1148,10 @@ def test_an_unknown_field_silences_its_own_consequences():
     имя и отсутствующий синоним. Две последние только следствия первой.
     """
     kind = kind_of("ЗначениеПеречисления")
-    коды = [f.code for f in kind.check(
+    codes = [f.code for f in kind.check(
         kind.fill(Spec("ЗначениеПеречисления",
                        {"вид": "ЗначениеПеречисления", "поля": {}})), World())]
-    assert коды == ["МД-ПОЛЕ-НЕИЗВЕСТНО"], коды
+    assert codes == ["МД-ПОЛЕ-НЕИЗВЕСТНО"], codes
 
 
 def test_an_attribute_job_without_the_address_key_names_the_key():
@@ -1159,8 +1159,8 @@ def test_an_attribute_job_without_the_address_key_names_the_key():
     with pytest.raises(Refuse) as refusal:
         job.attribute_job_from_json({"путь": "Справочник.мой_Эталон",
                                      "поля": {"имя": "Поле"}})
-    сказано = str(refusal.value)
-    assert "«объект»" in сказано and "additions" in сказано, сказано
+    stated = str(refusal.value)
+    assert "«объект»" in stated and "additions" in stated, stated
 
 # --- план, просмотр и разбор задания ------------------------------------------
 
@@ -1196,9 +1196,9 @@ def test_a_typo_in_a_type_kind_is_not_taken_for_a_reference():
     """
     with pytest.raises(Refuse) as refusal:
         job.value_type_from_json({"вид": "Строчка", "длина": 20})
-    сказано = str(refusal.value)
-    assert "возможно, Строка" in сказано, сказано
-    assert "имя объекта" not in сказано, сказано
+    stated = str(refusal.value)
+    assert "возможно, Строка" in stated, stated
+    assert "имя объекта" not in stated, stated
     # настоящий ссылочный тип без имени по-прежнему говорит про имя
     with pytest.raises(Refuse) as refusal:
         job.value_type_from_json({"вид": "Справочник"})
@@ -1214,9 +1214,9 @@ def test_the_date_parts_are_checked_while_the_job_is_read():
     """
     with pytest.raises(Refuse) as refusal:
         job.value_type_from_json({"вид": "Дата", "состав": "ТолькоДата"})
-    сказано = str(refusal.value)
-    assert "допустимо: Дата, Время, ДатаВремя" in сказано, сказано
-    assert "возможно, Дата" in сказано, сказано
+    stated = str(refusal.value)
+    assert "допустимо: Дата, Время, ДатаВремя" in stated, stated
+    assert "возможно, Дата" in stated, stated
 
 
 def test_the_domain_and_the_dump_agree_on_the_date_parts():
@@ -1240,9 +1240,9 @@ def test_a_child_synonym_is_shown_even_when_it_repeats_the_name(capsys):
         "имя": "мой_Проба", "синоним": "П",
         "значения": [{"имя": "Черновик", "синоним": "Черновик"},
                      {"имя": "НаСогласовании", "синоним": "На согласовании"}]}}))
-    сказано = "\n".join(describe(spec))
-    assert "Черновик «Черновик»" in сказано, сказано
-    assert "НаСогласовании «На согласовании»" in сказано, сказано
+    stated = "\n".join(describe(spec))
+    assert "Черновик «Черновик»" in stated, stated
+    assert "НаСогласовании «На согласовании»" in stated, stated
 
 
 def test_the_default_count_agrees_with_the_word_after_it(capsys):
@@ -1254,8 +1254,8 @@ def test_the_default_count_agrees_with_the_word_after_it(capsys):
         [pt for pt in kind.fields if pt != "текст"], "")
     задано.update({"имя": "мой_Проба", "синоним": "П"})
     spec = kind.fill(job.spec_from_json({"вид": "ОбщийМодуль", "поля": задано}))
-    сказано = "\n".join(describe(spec))
-    assert "ещё 1 поле не названо в задании —" in сказано, сказано
+    stated = "\n".join(describe(spec))
+    assert "ещё 1 поле не названо в задании —" in stated, stated
 
 
 def test_asking_for_help_is_not_a_failure():
@@ -1278,9 +1278,9 @@ def test_every_value_the_dump_cannot_take_is_named_at_once():
             "вид": "Справочник", "поля": {
                 "имя": "мой_Проба", "синоним": "П",
                 "длинаКода": 9, "длинаНаименования": 100}})), "uuid")
-    сказано = str(refusal.value)
-    assert "длинаКода" in сказано and "длинаНаименования" in сказано, сказано
-    assert "(2)" in сказано, сказано
+    stated = str(refusal.value)
+    assert "длинаКода" in stated and "длинаНаименования" in stated, stated
+    assert "(2)" in stated, stated
 
 
 def test_every_broken_type_is_named_at_once_with_its_address():
@@ -1295,11 +1295,11 @@ def test_every_broken_type_is_named_at_once_with_its_address():
                 {"имя": "В", "синоним": "В",
                  "тип": {"вид": "Число", "длина": 5}},
                 {"имя": "Г", "синоним": "Г", "тип": {"вид": "Строка"}}]}})
-    сказано = str(refusal.value)
-    assert "(4)" in сказано, сказано
+    stated = str(refusal.value)
+    assert "(4)" in stated, stated
     for address in ("реквизиты[А].тип", "реквизиты[Б].тип",
                   "реквизиты[В].тип", "реквизиты[Г].тип"):
-        assert address in сказано, (address, сказано)
+        assert address in stated, (address, stated)
 
 
 def test_a_broken_type_inside_a_tabular_section_is_addressed_in_full():
@@ -1364,9 +1364,9 @@ def _выгрузка(tmp_path):
 ]
 
 
-@pytest.mark.parametrize("задание", ЗАДАНИЯ,
+@pytest.mark.parametrize("job_spec", ЗАДАНИЯ,
                          ids=[з["вид"] for з in ЗАДАНИЯ])
-def test_what_was_written_reads_back_the_same(tmp_path, задание):
+def test_what_was_written_reads_back_the_same(tmp_path, job_spec):
     """Записали — прочитали — сверили, без всякой платформы.
 
     Чтение ходит по той же схеме видов, что и запись, поэтому круг проверяет
@@ -1378,12 +1378,12 @@ def test_what_was_written_reads_back_the_same(tmp_path, задание):
 
     root = _выгрузка(tmp_path)
     AddObjectUseCase(DesignerDump(root)).execute(
-        [job.spec_from_json(задание)], apply_now=True)
+        [job.spec_from_json(job_spec)], apply_now=True)
 
     прочитано, file = DesignerDump(root).read_spec(
-        [(задание["вид"], задание["поля"]["имя"])])
+        [(job_spec["вид"], job_spec["поля"]["имя"])])
     assert os.path.isfile(file)
-    for field, ожидалось in задание["поля"].items():
+    for field, ожидалось in job_spec["поля"].items():
         если_дети = isinstance(ожидалось, list) and ожидалось and isinstance(
             ожидалось[0], dict)
         after_ = прочитано.get(field)
@@ -1479,8 +1479,8 @@ def test_a_child_of_a_vendor_object_must_carry_the_prefix(tmp_path):
             "поля": {"имя": "КодПодразделения", "синоним": "Код",
                      "тип": {"вид": "Строка", "длина": 20}}})],
         apply_now=False)
-    коды = [f.code for f in result.findings]
-    assert "МД-ПРЕФИКС" in коды, коды
+    codes = [f.code for f in result.findings]
+    assert "МД-ПРЕФИКС" in codes, codes
 
     # а с префиксом — молча
     result = AddChildUseCase(DesignerDump(root), ТЕСТ).execute(
@@ -1514,9 +1514,9 @@ def test_an_accepted_warning_is_marked_accepted(capsys, tmp_path):
               open(path, "w", encoding="utf-8", newline="\n"),
               ensure_ascii=False)
     assert cli.main([path]) == 0
-    сказано = capsys.readouterr().out
-    assert "принято        [РЕГИСТР-БЕЗ-ИЗМЕРЕНИЙ]" in сказано, сказано
-    assert "предупреждение [РЕГИСТР-БЕЗ-ИЗМЕРЕНИЙ]" not in сказано, сказано
+    stated = capsys.readouterr().out
+    assert "принято        [РЕГИСТР-БЕЗ-ИЗМЕРЕНИЙ]" in stated, stated
+    assert "предупреждение [РЕГИСТР-БЕЗ-ИЗМЕРЕНИЙ]" not in stated, stated
 
 
 def test_an_error_cannot_be_accepted(capsys, tmp_path):
@@ -1533,9 +1533,9 @@ def test_an_error_cannot_be_accepted(capsys, tmp_path):
               open(path, "w", encoding="utf-8", newline="\n"),
               ensure_ascii=False)
     assert cli.main([path]) == 1
-    сказано = capsys.readouterr().out
-    assert "ошибка         [МД-ПРЕФИКС]" in сказано, сказано
-    assert сказано.split("\n")[1].startswith("ОТКАЗ: ошибок 1"), сказано
+    stated = capsys.readouterr().out
+    assert "ошибка         [МД-ПРЕФИКС]" in stated, stated
+    assert stated.split("\n")[1].startswith("ОТКАЗ: ошибок 1"), stated
 
 
 def test_the_detailed_preview_names_what_was_decided_for_you(capsys, tmp_path):
@@ -1558,9 +1558,9 @@ def test_the_detailed_preview_names_what_was_decided_for_you(capsys, tmp_path):
               open(path, "w", encoding="utf-8", newline="\n"),
               ensure_ascii=False)
     assert cli.main([path, "--подробно"]) == 0
-    сказано = capsys.readouterr().out
-    assert "периодичность: Непериодический" in сказано, сказано
-    assert "режимЗаписи: Независимо" in сказано, сказано
+    stated = capsys.readouterr().out
+    assert "периодичность: Непериодический" in stated, stated
+    assert "режимЗаписи: Независимо" in stated, stated
 
 # --- обработка --------------------------------------------------------------
 
@@ -1638,24 +1638,24 @@ def test_a_tabular_attribute_knows_whose_section_it_is(tmp_path):
 
 # --- константа, определяемый тип, подсистема ---------------------------------
 
-def _записать(tmp_path, задание):
+def _записать(tmp_path, job_spec):
     from meta.application.add_object.use_case import AddObjectUseCase
     from meta.infra.designer import DesignerDump
 
     root = _выгрузка(tmp_path)
     result = AddObjectUseCase(DesignerDump(root)).execute(
-        [job.spec_from_json(задание)], apply_now=True)
+        [job.spec_from_json(job_spec)], apply_now=True)
     assert [f.code for f in result.findings] == [], [f.code for f in result.findings]
     return root, DesignerDump(root)
 
 
 def test_a_constant_is_written_and_reads_back(tmp_path):
     """Константа: 30 свойств, один вариант на 905 карточек замеренной конфигурации."""
-    задание = {"вид": "Константа", "поля": {
+    job_spec = {"вид": "Константа", "поля": {
         "имя": "мой_Проба", "синоним": "(Мой) Проба", "комментарий": "#К-1",
         "стандартныеКоманды": True,
         "тип": {"вид": "Число", "разрядность": 15, "дробнаяЧасть": 2}}}
-    root, дамп = _записать(tmp_path, задание)
+    root, дамп = _записать(tmp_path, job_spec)
     прочитано, _ = дамп.read_spec([("Константа", "мой_Проба")])
     assert str(прочитано.get("тип")) == "Число(15,2)"
     assert прочитано.get("стандартныеКоманды") is True
@@ -1668,11 +1668,11 @@ def test_a_constant_is_written_and_reads_back(tmp_path):
 
 def test_a_defined_type_may_hold_several_types(tmp_path):
     """Определяемый тип: четыре свойства, и состав бывает набором."""
-    задание = {"вид": "ОпределяемыйТип", "поля": {
+    job_spec = {"вид": "ОпределяемыйТип", "поля": {
         "имя": "мой_ПробаТип", "синоним": "(Мой) Проба тип",
         "тип": [{"вид": "Строка", "длина": 100},
                 {"вид": "Число", "разрядность": 10, "дробнаяЧасть": 0}]}}
-    root, дамп = _записать(tmp_path, задание)
+    root, дамп = _записать(tmp_path, job_spec)
     прочитано, _ = дамп.read_spec([("ОпределяемыйТип", "мой_ПробаТип")])
     assert [str(x) for x in прочитано.get("тип")] == ["Строка(100)", "Число(10,0)"]
 
@@ -1720,9 +1720,9 @@ def test_a_subsystem_refuses_a_missing_object(tmp_path):
             "включатьВКомандныйИнтерфейс": False,
             "состав": ["Справочник.мой_НетТакого", "безТочки"]}})],
         apply_now=False)
-    коды = [f.code for f in result.findings]
-    assert "ПОДСИСТЕМА-СОСТАВ-НЕТ" in коды, коды
-    assert "ПОДСИСТЕМА-СОСТАВ-ФОРМА" in коды, коды
+    codes = [f.code for f in result.findings]
+    assert "ПОДСИСТЕМА-СОСТАВ-НЕТ" in codes, codes
+    assert "ПОДСИСТЕМА-СОСТАВ-ФОРМА" in codes, codes
 
 # --- регистр накопления -----------------------------------------------------
 
@@ -1756,7 +1756,7 @@ def test_the_register_matches_what_the_designer_wrote(tmp_path):
         [job.spec_from_json(РЕГИСТР_НАКОПЛЕНИЯ)], apply_now=True)
     assert not [f for f in result.findings if f.blocking], [
         f.code for f in result.findings]
-    записано = open(os.path.join(root, "AccumulationRegisters", "мой_ЭталонРН.xml"),
+    written_as = open(os.path.join(root, "AccumulationRegisters", "мой_ЭталонРН.xml"),
                     encoding="utf-8-sig").read()
     reference_node = open(os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                "эталоны", "РегистрНакопления-конфигуратор.xml"),
@@ -1766,7 +1766,7 @@ def test_the_register_matches_what_the_designer_wrote(tmp_path):
     def без_идентификаторов(text):
         return уид.sub(r"\1…", text).replace("\r\n", "\n").rstrip("\n")
 
-    assert без_идентификаторов(записано) == без_идентификаторов(reference_node)
+    assert без_идентификаторов(written_as) == без_идентификаторов(reference_node)
 
 
 def test_the_three_demands_of_an_accumulation_register_differ_in_severity():
@@ -1788,17 +1788,17 @@ def test_the_three_demands_of_an_accumulation_register_differ_in_severity():
     assert not по_коду["РЕГИСТР-НАКОПЛЕНИЯ-БЕЗ-РЕГИСТРАТОРА"].blocking
     # про регистратор говорится всегда: его в карточке регистра не видно
     full = kind.check(kind.fill(job.spec_from_json(РЕГИСТР_НАКОПЛЕНИЯ)), World())
-    коды = [f.code for f in full if f.code != "МД-БЕЗ-СИНОНИМА"]
-    assert коды == ["РЕГИСТР-НАКОПЛЕНИЯ-БЕЗ-РЕГИСТРАТОРА"], коды
+    codes = [f.code for f in full if f.code != "МД-БЕЗ-СИНОНИМА"]
+    assert codes == ["РЕГИСТР-НАКОПЛЕНИЯ-БЕЗ-РЕГИСТРАТОРА"], codes
 
 
 def test_the_register_kind_is_asked_not_guessed():
     """Обороты и остатки расходятся по корпусу ровно пополам — 89 и 84."""
     kind = kind_of("РегистрНакопления")
-    коды = [(f.code, f.field) for f in kind.check(kind.fill(job.spec_from_json(
+    codes = [(f.code, f.field) for f in kind.check(kind.fill(job.spec_from_json(
         {"вид": "РегистрНакопления", "поля": {
             "имя": "мой_Проба", "синоним": "П"}})), World())]
-    assert ("МД-ПОЛЕ-ПУСТО", "видРегистра") in коды, коды
+    assert ("МД-ПОЛЕ-ПУСТО", "видРегистра") in codes, codes
 
 
 def test_nested_composition_differs_between_the_two_registers(tmp_path):

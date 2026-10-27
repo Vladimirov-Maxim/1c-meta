@@ -26,5 +26,5 @@ class ShowFormUseCase:
             address = f"{owner[0]}.{owner[1]}.{name}" if owner else f"Общая.{name}"
             raise Refuse(f"формы «{address}» в выгрузке нет")
         form_file, module_file = self.platform.form_files(owner, name)
-        своя = fm.is_ours(owner[1] if owner else None, name, self.conventions.prefixes or None)
-        return view, form_file, module_file, своя
+        own_item = fm.is_ours(owner[1] if owner else None, name, self.conventions.prefixes or None)
+        return view, form_file, module_file, own_item

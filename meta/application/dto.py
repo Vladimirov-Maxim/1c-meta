@@ -6,7 +6,7 @@ from ..domain.model import Refuse
 
 
 @contextmanager
-def при(what):
+def within(what):
     """Отказ изнутри дополняется адресом пункта задания.
 
     Имена полей проверяет домен и собирает все находки разом; значения полей

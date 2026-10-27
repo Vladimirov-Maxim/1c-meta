@@ -72,17 +72,17 @@ def профиль(tmp_path):
 
 def check(capsys, профиль, *arguments):
     """(код возврата, текст, находки JSON)."""
-    ответ = os.path.join(os.path.dirname(профиль), "ответ.json")
-    if os.path.exists(ответ):
-        os.remove(ответ)
+    answer = os.path.join(os.path.dirname(профиль), "ответ.json")
+    if os.path.exists(answer):
+        os.remove(answer)
     capsys.readouterr()
-    code = main(["--проверить", *map(str, arguments), "--профиль", профиль, "--json", ответ])
+    code = main(["--проверить", *map(str, arguments), "--профиль", профиль, "--json", answer])
     text = capsys.readouterr().out
-    data = json.load(open(ответ, encoding="utf-8")) if os.path.exists(ответ) else None
+    data = json.load(open(answer, encoding="utf-8")) if os.path.exists(answer) else None
     return code, text, data
 
 
-def коды(data):
+def codes(data):
     return sorted(f["код"] for f in data["находки"])
 
 
@@ -95,11 +95,11 @@ def test_a_test_module_prefix_is_ours_and_a_bare_object_is_not(tmp_path, capsys,
     root = выгрузка(tmp_path)
     написать(root, "CommonModules/ОМ_мой_Новый.xml", КАРТОЧКА)
     code, text, data = check(capsys, профиль, root)
-    assert code == 0 and коды(data) == [], text
+    assert code == 0 and codes(data) == [], text
     assert "A  CommonModules/ОМ_мой_Новый.xml" in text            # состав напечатан
     написать(root, "CommonModules/ЧужойМодуль.xml", КАРТОЧКА)
     code, _, data = check(capsys, профиль, root)
-    assert code == 1 and коды(data) == ["МД-ПРЕФИКС"]
+    assert code == 1 and codes(data) == ["МД-ПРЕФИКС"]
     assert data["находки"][0]["файл"] == "CommonModules/ЧужойМодуль.xml"
 
 
@@ -117,7 +117,7 @@ def test_a_service_file_in_the_changes_is_found(tmp_path, capsys, профиль
     root = выгрузка(tmp_path)
     написать(root, "ConfigDumpInfo.xml", ["<ConfigDumpInfo/>"])
     _, _, data = check(capsys, профиль, root)
-    assert коды(data) == ["ВЫГРУЗКА-СЛУЖЕБНЫЙ-ФАЙЛ"]
+    assert codes(data) == ["ВЫГРУЗКА-СЛУЖЕБНЫЙ-ФАЙЛ"]
 
 
 def test_a_dump_deeper_in_the_repository_sees_only_its_own_new_files(tmp_path, capsys, профиль):
@@ -149,7 +149,7 @@ def test_line_endings_are_checked_against_the_repository(tmp_path, capsys, пр�
     написать(root, "CommonModules/мой_Новый/Ext/Module.bsl",
              ["Процедура А() Экспорт", "\tВозврат;", "КонецПроцедуры"], eol="\n")
     _, _, data = check(capsys, профиль, root)
-    assert коды(data) == ["ФАЙЛ-ПЕРЕВОДЫ-ЧУЖИЕ"]
+    assert codes(data) == ["ФАЙЛ-ПЕРЕВОДЫ-ЧУЖИЕ"]
     assert "переводы строк LF, в репозитории приняты CRLF" in data["находки"][0]["текст"]
 
 
@@ -158,7 +158,7 @@ def test_where_git_normalizes_line_endings_they_are_not_checked(tmp_path, capsys
     написать(root, "CommonModules/мой_Новый/Ext/Module.bsl",
              ["Процедура А() Экспорт", "\tВозврат;", "КонецПроцедуры"], eol="\n")
     _, text, data = check(capsys, профиль, root)
-    assert коды(data) == [] and "core.autocrlf" in text
+    assert codes(data) == [] and "core.autocrlf" in text
 
 
 def test_a_file_without_bom_is_found(tmp_path, capsys, профиль):
@@ -166,7 +166,7 @@ def test_a_file_without_bom_is_found(tmp_path, capsys, профиль):
     написать(root, "CommonModules/мой_Новый/Ext/Module.bsl",
              ["Процедура А() Экспорт", "\tВозврат;", "КонецПроцедуры"], bom=False)
     _, _, data = check(capsys, профиль, root)
-    assert коды(data) == ["ФАЙЛ-БЕЗ-BOM"]
+    assert codes(data) == ["ФАЙЛ-БЕЗ-BOM"]
 
 
 # --- метки вставок ------------------------------------------------------------------------
@@ -179,18 +179,18 @@ def test_a_new_method_needs_a_marker_except_in_a_module_created_by_the_task(tmp_
     before_ = ["Процедура ОбработкаПроведения(Отказ, РежимПроведения)", "\tЗначение = 1;", "КонецПроцедуры"]
     написать(root, НАШ, before_ + ["", "Процедура ПриЗаписи(Отказ)", "\tЗначение = 2;", "КонецПроцедуры"])
     _, _, data = check(capsys, профиль, root)
-    assert коды(data) == ["ПРАВКА-ВНЕ-ВСТАВКИ"] and data["находки"][0]["файл"] == НАШ
+    assert codes(data) == ["ПРАВКА-ВНЕ-ВСТАВКИ"] and data["находки"][0]["файл"] == НАШ
 
     написать(root, НАШ, before_ + ["", "// {[+](фрагмент ДОБАВЛЕН), 31.08.2026, #TEAM Автор #TASK-1",
                               "Процедура ПриЗаписи(Отказ)", "\tЗначение = 2;",
                               "КонецПроцедуры // } Автор, 31.08.2026"])
     _, _, data = check(capsys, профиль, root)
-    assert коды(data) == []
+    assert codes(data) == []
 
     написать(root, "CommonModules/мой_Созданный/Ext/Module.bsl",
              ["Процедура Новая() Экспорт", "\tВозврат;", "КонецПроцедуры"])
     _, _, data = check(capsys, профиль, root)
-    assert коды(data) == []
+    assert codes(data) == []
 
 
 def test_a_vendor_edit_without_a_marker_is_found(tmp_path, capsys, профиль):
@@ -198,7 +198,7 @@ def test_a_vendor_edit_without_a_marker_is_found(tmp_path, capsys, профил�
     написать(root, ВЕНДОРСКИЙ, ["Процедура ПередЗаписью(Отказ, РежимЗаписи, РежимПроведения)",
                                 "\tЗначение = 42;", "КонецПроцедуры"])
     code, _, data = check(capsys, профиль, root)
-    assert code == 1 and коды(data) == ["ПРАВКА-ВНЕ-ВСТАВКИ"]
+    assert code == 1 and codes(data) == ["ПРАВКА-ВНЕ-ВСТАВКИ"]
 
 
 def test_without_markers_in_the_profile_an_unwrapped_edit_is_fine(tmp_path, capsys):
@@ -211,7 +211,7 @@ def test_without_markers_in_the_profile_an_unwrapped_edit_is_fine(tmp_path, caps
     написать(root, ВЕНДОРСКИЙ, ["Процедура ПередЗаписью(Отказ, РежимЗаписи, РежимПроведения)",
                                 "\tЗначение = 42;", "КонецПроцедуры"])
     code, _, data = check(capsys, str(path), root)
-    assert code == 0 and коды(data) == []
+    assert code == 0 and codes(data) == []
 
 
 def test_marker_rules_of_the_profile_are_the_verification_codes():
@@ -234,7 +234,7 @@ def test_the_marker_itself_is_checked(tmp_path, capsys, профиль, marker, 
                                 "\t", "\t//Значение = 1;", "\t", "\tЗначение = 2;", "\t",
                                 "\t// } Автор, 31.08.2026", "КонецПроцедуры"])
     _, _, data = check(capsys, профиль, root)
-    assert коды(data) == ([code] if code else [])
+    assert codes(data) == ([code] if code else [])
 
 
 def test_an_unclosed_insertion_and_a_method_closed_on_its_own_line(tmp_path, capsys, профиль):
@@ -258,7 +258,7 @@ def test_a_line_replaced_by_itself_with_other_whitespace(tmp_path, capsys, пр�
     написать(root, ВЕНДОРСКИЙ, ["Процедура ПередЗаписью(Отказ, РежимЗаписи, РежимПроведения)",
                                 "\tЗначение = 1; ", "КонецПроцедуры"])
     _, _, data = check(capsys, профиль, root)
-    assert "ПРАВКА-ТОЛЬКО-ПРОБЕЛЫ" in коды(data)
+    assert "ПРАВКА-ТОЛЬКО-ПРОБЕЛЫ" in codes(data)
     assert next(f for f in data["находки"] if f["код"] == "ПРАВКА-ТОЛЬКО-ПРОБЕЛЫ")["строка"] == 2
 
 
@@ -279,12 +279,12 @@ def test_a_new_object_without_its_own_role_is_found(tmp_path, capsys, профи
     root = выгрузка(tmp_path)
     написать(root, "CommonCommands/мой_НоваяКоманда.xml", КАРТОЧКА)
     code, _, data = check(capsys, профиль, root)
-    assert code == 1 and коды(data) == ["ПРАВА-НЕ-ВЫДАНЫ"]
+    assert code == 1 and codes(data) == ["ПРАВА-НЕ-ВЫДАНЫ"]
     assert data["находки"][0]["файл"] is None
     assert data["находки"][0]["текст"].startswith("ОбщаяКоманда.мой_НоваяКоманда")
     role(root, "мой_атом_НоваяКоманда", "CommonCommand.мой_НоваяКоманда")
     code, _, data = check(capsys, профиль, root)
-    assert code == 0 and коды(data) == []
+    assert code == 0 and codes(data) == []
 
 
 def test_a_false_right_and_a_vendor_role_do_not_count(tmp_path, capsys, профиль):
@@ -292,14 +292,14 @@ def test_a_false_right_and_a_vendor_role_do_not_count(tmp_path, capsys, проф
     написать(root, "InformationRegisters/мой_НовыйРегистр.xml", КАРТОЧКА)
     role(root, "мой_атом_Выключено", "InformationRegister.мой_НовыйРегистр", "false")
     _, _, data = check(capsys, профиль, root)
-    assert коды(data) == ["ПРАВА-НЕ-ВЫДАНЫ"]
+    assert codes(data) == ["ПРАВА-НЕ-ВЫДАНЫ"]
 
     чужая = выгрузка(tmp_path / "чужая")              # типовая роль — в базе, объект — новый
     role(чужая, "ПолныеПрава", "InformationRegister.мой_НовыйРегистр")
     зафиксировать(чужая, "типовая роль")
     написать(чужая, "InformationRegisters/мой_НовыйРегистр.xml", КАРТОЧКА)
     _, _, data = check(capsys, профиль, чужая)
-    assert коды(data) == ["ПРАВА-ТОЛЬКО-В-ЧУЖОЙ-РОЛИ"] and "(ПолныеПрава)" in data["находки"][0]["текст"]
+    assert codes(data) == ["ПРАВА-ТОЛЬКО-В-ЧУЖОЙ-РОЛИ"] and "(ПолныеПрава)" in data["находки"][0]["текст"]
 
 
 def test_kinds_without_rights_need_none_and_revisions_are_read_from_history(tmp_path, capsys, профиль):
@@ -307,7 +307,7 @@ def test_kinds_without_rights_need_none_and_revisions_are_read_from_history(tmp_
     написать(root, "CommonModules/мой_НовыйМодуль.xml", КАРТОЧКА)
     написать(root, "Enums/мой_НовоеПеречисление.xml", КАРТОЧКА)
     _, _, data = check(capsys, профиль, root)
-    assert коды(data) == []
+    assert codes(data) == []
 
     base = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], capture_output=True,
                           text=True).stdout.strip()
@@ -315,7 +315,7 @@ def test_kinds_without_rights_need_none_and_revisions_are_read_from_history(tmp_
     role(root, "мой_атом_НовыйОтчет", "Report.мой_НовыйОтчет")
     зафиксировать(root, "задача")
     code, text, data = check(capsys, профиль, root, "--база", base, "--ревизия", "HEAD")
-    assert code == 0 and коды(data) == [], text
+    assert code == 0 and codes(data) == [], text
     assert "ревизия HEAD против" in text
 
 
@@ -335,11 +335,11 @@ def test_a_directory_pair_is_checked_like_a_repository(tmp_path, capsys, про�
     """Обработка вне репозитория: исходный эталон против правленой копии."""
     reference_node, copy_ = pair(tmp_path)
     code, text, data = check(capsys, профиль, "--эталон", reference_node, "--копия", copy_)
-    assert code == 0 and коды(data) == [] and "Файлов задачи: 0" in text
+    assert code == 0 and codes(data) == [] and "Файлов задачи: 0" in text
     написать(copy_, "Обработка/Ext/ObjectModule.bsl",
              ["Процедура Сформировать()", "\tЗначение = 1;", "\tДругое = 3;", "КонецПроцедуры"])
     _, text, data = check(capsys, профиль, "--эталон", reference_node, "--копия", copy_)
-    assert коды(data) == ["ПРАВКА-ВНЕ-ВСТАВКИ", "ФАЙЛ-ХВОСТЫ-СРЕЗАНЫ"]
+    assert codes(data) == ["ПРАВКА-ВНЕ-ВСТАВКИ", "ФАЙЛ-ХВОСТЫ-СРЕЗАНЫ"]
     assert "копия" in text and "против эталона" in text
 
 
@@ -365,7 +365,7 @@ def test_what_code_apply_writes_verify_accepts(tmp_path, capsys, профиль)
         "#КонецОбласти"])
     написать(root, "CommonModules/мой_Старый.xml", КАРТОЧКА)
     зафиксировать(root, "прошлая задача")
-    задание = {"repo": str(root), "task": "TASK-1", "date": "06.10.2026", "author": "Автор",
+    job_spec = {"repo": str(root), "task": "TASK-1", "date": "06.10.2026", "author": "Автор",
                "modules": [{"модуль": "ОбщийМодуль.мой_Старый", "edits": [
                    {"line": 4, "lines": 1, "first_line": "\tЗначение = 1;", "last_line": "\tЗначение = 1;",
                     "code": "\tЗначение = 2;"},
@@ -374,10 +374,10 @@ def test_what_code_apply_writes_verify_accepts(tmp_path, capsys, профиль)
                    {"модуль": "Документ.Вендорский.МодульОбъекта", "edits": [
                        {"line": 3, "lines": 0, "first_line": "КонецПроцедуры", "code": "\tПроверка();"}]}]}
     path = tmp_path / "код.json"
-    path.write_text(json.dumps(задание, ensure_ascii=False), encoding="utf-8")
+    path.write_text(json.dumps(job_spec, ensure_ascii=False), encoding="utf-8")
     assert main(["--apply", str(path), "--профиль", профиль]) == 0
     code, text, data = check(capsys, профиль, root, "--задача", "TASK-1")
-    assert code == 0 and коды(data) == [], text
+    assert code == 0 and codes(data) == [], text
     assert "M  CommonModules/мой_Старый/Ext/Module.bsl" in text and f"M  {ВЕНДОРСКИЙ}" in text
 
 
@@ -397,10 +397,10 @@ def test_the_agent_gets_the_same_check_through_mcp(tmp_path):
     сервер = mcp_server(roots=[str(root)], conventions=Conventions(prefix="мой_"))
 
     def вызвать(**arguments):
-        ответ = asyncio.run(сервер.call_tool("verify", arguments))
-        if isinstance(ответ, tuple):
-            ответ = ответ[0]
-        return "\n".join(block.text for block in ответ)
+        answer = asyncio.run(сервер.call_tool("verify", arguments))
+        if isinstance(answer, tuple):
+            answer = answer[0]
+        return "\n".join(block.text for block in answer)
 
     text = вызвать(repo=str(root), task="TASK-1")
     assert "[МД-ПРЕФИКС] CommonModules/ЧужойМодуль.xml" in text and "НАРУШЕНИЙ: 1" in text

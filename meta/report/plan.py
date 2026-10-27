@@ -5,10 +5,10 @@
 предупреждения его не отменяют, но называются числом.
 """
 
-from ..jobs.plan import план_в_json
+from ..jobs.plan import plan_to_json
 
 
-def _где(f):
+def _where(f):
     if f.path and f.line:
         return f"{f.path}:{f.line}"
     return f.path or ""
@@ -17,18 +17,18 @@ def _где(f):
 def plan_check_lines(result):
     lines = [f"Сверка плана изменений: {result.source}",
               f"Объектов в плане: {len(result.plan.objects)}, тронуто задачей: {len(result.touched)}"]
-    lines += [f"   {пояснение}" for пояснение in result.notes]
+    lines += [f"   {explanation}" for explanation in result.notes]
     if result.findings:
         lines.append("")
         for f in result.findings:
-            where = _где(f)
+            where = _where(f)
             lines.append(f"   {f.level:14} [{f.code}] {f.message}" + (f"   ({where})" if where else ""))
     lines.append("")
-    ошибок, предупреждений = len(result.errors), len(result.warnings)
-    if ошибок:
-        lines.append(f"РАСХОЖДЕНИЙ: {ошибок}, предупреждений: {предупреждений}")
+    error_count, warning_count = len(result.errors), len(result.warnings)
+    if error_count:
+        lines.append(f"РАСХОЖДЕНИЙ: {error_count}, предупреждений: {warning_count}")
     else:
-        lines.append("СОВПАДАЕТ" + (f" (предупреждений: {предупреждений})" if предупреждений else ""))
+        lines.append("СОВПАДАЕТ" + (f" (предупреждений: {warning_count})" if warning_count else ""))
     return lines
 
 
@@ -45,4 +45,4 @@ def plan_check_json(result):
 
 def plan_emit_json(result):
     """План по факту — тот же формат, что принимает сверка."""
-    return план_в_json(result.plan)
+    return plan_to_json(result.plan)

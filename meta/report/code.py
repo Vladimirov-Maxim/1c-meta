@@ -8,11 +8,11 @@
 """
 
 from ..domain.edits import DECLARATION
-from . import БЕЗ_КАНАЛА
+from . import NO_CHANNEL
 
 #: Блок длиннее этого показывается началом и концом.
-ПОКАЗ_ЦЕЛИКОМ = 40
-ПОКАЗ_НАЧАЛО, ПОКАЗ_КОНЕЦ = 20, 10
+SHOW_WHOLE = 40
+SHOW_START, SHOW_END = 20, 10
 
 
 def place(d):
@@ -37,17 +37,17 @@ def neighbours(d, lines, pairs, end):
     Решение о разделителе рядом с чужой меткой иначе было бы видно только в
     файле после записи; у отката соседи показываются тоже — шапка их обещает.
     """
-    above, ниже = d.context if len(d.context) == 2 else (None, None)
+    above, below = d.context if len(d.context) == 2 else (None, None)
     if above is not None:
-        lines.append(f"        {d.at - 1:>6} ·{видимо(above)}")
+        lines.append(f"        {d.at - 1:>6} ·{visibly(above)}")
     for number, text in pairs:
-        lines.append(f"        {number if number else '':>6} │{видимо(text)}")
-    if ниже is not None:
-        lines.append(f"        {end + 1:>6} ·{видимо(ниже)}")
+        lines.append(f"        {number if number else '':>6} │{visibly(text)}")
+    if below is not None:
+        lines.append(f"        {end + 1:>6} ·{visibly(below)}")
     return lines
 
 
-def видимо(text):
+def visibly(text):
     """Пустая строка с отступом — знаками: «→» на табуляцию, «␣» на пробел.
 
     Табуляция, которую инструмент ставит в пустые строки тела, иначе
@@ -90,47 +90,47 @@ def shown(d, apply_now, whole=False, detailed="подробный показ"):
     lines = [f"      записано — строки {d.at}-{end}:" if apply_now
               else f"      будет записано — строки {d.at}-{end} нового текста:"]
     pairs = list(enumerate(d.block, d.at))
-    if len(pairs) > ПОКАЗ_ЦЕЛИКОМ and not whole:
+    if len(pairs) > SHOW_WHOLE and not whole:
         # Объявления методов из середины видны всегда: иначе при переименовании
         # строка с новым именем пряталась бы в свёрнутом.
-        середина = pairs[ПОКАЗ_НАЧАЛО:-ПОКАЗ_КОНЕЦ]
-        visible = [pair for pair in середина if DECLARATION.match(pair[1])]
-        скрыто = len(середина) - len(visible)
-        pairs = (pairs[:ПОКАЗ_НАЧАЛО]
-                + [(None, f"… ещё строк: {скрыто}; целиком — {detailed} …")]
+        middle = pairs[SHOW_START:-SHOW_END]
+        visible = [pair for pair in middle if DECLARATION.match(pair[1])]
+        hidden = len(middle) - len(visible)
+        pairs = (pairs[:SHOW_START]
+                + [(None, f"… ещё строк: {hidden}; целиком — {detailed} …")]
                 + visible + ([(None, "…")] if visible else [])
-                + pairs[-ПОКАЗ_КОНЕЦ:])
+                + pairs[-SHOW_END:])
     return neighbours(d, lines, pairs, end)
 
 
-def code_lines(result, apply_now=False, подсказки=БЕЗ_КАНАЛА, whole=False):
+def code_lines(result, apply_now=False, hints=NO_CHANNEL, whole=False):
     lines = []
-    пиши = lines.append
+    emit = lines.append
     caption = result.signature
     # у чистого отката даты и автора нет — иначе шапка напечатала бы «дата , автор »
-    пиши(f"Задача: {caption.task}" + (f", дата {caption.date}, автор {caption.author}"
+    emit(f"Задача: {caption.task}" + (f", дата {caption.date}, автор {caption.author}"
                                       if caption.date or caption.author else ""))
-    пиши(f"Модулей в задании: {len(result.per_module)}")
+    emit(f"Модулей в задании: {len(result.per_module)}")
     # Две системы номеров в одном ответе выглядят одинаково, поэтому шапка
     # говорит, какие номера по какому тексту. «Разметку модуля» она называет —
     # иначе её номера сверяли бы по новому тексту, — но только когда разметка
     # в ответе есть: иначе отправляла бы искать раздел, которого нет.
-    разметка = any(d.note for _, decisions in result.per_module for d in decisions)
-    пиши("Номера строк в решениях" + (" и в «разметке модуля»" if разметка else "")
+    markup = any(d.note for _, decisions in result.per_module for d in decisions)
+    emit("Номера строк в решениях" + (" и в «разметке модуля»" if markup else "")
          + " — по тексту до правки; " + ("в «записано» — нового текста." if apply_now
                                          else "в показе — нового текста."))
     if not apply_now:
-        пиши("В показе «│» — что будет записано, «·» — соседние строки, для ориентира; "
+        emit("В показе «│» — что будет записано, «·» — соседние строки, для ориентира; "
              "«→» — табуляция в пустой строке.")
     elif whole:
-        пиши("В показе «│» — что записано, «·» — соседние строки, для ориентира; "
+        emit("В показе «│» — что записано, «·» — соседние строки, для ориентира; "
              "«→» — табуляция в пустой строке.")
-    for примечание in getattr(result, "notes", ()):
-        пиши(f"Примечание: {примечание}")
+    for remark in getattr(result, "notes", ()):
+        emit(f"Примечание: {remark}")
     for ref, decisions in result.per_module:
-        пиши("")
+        emit("")
         fmt = (getattr(result, "formats", None) or {}).get(str(ref))
-        пиши(f"  {ref} (правок: {len([d for d in decisions if not d.note])}"
+        emit(f"  {ref} (правок: {len([d for d in decisions if not d.note])}"
              + (f"; файл {fmt}" + ("" if " — " in fmt else " — так и останется") if fmt else "")
              + ")")
         for d in decisions:
@@ -138,17 +138,17 @@ def code_lines(result, apply_now=False, подсказки=БЕЗ_КАНАЛА, 
                 # Дефекты чужой разметки (незакрытые, осиротевшие метки) — рядом
                 # с решениями: правку они не останавливают, но авария разметки
                 # случается именно тогда, когда о такой метке молчат.
-                пиши(f"    разметка модуля: {d.reason}")
+                emit(f"    разметка модуля: {d.reason}")
                 continue
             mark = d.kind if d.marker else (d.kind or "без меток")
-            пиши(f"    {place(d)}: {mark} — {d.reason}")
-            lines.extend(shown(d, apply_now, whole, подсказки.detailed))
-    пиши("")
+            emit(f"    {place(d)}: {mark} — {d.reason}")
+            lines.extend(shown(d, apply_now, whole, hints.detailed))
+    emit("")
     if apply_now:
-        пиши(f"Записано модулей: {len(result.written)}.")
+        emit(f"Записано модулей: {len(result.written)}.")
         # Записанное — путями: модуль, которого в задании не было, виден сразу.
         for path in result.written:
-            пиши(f"   {path}")
+            emit(f"   {path}")
     else:
-        пиши(f"Показ без записи. Для записи {подсказки.записать}.")
+        emit(f"Показ без записи. Для записи {hints.write}.")
     return lines

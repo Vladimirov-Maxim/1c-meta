@@ -122,10 +122,10 @@ def test_a_change_preview_names_the_change_and_not_defaults(dump):
     """
     from meta.report.result import result_lines
 
-    сказано = "\n".join(result_lines(change(
+    stated = "\n".join(result_lines(change(
         dump, "Справочник.мой_Проба", {"длинаКода": "12"}, apply_now=False)))
-    assert 'длинаКода: "12"' in сказано, сказано
-    assert "по умолчанию" not in сказано, сказано
+    assert 'длинаКода: "12"' in stated, stated
+    assert "по умолчанию" not in stated, stated
 
 
 def test_multilang_property_is_replaced_whole(dump):

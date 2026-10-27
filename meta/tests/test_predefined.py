@@ -119,11 +119,11 @@ def проект(tmp_path, monkeypatch):
     return src
 
 
-def add(src, tmp_path, *пункты, apply=True):
-    задание = {"repo": str(src), "additions": [
-        {"путь": path, "вид": "ПредопределенныйЭлемент", "поля": fields} for path, fields in пункты]}
+def add(src, tmp_path, *items, apply=True):
+    job_spec = {"repo": str(src), "additions": [
+        {"путь": path, "вид": "ПредопределенныйЭлемент", "поля": fields} for path, fields in items]}
     file = tmp_path / "задание.json"
-    file.write_text(json.dumps(задание, ensure_ascii=False), encoding="utf-8")
+    file.write_text(json.dumps(job_spec, ensure_ascii=False), encoding="utf-8")
     профиль = tmp_path / "профиль.json"
     профиль.write_text(json.dumps(ПРОФИЛЬ, ensure_ascii=False), encoding="utf-8")
     return main([str(file), "--профиль", str(профиль)] + (["--apply"] if apply else []))
@@ -172,13 +172,13 @@ def test_a_number_code_is_written_as_a_number(проект, tmp_path):
         проект, "Catalogs/мой_Числа/мой_Числа.mdo")
 
 
-@pytest.mark.parametrize("path, fields, сказано", [
+@pytest.mark.parametrize("path, fields, stated", [
     ("Справочник.мой_Виды", {"имя": "Первый"}, "уже есть"),
     ("Справочник.мой_Виды", {"имя": "Сирота", "родитель": "Первый"}, "группы «Первый»"),
     ("Справочник.мой_Числа", {"имя": "Буквы", "код": "А1"}, "не число"),
     ("Справочник.мой_Числа", {"имя": "Длинный", "код": "123456"}, "длиннее кода"),
 ])
-def test_wrong_items_are_refused(проект, tmp_path, capsys, path, fields, сказано):
+def test_wrong_items_are_refused(проект, tmp_path, capsys, path, fields, stated):
     before = {rel: прочитать(проект, rel) for rel in ("Catalogs/мой_Виды/мой_Виды.mdo",
                                                     "Catalogs/мой_Числа/мой_Числа.mdo")}
     try:
@@ -186,7 +186,7 @@ def test_wrong_items_are_refused(проект, tmp_path, capsys, path, fields, �
         text = capsys.readouterr().out
     except Refuse as refusal:
         code, text = 2, str(refusal)
-    assert code != 0 and сказано in text, text
+    assert code != 0 and stated in text, text
     assert {rel: прочитать(проект, rel) for rel in before} == before
 
 
@@ -201,10 +201,10 @@ def test_the_plan_names_new_predefined_items_and_checks_them(проект, tmp_p
     git(проект, "commit", "-q", "-m", "база")
     assert add(проект, tmp_path, ("Справочник.мой_Виды", {"имя": "Новый"})) == 0
 
-    ответ = tmp_path / "план.json"
+    answer = tmp_path / "план.json"
     capsys.readouterr()
-    main(["--план-по-факту", str(проект), "--json", str(ответ)])
-    plan = json.loads(ответ.read_text(encoding="utf-8"))
+    main(["--план-по-факту", str(проект), "--json", str(answer)])
+    plan = json.loads(answer.read_text(encoding="utf-8"))
     assert {"вид": "Справочник", "имя": "мой_Виды", "действие": "изменить",
             "предопределенные": ["Новый"]} in plan["объекты"], plan
 

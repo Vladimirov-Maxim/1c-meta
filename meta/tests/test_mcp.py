@@ -44,12 +44,12 @@ def выгрузка():
     shutil.rmtree(root, ignore_errors=True)
 
 
-def вызвать(сервер, инструмент, **arguments):
+def вызвать(сервер, tool, **arguments):
     """Вызов так, как зовёт агент: через сервер, со схемой и проверкой."""
-    ответ = asyncio.run(сервер.call_tool(инструмент, arguments))
-    if isinstance(ответ, tuple):          # (содержимое, структурированный ответ)
-        ответ = ответ[0]
-    return "\n".join(block.text for block in ответ)
+    answer = asyncio.run(сервер.call_tool(tool, arguments))
+    if isinstance(answer, tuple):          # (содержимое, структурированный ответ)
+        answer = answer[0]
+    return "\n".join(block.text for block in answer)
 
 
 def через_терминал(argv):
@@ -61,8 +61,8 @@ def через_терминал(argv):
 
 def test_every_tool_is_registered():
     """Забытый декоратор не виден ничем, кроме отсутствия инструмента у агента."""
-    инструменты = asyncio.run(mcp_server(roots=[]).list_tools())
-    assert {ii.name for ii in инструменты} == {
+    tools = asyncio.run(mcp_server(roots=[]).list_tools())
+    assert {ii.name for ii in tools} == {
         "show", "fields", "forms_check", "forms_apply", "metadata_check", "metadata_apply",
         "code_check", "code_apply", "verify", "normalize_check", "normalize_apply",
         "plan_check", "plan_emit"}
@@ -82,19 +82,19 @@ def test_every_schema_passes_the_api_key_rule():
 
     правило = re.compile(r"^[a-zA-Z0-9_.-]{1,64}$")
     нарушения = []
-    for инструмент in asyncio.run(mcp_server(roots=[]).list_tools()):
-        schema = инструмент.inputSchema
+    for tool in asyncio.run(mcp_server(roots=[]).list_tools()):
+        schema = tool.inputSchema
         for key in list(schema.get("properties", {})) + list(schema.get("$defs", {})):
             if not правило.match(key):
-                нарушения.append(f"{инструмент.name}: {key}")
+                нарушения.append(f"{tool.name}: {key}")
     assert not нарушения, нарушения
 
 
 def test_the_form_job_comes_with_its_schema():
     """Формат задания на форму агент получает от сервера, а не из README:
     схема инструмента построена из модели, с теми же русскими ключами."""
-    инструменты = {ii.name: ii for ii in asyncio.run(mcp_server(roots=[]).list_tools())}
-    schema = инструменты["forms_check"].inputSchema
+    tools = {ii.name: ii for ii in asyncio.run(mcp_server(roots=[]).list_tools())}
+    schema = tools["forms_check"].inputSchema
     assert {"repo", "forms"} <= set(schema["properties"])
     text = str(schema)
     for key in ("форма", "создать", "реквизиты", "элементы", "родитель", "перед", "свойства"):
@@ -105,10 +105,10 @@ def test_check_writes_nothing_and_apply_writes(выгрузка):
     сервер = mcp_server(roots=[выгрузка])
     file = os.path.join(выгрузка, "Documents", "мой_ПробаСДвижениями",
                         "Forms", "мой_Проба", "Ext", "Form.xml")
-    ответ = вызвать(сервер, "forms_check", repo=выгрузка, forms=НОВАЯ)
-    assert "ничего не записано" in ответ and not os.path.exists(file)
-    ответ = вызвать(сервер, "forms_apply", repo=выгрузка, forms=НОВАЯ)
-    assert "Записано файлов: 3" in ответ and os.path.isfile(file)
+    answer = вызвать(сервер, "forms_check", repo=выгрузка, forms=НОВАЯ)
+    assert "ничего не записано" in answer and not os.path.exists(file)
+    answer = вызвать(сервер, "forms_apply", repo=выгрузка, forms=НОВАЯ)
+    assert "Записано файлов: 3" in answer and os.path.isfile(file)
 
 
 def test_the_purpose_of_a_new_form_comes_from_its_name(выгрузка):
@@ -116,11 +116,11 @@ def test_the_purpose_of_a_new_form_comes_from_its_name(выгрузка):
     `ФормаСписка` — форма списка. Схема канала его не требует — иначе
     задание, которое принимает терминал, в MCP получало бы отказ."""
     сервер = mcp_server(roots=[выгрузка])
-    ответ = вызвать(сервер, "forms_check", repo=выгрузка, forms=[
+    answer = вызвать(сервер, "forms_check", repo=выгрузка, forms=[
         {"форма": "Документ.мой_ПробаСДвижениями.ФормаСписка",
          "создать": {"синоним": "Проба"}}])
-    assert not ответ.startswith("ОТКАЗ:"), ответ
-    assert "ничего не записано" in ответ
+    assert not answer.startswith("ОТКАЗ:"), answer
+    assert "ничего не записано" in answer
 
 
 def test_the_same_answer_in_the_channel_s_own_words(выгрузка):
@@ -130,9 +130,9 @@ def test_the_same_answer_in_the_channel_s_own_words(выгрузка):
     сервер = mcp_server(roots=[выгрузка])
     assert (вызвать(сервер, "fields", kind="РегистрСведений")
             == через_терминал(["--поля", "РегистрСведений"]))
-    просмотр = вызвать(сервер, "forms_check", repo=выгрузка, forms=НОВАЯ)
-    assert "вызовите forms_apply с тем же заданием" in просмотр
-    assert "--apply" not in просмотр
+    preview = вызвать(сервер, "forms_check", repo=выгрузка, forms=НОВАЯ)
+    assert "вызовите forms_apply с тем же заданием" in preview
+    assert "--apply" not in preview
     вызвать(сервер, "forms_apply", repo=выгрузка, forms=НОВАЯ)
     агенту = вызвать(сервер, "show", repo=выгрузка, address=ФОРМА)
     человеку = через_терминал(["--показать", выгрузка, ФОРМА])
@@ -162,11 +162,11 @@ def test_a_refusal_comes_back_as_text(выгрузка):
     """Отказ агент читает и исправляет сам — если он ответ, а не исключение.
     И по-русски: лишний ключ судит язык заданий, а не валидатор транспорта."""
     сервер = mcp_server(roots=[выгрузка])
-    ответ = вызвать(сервер, "forms_check", repo=выгрузка, forms=[
+    answer = вызвать(сервер, "forms_check", repo=выгрузка, forms=[
         {"форма": ФОРМА, "создать": {"назначение": "Документа"},
          "элементы": [{"вид": "ПолеТабличногоДокумента", "имя": "мой_Т"}]}])
     # вид платформы, которого инструмент не заводит, — не опечатка
-    assert ответ.startswith("ОТКАЗ:") and "в платформе есть, но заводить" in ответ
+    assert answer.startswith("ОТКАЗ:") and "в платформе есть, но заводить" in answer
     опечатка = вызвать(сервер, "forms_check", repo=выгрузка, forms=[
         {"форма": ФОРМА, "создать": {"назначение": "Документа"},
          "элементы": [{"вид": "ПолеВвда", "имя": "мой_Т"}]}])
@@ -185,30 +185,30 @@ def test_a_field_of_the_object_beside_its_kind_is_refused(выгрузка):
     """«атомарныеРоли» рядом с «вид» — отказ: иначе поле молча теряется, роли не
     заводятся, а отказ на соседнем шаге уводит в сторону."""
     сервер = mcp_server(roots=[выгрузка])
-    ответ = вызвать(сервер, "metadata_check", repo=выгрузка, objects=[
+    answer = вызвать(сервер, "metadata_check", repo=выгрузка, objects=[
         {"вид": "РегистрСведений", "атомарныеРоли": True,
          "поля": {"имя": "мой_Отметки", "синоним": "Отметки"}}])
-    assert ответ.startswith("ОТКАЗ:") and "атомарныеРоли" in ответ and "внутри «поля»" in ответ
+    assert answer.startswith("ОТКАЗ:") and "атомарныеРоли" in answer and "внутри «поля»" in answer
 
 
 def test_an_operation_given_as_an_object_is_refused_not_crashed(выгрузка):
     """`additions` словарём — отказ, а не падение: иначе словарь перебирается по
     ключам и роняет разбор исключением."""
     сервер = mcp_server(roots=[выгрузка])
-    ответ = вызвать(сервер, "metadata_check", repo=выгрузка, additions={
+    answer = вызвать(сервер, "metadata_check", repo=выгрузка, additions={
         "путь": "Документ.мой_ПробаСДвижениями", "вид": "ТабличнаяЧасть",
         "поля": {"имя": "Строки"}})
     # форма запроса — по-русски, а не текстом валидатора транспорта
-    assert ответ.startswith("ОТКАЗ:") and "«additions» — нужен список пунктов" in ответ, ответ
+    assert answer.startswith("ОТКАЗ:") and "«additions» — нужен список пунктов" in answer, answer
 
 
 def test_an_unknown_key_of_the_job_is_refused(выгрузка):
     сервер = mcp_server(roots=[выгрузка])
-    ответ = вызвать(сервер, "metadata_check", repo=выгрузка, атомарныеРоли=True,
+    answer = вызвать(сервер, "metadata_check", repo=выгрузка, атомарныеРоли=True,
                     atomic_roles=["Документ.мой_ПробаСДвижениями"])
     # FastMCP отбросил бы лишний параметр молча — нужен отказ с перечнем
-    assert ответ.startswith("ОТКАЗ:") and "нет параметра «атомарныеРоли»" in ответ, ответ
-    assert "atomic_roles" in ответ and "accepted" in ответ
+    assert answer.startswith("ОТКАЗ:") and "нет параметра «атомарныеРоли»" in answer, answer
+    assert "atomic_roles" in answer and "accepted" in answer
 
 
 def test_the_help_shows_item_formats_and_atomic_roles():
@@ -228,18 +228,18 @@ def test_no_terminal_words_reach_the_agent():
     сервер = mcp_server(roots=[])
     for arguments in ({}, {"kind": "Справочник"}, {"kind": "Тип"}, {"kind": "РегистрСведений"},
                       {"kind": "НетТакогоВида"}):
-        ответ = вызвать(сервер, "fields", **arguments)
-        assert "--поля" not in ответ and "--apply" not in ответ, arguments
+        answer = вызвать(сервер, "fields", **arguments)
+        assert "--поля" not in answer and "--apply" not in answer, arguments
 
 
 def test_an_unknown_field_refusal_speaks_no_terminal(выгрузка):
     """Отказ «вид не знает полей» у вида с длинным списком полей отсылает к справке
     по полям, а не к «--поля» терминала."""
     сервер = mcp_server(roots=[выгрузка])
-    ответ = вызвать(сервер, "metadata_check", repo=выгрузка, objects=[
+    answer = вызвать(сервер, "metadata_check", repo=выгрузка, objects=[
         {"вид": "Справочник", "поля": {"имя": "мой_Х", "синоним": "Х", "нетТакогоПоля": 1}}])
-    assert "нетТакогоПоля" in ответ and "в справке по полям вида «Справочник»" in ответ
-    assert "--поля" not in ответ
+    assert "нетТакогоПоля" in answer and "в справке по полям вида «Справочник»" in answer
+    assert "--поля" not in answer
 
 
 SRC = corpus.CORPUS
@@ -262,14 +262,14 @@ def test_a_typical_form_snippet_after_a_neighbour_with_guidance():
             "элементы": [{"вид": "Надпись", "имя": name, "родитель": "ГруппаКомментарий",
                           "после": "Комментарий", "свойства": {"Заголовок": "Приложите чеки"}}]}])
 
-    ответ = check("мой_НадписьЧеки")
+    answer = check("мой_НадписьЧеки")
     # «после» превращается в «перед» следующим соседом
-    assert "Форма.Элементы.Ответственный);" in ответ, ответ
-    assert "ЭтотОбъект" in ответ and "code_apply" in ответ and ".py" not in ответ
+    assert "Форма.Элементы.Ответственный);" in answer, answer
+    assert "ЭтотОбъект" in answer and "code_apply" in answer and ".py" not in answer
     # без приставки — ошибка, как у метаданных (МД-ПРЕФИКС), а не предупреждение,
     # которое принимается через accepted
-    ответ = check("НадписьЧеки")
-    assert ответ.startswith("ОТКАЗ:") and "ФОРМА-БЕЗ-ПРИСТАВКИ" in ответ, ответ
+    answer = check("НадписьЧеки")
+    assert answer.startswith("ОТКАЗ:") and "ФОРМА-БЕЗ-ПРИСТАВКИ" in answer, answer
 
 
 def test_a_handler_for_an_existing_form_module_is_not_written_and_says_so(выгрузка):
@@ -281,21 +281,21 @@ def test_a_handler_for_an_existing_form_module_is_not_written_and_says_so(выг
         "реквизиты": [{"имя": "мой_Первый", "тип": "Булево"}],
         "элементы": [{"вид": "ПолеФлажка", "имя": "мой_Первый", "путь": "мой_Первый",
                       "обработчики": {"ПриИзменении": True}}]})])
-    ответ = вызвать(сервер, "forms_check", repo=выгрузка, forms=[{
+    answer = вызвать(сервер, "forms_check", repo=выгрузка, forms=[{
         "форма": ФОРМА, "реквизиты": [{"имя": "мой_Флаг", "тип": "Булево"}],
         "элементы": [{"вид": "ПолеФлажка", "имя": "мой_Флаг", "путь": "мой_Флаг",
                       "обработчики": {"ПриИзменении": True}}]}])
     # Разбито на «что», «где» и «заготовку»: одна фраза из трёх сообщений
     # читается с трудом.
-    assert "процедуру не пишет — внесите её заданием на код. Где: " in ответ, ответ
-    assert "Заготовка: «&НаКлиенте Процедура мой_ФлагПриИзменении(Элемент)»" in ответ, ответ
+    assert "процедуру не пишет — внесите её заданием на код. Где: " in answer, answer
+    assert "Заготовка: «&НаКлиенте Процедура мой_ФлагПриИзменении(Элемент)»" in answer, answer
 
 
 def test_the_help_knows_form_element_properties():
     """Справка знает свойства элемента формы: иначе их узнают только отказом, а
     «Заголовок» угадывают."""
-    ответ = вызвать(mcp_server(roots=[]), "fields", kind="Надпись")
-    assert "Заголовок" in ответ and "элемент формы" in ответ
+    answer = вызвать(mcp_server(roots=[]), "fields", kind="Надпись")
+    assert "Заголовок" in answer and "элемент формы" in answer
     assert "не заводит" in вызвать(mcp_server(roots=[]), "fields", kind="ПолеТабличногоДокумента")
 
 
@@ -305,13 +305,13 @@ def test_a_typical_form_snippet_is_a_ready_procedure():
     if not os.path.isfile(os.path.join(SRC, "Documents", "АвансовыйОтчет", "Forms",
                                        "ФормаДокумента", "Ext", "Form.xml")):
         pytest.skip("не задана выгрузка META_CORPUS")
-    ответ = вызвать(mcp_server(roots=[SRC]), "forms_check", repo=SRC, forms=[{
+    answer = вызвать(mcp_server(roots=[SRC]), "forms_check", repo=SRC, forms=[{
         "форма": АВАНСОВЫЙ, "код": True,
         "элементы": [{"вид": "Надпись", "имя": "мой_НадписьЧеки", "родитель": "ГруппаКомментарий",
                       "перед": "Ответственный", "свойства": {"Заголовок": "Приложите чеки"}}]}])
-    assert "Процедура ФормаДокумента_ПриСозданииНаСервере(Форма) Экспорт" in ответ
-    assert '\tЭлемент = Форма.Элементы.Вставить("мой_НадписьЧеки"' in ответ
-    assert "«Документ.АвансовыйОтчет.Форма.ФормаДокумента»" in ответ
+    assert "Процедура ФормаДокумента_ПриСозданииНаСервере(Форма) Экспорт" in answer
+    assert '\tЭлемент = Форма.Элементы.Вставить("мой_НадписьЧеки"' in answer
+    assert "«Документ.АвансовыйОтчет.Форма.ФормаДокумента»" in answer
 
 
 def test_a_document_shows_which_table_has_which_attributes():
@@ -319,8 +319,8 @@ def test_a_document_shows_which_table_has_which_attributes():
     подряд не говорят, какой табличной части какие."""
     if not os.path.isfile(os.path.join(SRC, "Documents", "АвансовыйОтчет.xml")):
         pytest.skip("не задана выгрузка META_CORPUS")
-    ответ = вызвать(mcp_server(roots=[SRC]), "show", repo=SRC, address="Документ.АвансовыйОтчет")
-    lines = ответ.splitlines()
+    answer = вызвать(mcp_server(roots=[SRC]), "show", repo=SRC, address="Документ.АвансовыйОтчет")
+    lines = answer.splitlines()
     k = lines.index("      Товары:")
     assert lines[k + 1].startswith("         реквизиты: ")
 
@@ -334,36 +334,36 @@ def test_typical_form_code_lists_handler_procedures_and_writes_nothing():
     if not os.path.isfile(os.path.join(SRC, "Documents", "АвансовыйОтчет", "Forms",
                                        "ФормаДокумента", "Ext", "Form.xml")):
         pytest.skip("не задана выгрузка META_CORPUS")
-    задание = [{"форма": АВАНСОВЫЙ, "код": True,
+    job_spec = [{"форма": АВАНСОВЫЙ, "код": True,
                 "реквизиты": [{"имя": "мой_Пометка", "тип": "Строка(10)", "заголовок": "Пометка"}],
                 "элементы": [{"вид": "Надпись", "имя": "мой_НадписьЧеки",
                               "родитель": "ГруппаКомментарий", "перед": "Ответственный",
                               "обработчики": {"Нажатие": True}}]}]
-    ответ = вызвать(mcp_server(roots=[SRC]), "forms_apply", repo=SRC, forms=задание)
+    answer = вызвать(mcp_server(roots=[SRC]), "forms_apply", repo=SRC, forms=job_spec)
     assert ('Элемент.УстановитьДействие("Нажатие", "Подключаемый_мой_НадписьЧекиНажатие");'
-            in ответ), ответ
-    assert "Процедура Подключаемый_мой_НадписьЧекиНажатие(" in ответ
-    assert "Записи нет" in ответ and ', , "Пометка")' in ответ, ответ
+            in answer), answer
+    assert "Процедура Подключаемый_мой_НадписьЧекиНажатие(" in answer
+    assert "Записи нет" in answer and ', , "Пометка")' in answer, answer
 
 
 def test_a_misplaced_neighbour_says_where_it_actually_is():
     if not os.path.isfile(os.path.join(SRC, "Documents", "АвансовыйОтчет.xml")):
         pytest.skip("не задана выгрузка META_CORPUS")
-    ответ = вызвать(mcp_server(roots=[SRC]), "forms_check", repo=SRC, forms=[{
+    answer = вызвать(mcp_server(roots=[SRC]), "forms_check", repo=SRC, forms=[{
         "форма": АВАНСОВЫЙ, "код": True,
         "элементы": [{"вид": "Надпись", "имя": "мой_Н", "родитель": "ГруппаШапка",
                       "после": "Комментарий"}]}])
-    assert "а в «ГруппаКомментарий» — укажите этот «родитель»" in ответ
+    assert "а в «ГруппаКомментарий» — укажите этот «родитель»" in answer
 
 
 def test_a_document_attribute_needs_its_own_field(выгрузка):
     """ПолеВвода на реквизите ТабличныйДокумент — находка с подсказкой, какое поле
     нужно, а не «замечаний нет»."""
     сервер = mcp_server(roots=[выгрузка])
-    ответ = вызвать(сервер, "forms_check", repo=выгрузка, forms=[dict(НОВАЯ[0], **{
+    answer = вызвать(сервер, "forms_check", repo=выгрузка, forms=[dict(НОВАЯ[0], **{
         "реквизиты": [{"имя": "мой_Печать", "тип": "ТабличныйДокумент"}],
         "элементы": [{"вид": "ПолеВвода", "имя": "мой_Печать", "путь": "мой_Печать"}]})])
-    assert "ФОРМА-ПОЛЕ-НЕ-ДЛЯ-ТИПА" in ответ and "ПолеТабличногоДокумента" in ответ
+    assert "ФОРМА-ПОЛЕ-НЕ-ДЛЯ-ТИПА" in answer and "ПолеТабличногоДокумента" in answer
 
 
 def test_show_marks_a_handler_without_a_procedure(выгрузка):
@@ -415,12 +415,12 @@ def test_show_prints_types_the_way_the_job_takes_them():
     if not os.path.isfile(банки):
         pytest.skip("не задана выгрузка META_CORPUS")
     сервер = mcp_server(roots=[SRC])
-    ответ = вызвать(сервер, "show", repo=SRC, address="Справочник.БанкиУниверсальногоОбмена")
+    answer = вызвать(сервер, "show", repo=SRC, address="Справочник.БанкиУниверсальногоОбмена")
     assert ("ОтпечатокДействующегоСертификата «Отпечаток действующего сертификата» "
-            "(ОпределяемыйТип.ОтпечатокСертификатаДляОбменаСБанками)") in ответ
-    assert "Произвольный" not in ответ
+            "(ОпределяемыйТип.ОтпечатокСертификатаДляОбменаСБанками)") in answer
+    assert "Произвольный" not in answer
     # и формы объекта — с пометкой основной
-    assert "формы: ФормаЭлемента (основная объекта)" in ответ, ответ
+    assert "формы: ФормаЭлемента (основная объекта)" in answer, answer
 
 
 def test_the_code_snippet_has_no_character_bsl_ls_rejects():
@@ -433,31 +433,31 @@ def test_the_code_snippet_has_no_character_bsl_ls_rejects():
                                        "ФормаДокумента", "Ext", "Form.xml")):
         pytest.skip("не задана выгрузка META_CORPUS")
     сервер = mcp_server(roots=[SRC])
-    задание = {"форма": АВАНСОВЫЙ, "код": True,
+    job_spec = {"форма": АВАНСОВЫЙ, "код": True,
                "элементы": [{"вид": "Надпись", "имя": "мой_НадписьЧеки",
                              "родитель": "ГруппаКомментарий", "перед": "Ответственный",
                              "свойства": {"Заголовок": "Приложите чеки"}}]}
-    ответ = вызвать(сервер, "forms_check", repo=SRC, forms=[задание])
-    фрагмент = ответ[ответ.index("// Дорабатывает"):ответ.index("КонецПроцедуры")]
+    answer = вызвать(сервер, "forms_check", repo=SRC, forms=[job_spec])
+    фрагмент = answer[answer.index("// Дорабатывает"):answer.index("КонецПроцедуры")]
     assert not invalid_characters(фрагмент), фрагмент
-    задание["элементы"][0]["свойства"]["Заголовок"] = "Чеки — приложить"
-    ответ = вызвать(сервер, "forms_check", repo=SRC, forms=[задание])
-    assert "ФОРМА-КОД-СИМВОЛ" in ответ and "длинное тире (U+2014)" in ответ, ответ
+    job_spec["элементы"][0]["свойства"]["Заголовок"] = "Чеки — приложить"
+    answer = вызвать(сервер, "forms_check", repo=SRC, forms=[job_spec])
+    assert "ФОРМА-КОД-СИМВОЛ" in answer and "длинное тире (U+2014)" in answer, answer
 
 
 def test_the_metadata_job_is_typed_and_takes_the_short_type(выгрузка):
     """Задание на метаданные — типами, тип — той же записью, что печатает show;
     подробный просмотр показывает XML: изменённый файл — разницей."""
     сервер = mcp_server(roots=[выгрузка])
-    задание = {"repo": выгрузка, "attributes": [
+    job_spec = {"repo": выгрузка, "attributes": [
         {"объект": "Документ.мой_ПробаСДвижениями",
          "поля": {"имя": "мой_Пометка", "синоним": "Пометка", "тип": "Строка(50)"}}]}
-    ответ = вызвать(сервер, "metadata_check", verbose=True, **задание)
-    assert not ответ.startswith("ОТКАЗ"), ответ
-    assert "Реквизит мой_Пометка" in ответ and "тип: Строка(50)" in ответ, ответ
-    assert "── изменить" in ответ and "+" in ответ and "<v8:Length>50</v8:Length>" in ответ
+    answer = вызвать(сервер, "metadata_check", verbose=True, **job_spec)
+    assert not answer.startswith("ОТКАЗ"), answer
+    assert "Реквизит мой_Пометка" in answer and "тип: Строка(50)" in answer, answer
+    assert "── изменить" in answer and "+" in answer and "<v8:Length>50</v8:Length>" in answer
     # без verbose — один план, без текстов
-    assert "── изменить" not in вызвать(сервер, "metadata_check", **задание)
+    assert "── изменить" not in вызвать(сервер, "metadata_check", **job_spec)
     # схема инструмента — типами: операции и пункты видны агенту без примеров
     schema = next(t for t in asyncio.run(сервер.list_tools()) if t.name == "metadata_check")
     assert {"repo", "objects", "attributes", "additions", "changes", "deletions", "renames",
@@ -467,13 +467,13 @@ def test_the_metadata_job_is_typed_and_takes_the_short_type(выгрузка):
 def соседи_просмотра(сервер, выгрузка):
     """Две роли «Просмотр» документов выгрузки — без «ВводПоСтроке»: соседи по
     схеме, у которых типовой состав не правило."""
-    ответ = вызвать(сервер, "metadata_apply", repo=выгрузка, objects=[
+    answer = вызвать(сервер, "metadata_apply", repo=выгрузка, objects=[
         {"вид": "Роль", "поля": {
             "имя": f"мой_атом_Документ_{neighbour}_Просмотр", "синоним": "Просмотр",
             "права": [{"объект": f"Документ.{document}", "права": ["Чтение", "Просмотр"]}]}}
         for neighbour, document in (("СоседА", "мой_ПробаСДвижениями"),
                                 ("СоседБ", "мой_ПробаНепроводимый"))])
-    assert not ответ.startswith("ОТКАЗ"), ответ
+    assert not answer.startswith("ОТКАЗ"), answer
 
 
 def test_role_rights_advice_is_a_warning_not_a_plan_step(выгрузка):
@@ -481,13 +481,13 @@ def test_role_rights_advice_is_a_warning_not_a_plan_step(выгрузка):
     строка «Плана»: шагом плана оно не является."""
     сервер = mcp_server(roots=[выгрузка])
     соседи_просмотра(сервер, выгрузка)
-    ответ = вызвать(сервер, "metadata_check", repo=выгрузка, objects=[
+    answer = вызвать(сервер, "metadata_check", repo=выгрузка, objects=[
         {"вид": "Документ", "поля": {
             "имя": "мой_Отметки", "синоним": "Отметки", "атомарныеРоли": ["Просмотр"]}}])
-    assert not ответ.startswith("ОТКАЗ"), ответ
-    plan = ответ[ответ.index("\nПлан:"):]
+    assert not answer.startswith("ОТКАЗ"), answer
+    plan = answer[answer.index("\nПлан:"):]
     assert "не правило" not in plan, plan
-    assert "РОЛЬ-ШАБЛОН-НЕ-ПРАВИЛО" in ответ[:ответ.index("\nПлан:")]
+    assert "РОЛЬ-ШАБЛОН-НЕ-ПРАВИЛО" in answer[:answer.index("\nПлан:")]
 
 
 # --- повтор элемента, флажок не по типу, «ё» и длина имени, схемы и XML -------------
@@ -502,20 +502,20 @@ def test_a_repeated_element_is_refused_and_places_are_given(выгрузка):
     text = ("#Область ПрограммныйИнтерфейс\n\nПроцедура Доработать(Форма, Режим) Экспорт\n"
              "\tФорма.Элементы.Добавить(\"мой_Надпись\", Тип(\"ДекорацияФормы\"));\n"
              "КонецПроцедуры\n\n#КонецОбласти")
-    ответ = вызвать(сервер, "metadata_apply", repo=выгрузка, objects=[
+    answer = вызвать(сервер, "metadata_apply", repo=выгрузка, objects=[
         {"вид": "ОбщийМодуль", "поля": {"имя": "мой_ПробаФормы", "синоним": "Проба формы",
                                          "текст": text}}])
-    assert not ответ.startswith("ОТКАЗ"), ответ
+    assert not answer.startswith("ОТКАЗ"), answer
     вызвать(сервер, "forms_apply", repo=выгрузка, forms=НОВАЯ)
     надпись = {"вид": "Надпись", "имя": "мой_Надпись", "свойства": {"Заголовок": "Проба"}}
-    ответ = вызвать(сервер, "forms_check", repo=выгрузка, forms=[
+    answer = вызвать(сервер, "forms_check", repo=выгрузка, forms=[
         {"форма": ФОРМА, "код": {"модуль": "ОбщийМодуль.мой_ПробаФормы", "процедура": "Другая"},
          "элементы": [надпись]}])
-    assert "ФОРМА-КОД-УЖЕ-В-МОДУЛЕ" in ответ and "(строка 4)" in ответ, ответ
+    assert "ФОРМА-КОД-УЖЕ-В-МОДУЛЕ" in answer and "(строка 4)" in answer, answer
     свежая = dict(надпись, имя="мой_НадписьНовая")
-    ответ = вызвать(сервер, "forms_check", repo=выгрузка, forms=[
+    answer = вызвать(сервер, "forms_check", repo=выгрузка, forms=[
         {"форма": ФОРМА, "код": {"модуль": "ОбщийМодуль.мой_ПробаФормы"}, "элементы": [свежая]}])
-    assert "процедура — вставкой перед строкой 7 модуля «мой_ПробаФормы»" in ответ, ответ
+    assert "процедура — вставкой перед строкой 7 модуля «мой_ПробаФормы»" in answer, answer
     taken = вызвать(сервер, "forms_check", repo=выгрузка, forms=[
         {"форма": ФОРМА, "код": {"модуль": "ОбщийМодуль.мой_ПробаФормы",
                                  "процедура": "Доработать"}, "элементы": [свежая]}])
@@ -526,12 +526,12 @@ def test_a_checkbox_on_a_string_is_refused(выгрузка):
     """Поле флажка редактирует Булево (Число — при «ТриСостояния»): флажок на
     строковом реквизите — находка, а не «замечаний нет»."""
     сервер = mcp_server(roots=[выгрузка])
-    ответ = вызвать(сервер, "forms_check", repo=выгрузка, forms=[dict(НОВАЯ[0], **{
+    answer = вызвать(сервер, "forms_check", repo=выгрузка, forms=[dict(НОВАЯ[0], **{
         "реквизиты": [{"имя": "мой_Строка", "тип": "Строка(10)"},
                       {"имя": "мой_Флаг", "тип": "Булево"}],
         "элементы": [{"вид": "ПолеФлажка", "имя": "мой_Строка", "путь": "мой_Строка"},
                      {"вид": "ПолеФлажка", "имя": "мой_Флаг", "путь": "мой_Флаг"}]})])
-    assert ответ.count("ФОРМА-ФЛАЖОК-ТИП") == 1 and "типа Строка(10)" in ответ, ответ
+    assert answer.count("ФОРМА-ФЛАЖОК-ТИП") == 1 and "типа Строка(10)" in answer, answer
 
 
 def test_yo_and_names_longer_than_80_are_refused(выгрузка):
@@ -539,19 +539,19 @@ def test_yo_and_names_longer_than_80_are_refused(выгрузка):
     80 (п. 2.3). Имя роли строит инструмент — для длинного объекта задаётся
     «сокращение»."""
     сервер = mcp_server(roots=[выгрузка])
-    ответ = вызвать(сервер, "metadata_check", repo=выгрузка, objects=[
+    answer = вызвать(сервер, "metadata_check", repo=выгрузка, objects=[
         {"вид": "Справочник", "поля": {"имя": "мой_Отчеты", "синоним": "Отчёты"}}])
-    assert "МД-БУКВА-Ё" in ответ and "«Отчеты»" in ответ and ответ.startswith("ОТКАЗ:"), ответ
+    assert "МД-БУКВА-Ё" in answer and "«Отчеты»" in answer and answer.startswith("ОТКАЗ:"), answer
     длинное = "мой_" + "ОченьДлинноеИмяРегистраДляПроверки" * 2
     регистр = {"вид": "РегистрСведений", "поля": {
         "имя": длинное, "синоним": "Проба", "атомарныеРоли": True,
         "измерения": [{"имя": "Ключ", "синоним": "Ключ", "тип": "Строка(10)"}]}}
-    ответ = вызвать(сервер, "metadata_check", repo=выгрузка, objects=[регистр])
-    assert "МД-ИМЯ-ДЛИННОЕ" in ответ and "«сокращение»" in ответ and ответ.startswith("ОТКАЗ:")
+    answer = вызвать(сервер, "metadata_check", repo=выгрузка, objects=[регистр])
+    assert "МД-ИМЯ-ДЛИННОЕ" in answer and "«сокращение»" in answer and answer.startswith("ОТКАЗ:")
     регистр["поля"]["атомарныеРоли"] = {"сокращение": "мой_ДлинныйРегистр"}
-    ответ = вызвать(сервер, "metadata_check", repo=выгрузка, objects=[регистр])
-    assert "мой_атом_РегистрСведений_мой_ДлинныйРегистр_Просмотр" in ответ, ответ
-    assert "МД-ИМЯ-ДЛИННОЕ" not in ответ
+    answer = вызвать(сервер, "metadata_check", repo=выгрузка, objects=[регистр])
+    assert "мой_атом_РегистрСведений_мой_ДлинныйРегистр_Просмотр" in answer, answer
+    assert "МД-ИМЯ-ДЛИННОЕ" not in answer
 
 
 def test_no_service_notes_reach_the_tool_schemas():
@@ -566,8 +566,8 @@ def test_no_service_notes_reach_the_tool_schemas():
 
 def test_forms_check_shows_the_xml_on_verbose(выгрузка):
     сервер = mcp_server(roots=[выгрузка])
-    ответ = вызвать(сервер, "forms_check", repo=выгрузка, forms=НОВАЯ, verbose=True)
-    assert "── создать" in ответ and "<Form" in ответ and "uuid" in ответ, ответ
+    answer = вызвать(сервер, "forms_check", repo=выгрузка, forms=НОВАЯ, verbose=True)
+    assert "── создать" in answer and "<Form" in answer and "uuid" in answer, answer
 
 
 # --- модуль формы и код доработки: повтор, кавычки, готовые правки -------------------
@@ -580,10 +580,10 @@ def форма_с_модулем(выгрузка):
     процедуры доработки формы — как у авансового отчёта."""
     сервер = mcp_server(roots=[выгрузка])
     text = "#Область ПрограммныйИнтерфейс\n\n#КонецОбласти"
-    ответ = вызвать(сервер, "metadata_apply", repo=выгрузка, objects=[
+    answer = вызвать(сервер, "metadata_apply", repo=выгрузка, objects=[
         {"вид": "ОбщийМодуль", "поля": {"имя": "мой_ПробаФормы", "синоним": "Проба формы",
                                          "сервер": True, "текст": text}}])
-    assert not ответ.startswith("ОТКАЗ"), ответ
+    assert not answer.startswith("ОТКАЗ"), answer
     вызвать(сервер, "forms_apply", repo=выгрузка, forms=НОВАЯ)
     module = ["#Область ОбработчикиСобытийФормы", "", "&НаСервере",
               "Процедура ПриСозданииНаСервере(Отказ, СтандартнаяОбработка)",
@@ -607,22 +607,22 @@ def test_an_element_the_form_module_adds_itself_is_refused(выгрузка):
     без этого надпись прошла бы, а форма упала бы при открытии.
     Закомментированное не в счёт."""
     сервер = форма_с_модулем(выгрузка)
-    ответ = вызвать(сервер, "forms_check", repo=выгрузка, forms=[надпись("мой_ИтогоВыдано")])
-    assert "ФОРМА-КОД-УЖЕ-В-МОДУЛЕ" in ответ and "в модуле формы (строка 6)" in ответ, ответ
-    ответ = вызвать(сервер, "forms_check", repo=выгрузка, forms=[надпись("мой_Старое")])
-    assert "ФОРМА-КОД-УЖЕ-В-МОДУЛЕ" not in ответ, ответ
+    answer = вызвать(сервер, "forms_check", repo=выгрузка, forms=[надпись("мой_ИтогоВыдано")])
+    assert "ФОРМА-КОД-УЖЕ-В-МОДУЛЕ" in answer and "в модуле формы (строка 6)" in answer, answer
+    answer = вызвать(сервер, "forms_check", repo=выгрузка, forms=[надпись("мой_Старое")])
+    assert "ФОРМА-КОД-УЖЕ-В-МОДУЛЕ" not in answer, answer
 
 
 def test_the_code_snippet_uses_straight_quotes_and_flags_guillemets(выгрузка):
     """В описании выданной процедуры кавычки прямые: ёлочки стояли бы в каждом
     фрагменте, а проверка кода их не пускает. Ёлочки из заголовка — находка."""
     сервер = форма_с_модулем(выгрузка)
-    ответ = вызвать(сервер, "forms_check", repo=выгрузка, forms=[надпись("мой_Чеки")])
-    фрагмент = ответ[ответ.index("// Дорабатывает"):ответ.index("КонецПроцедуры")]
+    answer = вызвать(сервер, "forms_check", repo=выгрузка, forms=[надпись("мой_Чеки")])
+    фрагмент = answer[answer.index("// Дорабатывает"):answer.index("КонецПроцедуры")]
     assert f'форму "{ФОРМА}"' in фрагмент and "«" not in фрагмент and "»" not in фрагмент
-    ответ = вызвать(сервер, "forms_check", repo=выгрузка,
+    answer = вызвать(сервер, "forms_check", repo=выгрузка,
                     forms=[надпись("мой_Чеки", "Приложите «чеки»")])
-    assert "ФОРМА-КОД-ЁЛОЧКИ" in ответ and "кавычки прямые" in ответ, ответ
+    assert "ФОРМА-КОД-ЁЛОЧКИ" in answer and "кавычки прямые" in answer, answer
 
 
 def test_the_ready_edits_go_to_code_check_as_they_are(выгрузка):
@@ -631,13 +631,13 @@ def test_the_ready_edits_go_to_code_check_as_they_are(выгрузка):
     import json
 
     сервер = форма_с_модулем(выгрузка)
-    ответ = вызвать(сервер, "forms_check", repo=выгрузка, forms=[надпись("мой_Чеки")])
+    answer = вызвать(сервер, "forms_check", repo=выгрузка, forms=[надпись("мой_Чеки")])
     # и что forms_apply здесь незачем — порядок «check, затем apply» к нему
     # подталкивает
-    assert "Запись формы не нужна" in ответ, ответ
-    start = ответ.index('{"modules": [')
-    block = json.loads(ответ[start:ответ.index("\n]}", start) + 3])
-    assert [м["module"] for м in block["modules"]] == [
+    assert "Запись формы не нужна" in answer, answer
+    start = answer.index('{"modules": [')
+    block = json.loads(answer[start:answer.index("\n]}", start) + 3])
+    assert [mm["module"] for mm in block["modules"]] == [
         "ОбщийМодуль.мой_ПробаФормы", "Документ.мой_ПробаСДвижениями.Форма.мой_Проба"]
     caption = {"task": "TASK-1", "date": "31.08.2026", "author": "Кто"}
     code = вызвать(сервер, "code_check", repo=выгрузка, modules=block["modules"], **caption)
@@ -655,9 +655,9 @@ def test_a_document_attribute_without_a_creatable_field_is_warned(выгрузк
     не заводит: что показать реквизит нечем, предупреждает уже шаг реквизита, а
     не шаг элемента."""
     сервер = mcp_server(roots=[выгрузка])
-    ответ = вызвать(сервер, "forms_check", repo=выгрузка, forms=[dict(НОВАЯ[0], **{
+    answer = вызвать(сервер, "forms_check", repo=выгрузка, forms=[dict(НОВАЯ[0], **{
         "реквизиты": [{"имя": "мой_Печать", "тип": "ТабличныйДокумент"}]})])
-    assert "ФОРМА-РЕКВИЗИТ-БЕЗ-ПОЛЯ" in ответ and "ПолеТабличногоДокумента" in ответ, ответ
+    assert "ФОРМА-РЕКВИЗИТ-БЕЗ-ПОЛЯ" in answer and "ПолеТабличногоДокумента" in answer, answer
 
 
 def test_the_overview_sends_forms_to_their_own_tools():
@@ -696,25 +696,25 @@ def test_a_job_that_will_not_pass_starts_with_a_refusal(выгрузка):
     """Задание, которое не пройдёт, начинается с «ОТКАЗ:»: «НЕ ВЫПОЛНЕНО» внизу
     ответа поиск по «ОТКАЗ:» пропустил бы, а у просмотра оно и звучит странно."""
     сервер = mcp_server(roots=[выгрузка])
-    ответ = вызвать(сервер, "metadata_check", repo=выгрузка, objects=[
+    answer = вызвать(сервер, "metadata_check", repo=выгрузка, objects=[
         {"вид": "Справочник", "поля": {"имя": "БезПриставки", "синоним": "Проба"}}])
-    first, вторая = ответ.split("\n")[:2]
-    assert first.startswith("ОТКАЗ: ошибок 1") and "задание не пройдёт" in first, ответ
-    assert вторая.startswith("Выгрузка:") and "НЕ ВЫПОЛНЕНО" not in ответ
+    first, вторая = answer.split("\n")[:2]
+    assert first.startswith("ОТКАЗ: ошибок 1") and "задание не пройдёт" in first, answer
+    assert вторая.startswith("Выгрузка:") and "НЕ ВЫПОЛНЕНО" not in answer
 
 
 def test_the_xml_preview_mentions_uuid_only_when_there_are_new_ones(выгрузка):
     """Оговорка про uuid — только когда новые uuid есть: у правки формы их нет."""
     сервер = mcp_server(roots=[выгрузка])
     вызвать(сервер, "forms_apply", repo=выгрузка, forms=НОВАЯ)
-    ответ = вызвать(сервер, "forms_check", repo=выгрузка, verbose=True, forms=[{
+    answer = вызвать(сервер, "forms_check", repo=выгрузка, verbose=True, forms=[{
         "форма": ФОРМА, "элементы": [{"вид": "Надпись", "имя": "мой_Надпись",
                                      "свойства": {"Заголовок": "Проба"}}]}])
-    assert "Тексты файлов:" in ответ and "uuid новых объектов" not in ответ, ответ
-    ответ = вызвать(сервер, "metadata_check", repo=выгрузка, verbose=True, attributes=[
+    assert "Тексты файлов:" in answer and "uuid новых объектов" not in answer, answer
+    answer = вызвать(сервер, "metadata_check", repo=выгрузка, verbose=True, attributes=[
         {"объект": "Документ.мой_ПробаСДвижениями",
          "поля": {"имя": "мой_Пометка", "синоним": "Пометка", "тип": "Булево"}}])
-    assert "uuid новых объектов" in ответ, ответ
+    assert "uuid новых объектов" in answer, answer
 
 
 def test_a_role_shows_only_the_objects_it_grants_something():
@@ -738,15 +738,15 @@ def test_the_role_advice_names_the_other_compositions(выгрузка):
     конфигурации."""
     сервер = mcp_server(roots=[выгрузка])
     соседи_просмотра(сервер, выгрузка)
-    ответ = вызвать(сервер, "metadata_check", repo=выгрузка, objects=[
+    answer = вызвать(сервер, "metadata_check", repo=выгрузка, objects=[
         {"вид": "Документ", "поля": {
             "имя": "мой_Отметки", "синоним": "Отметки", "атомарныеРоли": ["Просмотр"]}}])
-    assert "так устроены 0 из 2 ролей «Просмотр»" in ответ, ответ
+    assert "так устроены 0 из 2 ролей «Просмотр»" in answer, answer
     assert ("другие составы: без ВводПоСтроке — 2, например "
-            "«Роль.мой_атом_Документ_СоседА_Просмотр»") in ответ, ответ
+            "«Роль.мой_атом_Документ_СоседА_Просмотр»") in answer, answer
     # и как другой состав получить: «права» атомарных ролей выбирают роли, а не
     # права платформы
-    assert "пунктом objects вида «Роль» с полем «права»" in ответ
+    assert "пунктом objects вида «Роль» с полем «права»" in answer
 
 
 # --- описания параметров, повтор имени, процедура доработки и её модуль --------------
@@ -777,15 +777,15 @@ def test_only_a_creating_call_makes_a_name_taken(выгрузка):
         "\tЭлементы.Добавить(\"мой_ИтогоВыдано\"")
     with open(path, "w", encoding="utf-8-sig", newline="") as file:
         file.write(module)
-    ответ = вызвать(сервер, "forms_check", repo=выгрузка, forms=[надпись("мой_Подбор")])
-    assert "ФОРМА-КОД-УЖЕ-В-МОДУЛЕ" not in ответ, ответ
-    ответ = вызвать(сервер, "forms_check", repo=выгрузка, forms=[надпись("мой_Итоги")])
+    answer = вызвать(сервер, "forms_check", repo=выгрузка, forms=[надпись("мой_Подбор")])
+    assert "ФОРМА-КОД-УЖЕ-В-МОДУЛЕ" not in answer, answer
+    answer = вызвать(сервер, "forms_check", repo=выгрузка, forms=[надпись("мой_Итоги")])
     # строка 8 — «Элементы.Добавить», а не 7 — «Элементы.Найти»
-    assert "элемент «мой_Итоги» уже заводится кодом в модуле формы (строка 8)" in ответ, ответ
+    assert "элемент «мой_Итоги» уже заводится кодом в модуле формы (строка 8)" in answer, answer
     attribute = {"форма": ФОРМА, "код": {"модуль": "ОбщийМодуль.мой_ПробаФормы"},
                 "реквизиты": [{"имя": "мой_ИтогоВыдано", "тип": "Булево"}]}
-    ответ = вызвать(сервер, "forms_check", repo=выгрузка, forms=[attribute])
-    assert "ФОРМА-КОД-УЖЕ-В-МОДУЛЕ" not in ответ, ответ
+    answer = вызвать(сервер, "forms_check", repo=выгрузка, forms=[attribute])
+    assert "ФОРМА-КОД-УЖЕ-В-МОДУЛЕ" not in answer, answer
 
 
 def test_a_client_or_server_call_module_cannot_hold_the_form_code(выгрузка):
@@ -797,11 +797,11 @@ def test_a_client_or_server_call_module_cannot_hold_the_form_code(выгрузк
                                                   "клиентОбычноеПриложение": True,
                                                   "сервер": True, "внешнееСоединение": True}),
                        ("мой_ПробаВызовСервера", {"сервер": True, "вызовСервера": True})):
-        ответ = вызвать(сервер, "metadata_apply", repo=выгрузка, objects=[
+        answer = вызвать(сервер, "metadata_apply", repo=выгрузка, objects=[
             {"вид": "ОбщийМодуль", "поля": dict({"имя": name, "синоним": "Проба",
                                                  "текст": "#Область ПрограммныйИнтерфейс\n\n"
                                                           "#КонецОбласти"}, **flags)}])
-        assert not ответ.startswith("ОТКАЗ"), ответ
+        assert not answer.startswith("ОТКАЗ"), answer
     def check(module):
         return вызвать(сервер, "forms_check", repo=выгрузка, forms=[
             dict(надпись("мой_Чеки"), **{"код": {"модуль": f"ОбщийМодуль.{module}"}})])
@@ -819,9 +819,9 @@ def test_a_second_procedure_is_warned_and_the_addition_keeps_a_blank(выгру�
     сервер = форма_с_модулем(выгрузка)
     caption = {"task": "TASK-1", "date": "31.08.2026", "author": "Кто"}
 
-    def готовые(ответ):
-        start = ответ.index('{"modules": [')
-        return json.loads(ответ[start:ответ.index("\n]}", start) + 3])["modules"]
+    def готовые(answer):
+        start = answer.index('{"modules": [')
+        return json.loads(answer[start:answer.index("\n]}", start) + 3])["modules"]
 
     first = вызвать(сервер, "forms_check", repo=выгрузка, forms=[надпись("мой_Чеки")])
     # описание без перечня элементов: дополнение его не трогает
@@ -840,9 +840,9 @@ def test_show_says_code_added_elements_are_not_in_the_tree():
     if not os.path.isfile(os.path.join(SRC, "Documents", "АвансовыйОтчет", "Forms",
                                        "ФормаДокумента", "Ext", "Form.xml")):
         pytest.skip("не задана выгрузка META_CORPUS")
-    ответ = вызвать(mcp_server(roots=[SRC]), "show", repo=SRC, address=АВАНСОВЫЙ)
+    answer = вызвать(mcp_server(roots=[SRC]), "show", repo=SRC, address=АВАНСОВЫЙ)
     assert "элементы, которые добавляет код (модуль формы, код доработки), в дереве не видны" \
-        in ответ
+        in answer
 
 
 def test_a_second_change_extends_the_procedure(выгрузка):
@@ -854,9 +854,9 @@ def test_a_second_change_extends_the_procedure(выгрузка):
     сервер = форма_с_модулем(выгрузка)
     caption = {"task": "TASK-1", "date": "31.08.2026", "author": "Кто"}
 
-    def готовые(ответ):
-        start = ответ.index('{"modules": [')
-        return json.loads(ответ[start:ответ.index("\n]}", start) + 3])["modules"]
+    def готовые(answer):
+        start = answer.index('{"modules": [')
+        return json.loads(answer[start:answer.index("\n]}", start) + 3])["modules"]
 
     first = вызвать(сервер, "forms_check", repo=выгрузка, forms=[надпись("мой_Чеки")])
     вызвать(сервер, "code_apply", repo=выгрузка, modules=готовые(first), **caption)
@@ -864,7 +864,7 @@ def test_a_second_change_extends_the_procedure(выгрузка):
     assert "дополнение процедуры «мой_Проба_ПриСозданииНаСервере»" in вторая, вторая
     assert "вызов в модуле формы уже есть" in вторая and "Процедура мой_Проба" not in вторая
     modules = готовые(вторая)
-    assert [м["module"] for м in modules] == ["ОбщийМодуль.мой_ПробаФормы"]
+    assert [mm["module"] for mm in modules] == ["ОбщийМодуль.мой_ПробаФормы"]
     # якорь — конец процедуры, внесённой первой доработкой (с её закрывающей меткой)
     assert modules[0]["edits"][0]["first_line"].startswith("КонецПроцедуры"), modules
     code = вызвать(сервер, "code_check", repo=выгрузка, modules=modules, **caption)
@@ -884,11 +884,11 @@ def test_a_second_change_extends_the_procedure(выгрузка):
 
 # --- события и обработчики, свой модуль объекта, ветка показа, отступ ----------------
 
-def флажок(обработчики, name="мой_Флаг", создать=True):
-    return [dict(НОВАЯ[0] if создать else {"форма": ФОРМА}, **{
+def флажок(handlers, name="мой_Флаг", create=True):
+    return [dict(НОВАЯ[0] if create else {"форма": ФОРМА}, **{
         "реквизиты": [{"имя": name, "тип": "Булево"}],
         "элементы": [{"вид": "ПолеФлажка", "имя": name, "путь": name,
-                      "обработчики": обработчики}]})]
+                      "обработчики": handlers}]})]
 
 
 def test_an_event_of_another_kind_is_refused_at_once(выгрузка):
@@ -896,11 +896,11 @@ def test_an_event_of_another_kind_is_refused_at_once(выгрузка):
     флажка — находки сразу, неизвестное имя — тоже, с кодом, а не отказ позже
     и без кода."""
     сервер = mcp_server(roots=[выгрузка])
-    ответ = вызвать(сервер, "forms_check", repo=выгрузка, forms=флажок(
+    answer = вызвать(сервер, "forms_check", repo=выгрузка, forms=флажок(
         {"НачалоВыбора": True, "ПриСменеСтраницы": True, "ПриИзмененииЗначения": True}))
-    assert ответ.startswith("ОТКАЗ: ошибок 3"), ответ
-    assert ответ.count("ФОРМА-СОБЫТИЕ-НЕ-ДЛЯ-ВИДА") == 2 and "ФОРМА-СОБЫТИЕ-НЕИЗВЕСТНО" in ответ
-    assert "у ПолеФлажка событий: ПриИзменении" in ответ
+    assert answer.startswith("ОТКАЗ: ошибок 3"), answer
+    assert answer.count("ФОРМА-СОБЫТИЕ-НЕ-ДЛЯ-ВИДА") == 2 and "ФОРМА-СОБЫТИЕ-НЕИЗВЕСТНО" in answer
+    assert "у ПолеФлажка событий: ПриИзменении" in answer
     assert "События (ключ «обработчики»): ПриИзменении" in вызвать(сервер, "fields",
                                                                    kind="ПолеФлажка")
     assert "ПриСменеСтраницы" in вызвать(сервер, "fields", kind="Страницы")
@@ -917,15 +917,15 @@ def test_an_existing_procedure_must_fit_the_handler(выгрузка):
         "&НаКлиенте\r\nПроцедура Подходит(Элемент)\r\nКонецПроцедуры\r\n\r\n#КонецОбласти")
     with open(path, "w", encoding="utf-8-sig", newline="") as file:
         file.write(module)
-    ответ = вызвать(сервер, "forms_check", repo=выгрузка,
-                    forms=флажок({"ПриИзменении": "УправлениеФормой"}, создать=False))
-    assert "ФОРМА-ОБРАБОТЧИК-НЕ-ТОТ" in ответ and "«&НаСервере Процедура УправлениеФормой()»" \
-        in ответ and "«&НаКлиенте Процедура УправлениеФормой(Элемент)»" in ответ, ответ
-    ответ = вызвать(сервер, "forms_check", repo=выгрузка,
-                    forms=флажок({"ПриИзменении": "Подходит"}, создать=False))
-    assert not ответ.startswith("ОТКАЗ"), ответ
+    answer = вызвать(сервер, "forms_check", repo=выгрузка,
+                    forms=флажок({"ПриИзменении": "УправлениеФормой"}, create=False))
+    assert "ФОРМА-ОБРАБОТЧИК-НЕ-ТОТ" in answer and "«&НаСервере Процедура УправлениеФормой()»" \
+        in answer and "«&НаКлиенте Процедура УправлениеФормой(Элемент)»" in answer, answer
+    answer = вызвать(сервер, "forms_check", repo=выгрузка,
+                    forms=флажок({"ПриИзменении": "Подходит"}, create=False))
+    assert not answer.startswith("ОТКАЗ"), answer
     assert "обработчик Подходит: процедура в модуле формы уже есть (строка 14) — заводить " \
-           "не нужно" in ответ, ответ
+           "не нужно" in answer, answer
 
 
 def test_an_own_module_that_does_not_fit_leaves_the_placeholder(выгрузка):
@@ -933,10 +933,10 @@ def test_an_own_module_that_does_not_fit_leaves_the_placeholder(выгрузка
     заглушка с предупреждением."""
     сервер = mcp_server(roots=[выгрузка])
     вызвать(сервер, "forms_apply", repo=выгрузка, forms=НОВАЯ)
-    ответ = вызвать(сервер, "forms_check", repo=выгрузка, forms=[{
+    answer = вызвать(сервер, "forms_check", repo=выгрузка, forms=[{
         "форма": ФОРМА, "код": True,
         "элементы": [{"вид": "Надпись", "имя": "мой_Н", "свойства": {"Заголовок": "Проба"}}]}])
-    assert "ФОРМА-КОД-БЕЗ-МОДУЛЯ" in ответ and "<Модуль>." in ответ, ответ
+    assert "ФОРМА-КОД-БЕЗ-МОДУЛЯ" in answer and "<Модуль>." in answer, answer
 
 
 def test_the_preview_names_handlers_as_the_code_does(выгрузка):
@@ -945,18 +945,18 @@ def test_the_preview_names_handlers_as_the_code_does(выгрузка):
     именем, под которым её назначит код. Действие команды код тоже назначает
     программно — оно с приставкой, и его процедура названа среди обработчиков."""
     сервер = форма_с_модулем(выгрузка)
-    ответ = вызвать(сервер, "forms_check", repo=выгрузка, forms=[{
+    answer = вызвать(сервер, "forms_check", repo=выгрузка, forms=[{
         "форма": ФОРМА, "код": {"модуль": "ОбщийМодуль.мой_ПробаФормы"},
         "реквизиты": [{"имя": "мой_Флаг", "тип": "Булево"}],
         "команды": [{"имя": "мой_Обновить"}],
         "элементы": [{"вид": "ПолеФлажка", "имя": "мой_Флаг", "путь": "мой_Флаг",
                       "обработчики": {"ПриИзменении": True}}]}])
-    assert not ответ.startswith("ОТКАЗ"), ответ
-    assert "@ПриИзменении=Подключаемый_мой_ФлагПриИзменении" in ответ, ответ
-    assert "=мой_ФлагПриИзменении" not in ответ, ответ
-    assert "команда мой_Обновить -> Подключаемый_мой_Обновить" in ответ, ответ
-    assert 'Команда.Действие = "Подключаемый_мой_Обновить";' in ответ, ответ
-    assert "Процедура Подключаемый_мой_Обновить(" in ответ, ответ
+    assert not answer.startswith("ОТКАЗ"), answer
+    assert "@ПриИзменении=Подключаемый_мой_ФлагПриИзменении" in answer, answer
+    assert "=мой_ФлагПриИзменении" not in answer, answer
+    assert "команда мой_Обновить -> Подключаемый_мой_Обновить" in answer, answer
+    assert 'Команда.Действие = "Подключаемый_мой_Обновить";' in answer, answer
+    assert "Процедура Подключаемый_мой_Обновить(" in answer, answer
 
 
 def test_show_narrows_a_typical_form_to_one_branch():
@@ -966,11 +966,11 @@ def test_show_narrows_a_typical_form_to_one_branch():
                                        "ФормаДокумента", "Ext", "Form.xml")):
         pytest.skip("не задана выгрузка META_CORPUS")
     сервер = mcp_server(roots=[SRC])
-    ответ = вызвать(сервер, "show", repo=SRC, address=АВАНСОВЫЙ, element="ГруппаШапкаПравая")
-    assert "Ветка «ГруппаШапкаПравая»: ГруппаШапка › ГруппаШапкаПравая" in ответ, ответ
-    assert "ЦеныИВалюта (ПолеНадписи)" in ответ and "Организация (ПолеВвода)" in ответ, ответ
-    assert "ГруппаСтраницы" not in ответ and "Реквизиты:" not in ответ, ответ
-    assert len(ответ.splitlines()) < 20, ответ
+    answer = вызвать(сервер, "show", repo=SRC, address=АВАНСОВЫЙ, element="ГруппаШапкаПравая")
+    assert "Ветка «ГруппаШапкаПравая»: ГруппаШапка › ГруппаШапкаПравая" in answer, answer
+    assert "ЦеныИВалюта (ПолеНадписи)" in answer and "Организация (ПолеВвода)" in answer, answer
+    assert "ГруппаСтраницы" not in answer and "Реквизиты:" not in answer, answer
+    assert len(answer.splitlines()) < 20, answer
     мимо = вызвать(сервер, "show", repo=SRC, address=АВАНСОВЫЙ, element="ГруппаШапкаПрав")
     assert "элемента «ГруппаШапкаПрав» на форме нет; похожие: ГруппаШапкаПравая" in мимо, мимо
     assert "без «element»" in мимо, мимо
@@ -986,8 +986,8 @@ def test_the_ready_edits_say_who_puts_the_indent(выгрузка):
     """Вызов в готовых правках — без отступа, и заголовок блока говорит, что
     отступ ставит инструмент: иначе неясно, ставить ли табуляцию самому."""
     сервер = форма_с_модулем(выгрузка)
-    ответ = вызвать(сервер, "forms_check", repo=выгрузка, forms=[надпись("мой_Чеки")])
-    assert "отступ вызова до уровня места ставит инструмент" in ответ, ответ
+    answer = вызвать(сервер, "forms_check", repo=выгрузка, forms=[надпись("мой_Чеки")])
+    assert "отступ вызова до уровня места ставит инструмент" in answer, answer
 
 
 def test_object_names_cannot_lead_outside_the_dump(выгрузка):
@@ -1012,18 +1012,18 @@ def test_object_names_cannot_lead_outside_the_dump(выгрузка):
 
 def test_tool_schemas_stay_within_the_budget():
     import json
-    инструменты = asyncio.run(mcp_server(roots=[]).list_tools())
+    tools = asyncio.run(mcp_server(roots=[]).list_tools())
     размер = sum(len(ii.description or "") + len(json.dumps(ii.inputSchema, ensure_ascii=False))
-                 for ii in инструменты)
+                 for ii in tools)
     assert размер <= БЮДЖЕТ_СХЕМ, размер
 
 
 def test_an_apply_schema_refers_to_its_check_and_has_no_pydantic_noise():
     import json
-    инструменты = {ii.name: ii for ii in asyncio.run(mcp_server(roots=[]).list_tools())}
-    record = инструменты["metadata_apply"].inputSchema
+    tools = {ii.name: ii for ii in asyncio.run(mcp_server(roots=[]).list_tools())}
+    record = tools["metadata_apply"].inputSchema
     assert "$defs" not in record
     assert record["properties"]["objects"] == {"description": "то же, что «objects» у metadata_check"}
-    text = json.dumps([ii.inputSchema for ii in инструменты.values()], ensure_ascii=False)
+    text = json.dumps([ii.inputSchema for ii in tools.values()], ensure_ascii=False)
     assert '"title"' not in text
     assert ', {"type": "null"}]' not in text and '[{"type": "null"}' not in text      # anyOf с null

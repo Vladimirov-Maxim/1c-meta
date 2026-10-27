@@ -165,12 +165,12 @@ def test_a_common_module_is_created_in_the_extension_beside_its_neighbours(ра�
     (блок `extension`, заимствованные объекты) не тронуто; проверка правок
     записанное принимает."""
     реестр_до = прочитать(расширение, "Configuration/Configuration.mdo")
-    задание = {"repo": str(расширение),
+    job_spec = {"repo": str(расширение),
                "objects": [{"вид": "ОбщийМодуль", "поля": {
                    "имя": "ОМ_мой_Проба", "синоним": "Проба", "сервер": True,
                    "текст": "Процедура Проба() Экспорт\nКонецПроцедуры\n"}}]}
     path = tmp_path / "задание.json"
-    path.write_text(json.dumps(задание, ensure_ascii=False), encoding="utf-8")
+    path.write_text(json.dumps(job_spec, ensure_ascii=False), encoding="utf-8")
     assert main([str(path), "--apply", "--профиль", профиль]) == 0
 
     card = прочитать(расширение, "CommonModules/ОМ_мой_Проба/ОМ_мой_Проба.mdo")
@@ -186,10 +186,10 @@ def test_a_common_module_is_created_in_the_extension_beside_its_neighbours(ра�
     neighbour = "  <commonModules>CommonModule.ЮТест</commonModules>\r\n".encode()
     assert registry == реестр_до.replace(neighbour, neighbour + line)
 
-    ответ = tmp_path / "ответ.json"
+    answer = tmp_path / "ответ.json"
     capsys.readouterr()
-    main(["--проверить", str(расширение), "--задача", "TASK-1", "--профиль", профиль, "--json", str(ответ)])
-    data = json.loads(ответ.read_text(encoding="utf-8"))
+    main(["--проверить", str(расширение), "--задача", "TASK-1", "--профиль", профиль, "--json", str(answer)])
+    data = json.loads(answer.read_text(encoding="utf-8"))
     assert data["находки"] == [], capsys.readouterr().out
 
 

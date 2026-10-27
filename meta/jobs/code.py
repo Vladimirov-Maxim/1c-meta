@@ -124,11 +124,11 @@ def code_job_from_json(job):
     move = _move(job["move_method"]) if job.get("move_method") else None
     # Откату нужна только задача — чьи вставки снимать; дату и автора у него
     # не спрашивают.
-    только_откат = move is None and modules and all(
+    revert_only = move is None and modules and all(
         m.revert and not m.edits and m.rename is None for m in modules)
     # Недостающие — все разом: отказ по одному звал бы на второй круг ради
     # второго поля.
-    missing = [key for key in (("task",) if только_откат else ("task", "date", "author"))
+    missing = [key for key in (("task",) if revert_only else ("task", "date", "author"))
            if not job.get(key)]
     if missing:
         raise Refuse("в задании на код " + ("нужно поле " if len(missing) == 1 else "нужны поля ")

@@ -35,12 +35,12 @@ class ChangePropertyUseCase:
         """`changes` — пары (путь, поля). Путь: [(вид, имя), …] от объекта вглубь."""
         per_object = []
         resolved = []
-        разницы = []
+        diffs = []
         for path, fields in changes:
-            fields, перечни = self._lists(path, fields)
-            fields, texts, разница = self._texts(path, fields)
-            перечни += texts
-            разницы += разница
+            fields, list_edits = self._lists(path, fields)
+            fields, texts, diff = self._texts(path, fields)
+            list_edits += texts
+            diffs += diff
             resolved.append((path, fields))
             target_kind, target_name = path[-1]
             # Хозяин — весь адрес до цели, а не только ближайшая пара: вид
@@ -52,14 +52,14 @@ class ChangePropertyUseCase:
             kind = kind_of(target_kind, self.conventions)
             spec = _spec(target_kind, target_name, fields)
             per_object.append((spec, kind.check_change(fields, host)
-                               + self._related(kind, path, fields) + перечни))
+                               + self._related(kind, path, fields) + list_edits))
         # соглашения команды: выключенные правила — прочь, уровни — из профиля
         per_object = [(x, self.conventions.apply(f)) for x, f in per_object]
         if any(f.blocking for _, findings in per_object for f in findings):
             return Result(per_object)
 
         plan = self.platform.prepare_changes(resolved)
-        for line in разницы:
+        for line in diffs:
             plan.note(line)
         written = plan.apply() if apply_now else []
         return Result(per_object, plan, written)
@@ -70,15 +70,15 @@ class ChangePropertyUseCase:
         для показа: ради неё правку фрагментом и затевают."""
         import difflib
 
-        правки = {f: v for f, v in fields.items() if isinstance(v, TextEdit)}
-        if not правки:
+        edit_jobs = {f: v for f, v in fields.items() if isinstance(v, TextEdit)}
+        if not edit_jobs:
             return fields, [], []
-        записано, _ = self.platform.read_spec(path)
-        ready, findings, разница = dict(fields), [], []
+        written_as, _ = self.platform.read_spec(path)
+        ready, findings, diff = dict(fields), [], []
         address = ".".join(f"{kind}.{name}" for kind, name in path)
-        for field, правка in правки.items():
-            before = записано.fields.get(field) or ""
-            after_, problems = правка.applied(before)
+        for field, edit_job in edit_jobs.items():
+            before = written_as.fields.get(field) or ""
+            after_, problems = edit_job.applied(before)
             findings += [Finding("ТЕКСТ-ЯКОРЬ", problem, field) for problem in problems]
             if after_ is None:
                 ready.pop(field)
@@ -87,10 +87,10 @@ class ChangePropertyUseCase:
             findings += [Finding("ТЕКСТ-СКОБКИ", x, field) for x in errors]
             findings += [Finding("ТЕКСТ-ПАКЕТ", x, field, Finding.WARNING) for x in warnings]
             ready[field] = after_
-            разница.append(f"{address}: «{field}» правится фрагментами ({правка}):")
-            разница += ["    " + x.rstrip("\n") for x in difflib.unified_diff(
+            diff.append(f"{address}: «{field}» правится фрагментами ({edit_job}):")
+            diff += ["    " + x.rstrip("\n") for x in difflib.unified_diff(
                 before.split("\n"), after_.split("\n"), lineterm="", n=1)][2:]
-        return ready, findings, разница
+        return ready, findings, diff
 
     def _lists(self, path, fields):
         """Правки полей-перечней -> перечни целиком, сведённые с записанным.
@@ -98,15 +98,15 @@ class ChangePropertyUseCase:
         Добавляемое проверяется так же, как при создании объекта (существует
         ли, того ли вида): находки вида берутся только по этому полю и только
         по добавленному — записанное раньше не судится заново."""
-        правки = {f: v for f, v in fields.items() if isinstance(v, ListEdit)}
-        if not правки:
+        edit_jobs = {f: v for f, v in fields.items() if isinstance(v, ListEdit)}
+        if not edit_jobs:
             return fields, []
-        записано, _ = self.platform.read_spec(path)
+        written_as, _ = self.platform.read_spec(path)
         kind = kind_of(path[-1][0], self.conventions)
         ready, findings = dict(fields), []
-        for field, правка in правки.items():
-            before = list(записано.fields.get(field) or [])
-            new, already, missing = правка.applied(before)
+        for field, edit_job in edit_jobs.items():
+            before = list(written_as.fields.get(field) or [])
+            new, already, missing = edit_job.applied(before)
             for x in missing:
                 findings.append(Finding(
                     "ПЕРЕЧЕНЬ-УБРАТЬ-НЕТ",
@@ -116,18 +116,18 @@ class ChangePropertyUseCase:
                     "ПЕРЕЧЕНЬ-УЖЕ-ЕСТЬ",
                     f"«{x}» в «{field}» уже есть — второй раз не добавляется",
                     field, Finding.WARNING))
-            добавлено = правка.added(before)
-            if добавлено:
+            added_count = edit_job.added(before)
+            if added_count:
                 findings += [f for f in kind.own_findings(
-                    Spec(kind.name, {field: добавлено}), self.platform)
+                    Spec(kind.name, {field: added_count}), self.platform)
                     if f.field == field]
-            if правка.replace is not None:
-                ушло = [x for x in before if x not in new]
-                if ушло:
+            if edit_job.replace is not None:
+                went = [x for x in before if x not in new]
+                if went:
                     findings.append(Finding(
                         "ПЕРЕЧЕНЬ-ЗАМЕНА",
-                        f"«{field}» заменяется целиком; уходит {len(ушло)}: "
-                        + ", ".join(ушло[:10]) + (" …" if len(ушло) > 10 else ""),
+                        f"«{field}» заменяется целиком; уходит {len(went)}: "
+                        + ", ".join(went[:10]) + (" …" if len(went) > 10 else ""),
                         field, Finding.WARNING))
             ready[field] = new
         return ready, findings
@@ -137,8 +137,8 @@ class ChangePropertyUseCase:
         у объекта уже записано. Нет таких полей в правке — выгрузка не читается."""
         if not any(set(group) & set(fields) for group in kind.RELATED):
             return []
-        записано, _ = self.platform.read_spec(path)
-        obj = Spec(записано.kind, {**записано.fields, **fields})
+        written_as, _ = self.platform.read_spec(path)
+        obj = Spec(written_as.kind, {**written_as.fields, **fields})
         return kind.related_findings(obj, self.platform, fields)
 
 

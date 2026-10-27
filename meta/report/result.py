@@ -5,54 +5,54 @@ import json
 
 from ..domain.forms import FormEdits, form_module_address
 from ..domain.model import presentation
-from . import БЕЗ_КАНАЛА
+from . import NO_CHANNEL
 from .forms import describe_form
 from .objects import describe
 
 
-def result_lines(result, принято=(), detailed=False, apply_now=False,
-                 подсказки=БЕЗ_КАНАЛА, куда_код=None, files=False):
+def result_lines(result, accepted=(), detailed=False, apply_now=False,
+                 hints=NO_CHANNEL, code_destination=None, files=False):
     """Ответ на задание целиком.
 
     `принято` — коды предупреждений, принятых в задании осознанно;
-    `куда_код` — {адрес формы: строка о том, куда канал положил фрагмент кода}
+    `code_destination` — {адрес формы: строка о том, куда канал положил фрагмент кода}
     (у терминала это файл рядом с заданием, у MCP фрагмент живёт в самом
     ответе). Что было записано на диск, знает результат, а не рендер.
     `файлы` — показать тексты, которые будут записаны: новые целиком,
     изменённые — разницей с текущими.
     """
     lines = []
-    пиши = lines.append
+    emit = lines.append
     # Предупреждение, принятое осознанно, помечается принятым, а не
     # повторяется при каждом запуске вперемешку с новыми. Ошибку принять
     # нельзя: она про то, что платформа не возьмёт, и договориться тут не
     # с кем. Список кодов — в самом задании, чтобы решение хранилось рядом
     # с тем, к чему относится, а не в памяти запускающего.
-    принято = set(принято or ())
-    непринятые = [kk for kk in принято
+    accepted = set(accepted or ())
+    not_accepted = [kk for kk in accepted
                   if not any(f.code == kk and not f.blocking
                              for _, obj_findings in result.per_object for f in obj_findings)]
-    if непринятые:
-        пиши("в «принято» коды, которых нет среди предупреждений: "
-             + ", ".join(sorted(непринятые)))
+    if not_accepted:
+        emit("в «принято» коды, которых нет среди предупреждений: "
+             + ", ".join(sorted(not_accepted)))
     for spec, findings in result.per_object:
         if isinstance(spec, FormEdits):
-            если_новая = (f" — создать ({spec.create.assignment}"
+            if_new = (f" — создать ({spec.create.assignment}"
                           f"{', основная' if spec.create.default else ''})"
                           if spec.create else "")
-            пиши(f"Форма {spec.address}{если_новая}")
+            emit(f"Форма {spec.address}{if_new}")
         else:
-            пиши(f"{spec.kind} {presentation(spec)}")
+            emit(f"{spec.kind} {presentation(spec)}")
         for finding in findings:
-            если_принято = finding.code in принято and not finding.blocking
-            level = "принято" if если_принято else finding.level
-            пиши(f"   {level:<14} {finding}")
+            if_accepted = finding.code in accepted and not finding.blocking
+            level = "принято" if if_accepted else finding.level
+            emit(f"   {level:<14} {finding}")
         if not findings:
-            пиши("   замечаний нет")
+            emit("   замечаний нет")
         if isinstance(spec, FormEdits):
             lines.extend(describe_form(spec))
         else:
-            describe(spec, detailed=detailed, подсказки=подсказки, lines=lines)
+            describe(spec, detailed=detailed, hints=hints, lines=lines)
 
     if not result.ok:
         # Счёт назван словами: голое «(1)» не говорит, одна это ошибка или
@@ -60,12 +60,12 @@ def result_lines(result, принято=(), detailed=False, apply_now=False,
         how_many = f"ошибок {len(result.errors)}"
         if result.warnings:
             how_many += f", предупреждений {len(result.warnings)}"
-        объектов = len({id(spec) for spec, obj_findings in result.per_object
+        object_count = len({id(spec) for spec, obj_findings in result.per_object
                         if any(f.blocking for f in obj_findings)})
         if len(result.per_object) > 1:
             # Счёт — по объектам, считая порождённые заданием (атомарные роли):
             # «1 из 3 пунктов» при одном пункте задания сбивает с толку.
-            how_many += (f"; с ошибками — {объектов} из {len(result.per_object)} объектов, "
+            how_many += (f"; с ошибками — {object_count} из {len(result.per_object)} объектов, "
                         "считая порождённые заданием")
         # Первой строкой и словом «ОТКАЗ», как у отказа задания: так его находит
         # поиск по «ОТКАЗ:», а «НЕ ВЫПОЛНЕНО» у просмотра звучало бы странно —
@@ -75,30 +75,30 @@ def result_lines(result, принято=(), detailed=False, apply_now=False,
                       + "; находки ниже")
         return lines
 
-    правки = {spec.address: spec for spec, _ in result.per_object if isinstance(spec, FormEdits)}
-    название, purpose = getattr(result, "code_language", None) or ("Код доработки формы", "")
+    edit_jobs = {spec.address: spec for spec, _ in result.per_object if isinstance(spec, FormEdits)}
+    title_text, purpose = getattr(result, "code_language", None) or ("Код доработки формы", "")
     for address, text in (getattr(result, "code", None) or {}).items():
         # Готовая процедура с настоящими табуляциями, вызов и адрес модуля
         # формы: без них приходится угадывать, куда класть фрагмент и что такое
         # «Форма» (в обработчике модуля формы её нет), набирать табуляции руками
         # и искать адрес модуля для задания на код.
-        edits = правки.get(address)
+        edits = edit_jobs.get(address)
         procedure = (edits.code_procedure_name if edits
                      else f"{address.split('.')[-1]}_ПриСозданииНаСервере")
         module = edits.code_module_name if edits else None
-        модуль_формы = form_module_address(address)
-        места = (getattr(result, "code_places", None) or {}).get(address) or []
-        what = {м.what: м for м in места}
+        form_module = form_module_address(address)
+        places = (getattr(result, "code_places", None) or {}).get(address) or []
+        what = {mm.what: mm for mm in places}
         call = f"{module or '<Модуль>'}.{procedure}(ЭтотОбъект);"
         if "дополнение" in what:
             # Процедура доработки уже есть: в неё дописывается код — вторая
             # процедура задвоила бы доработку.
             extension = what["дополнение"]
             place = extension.where or "код перед её «КонецПроцедуры»"
-            пиши(f"\n{название} для «{address}» — дополнение процедуры «{procedure}» "
+            emit(f"\n{title_text} для «{address}» — дополнение процедуры «{procedure}» "
                  f"общего модуля «ОбщийМодуль.{module}»: {place} (строка {extension.line}). "
-                 f"Внести с метками — {подсказки.code}.")
-            пиши("")
+                 f"Внести с метками — {hints.code}.")
+            emit("")
             # Пустая строка после дописанного кода — как между блоками в процедуре:
             # внутри своей вставки разделителей инструмент не ставит, и без неё
             # код лёг бы вплотную к строке, перед которой его дописывают.
@@ -107,11 +107,11 @@ def result_lines(result, принято=(), detailed=False, apply_now=False,
         else:
             destination = (f"общего модуля «ОбщийМодуль.{module}»" if module
                     else "своего общего модуля")
-            пиши(f"\n{название} для «{address}» — процедура для {destination} "
+            emit(f"\n{title_text} для «{address}» — процедура для {destination} "
                  "(в область, где у модуля лежит его программный интерфейс или обработчики "
-                 f"форм) и вызов её в конце ПриСозданииНаСервере модуля формы «{модуль_формы}». "
-                 f"Внести с метками — {подсказки.code}.")
-            пиши("")
+                 f"форм) и вызов её в конце ПриСозданииНаСервере модуля формы «{form_module}». "
+                 f"Внести с метками — {hints.code}.")
+            emit("")
             # Описание — как у любого метода программного интерфейса: иначе
             # его пришлось бы дописывать самому. Без длинного тире: в BSL
             # его отвергает bsl-ls (InvalidCharacterInFile), а стояло бы оно в
@@ -136,78 +136,78 @@ def result_lines(result, принято=(), detailed=False, apply_now=False,
             ]
         lines.extend(code)
         if "вызов есть" not in what:
-            пиши("")
-            пиши(f"Вызов в ПриСозданииНаСервере формы:  {call}")
-        for пояснение in (getattr(result, "code_notes", None) or {}).get(address) or []:
-            пиши(f"   {пояснение}")
-        процедура_есть = "процедура" in what or "дополнение" in what
-        вызов_есть = "вызов" in what or "вызов есть" in what
-        if module and процедура_есть and вызов_есть:
-            lines.extend(готовые_правки(места, "\n".join(code), call, подсказки))
-        обработчики = (getattr(result, "handlers", None) or {}).get(address) or []
-        if обработчики:
+            emit("")
+            emit(f"Вызов в ПриСозданииНаСервере формы:  {call}")
+        for explanation in (getattr(result, "code_notes", None) or {}).get(address) or []:
+            emit(f"   {explanation}")
+        procedure_exists = "процедура" in what or "дополнение" in what
+        call_exists = "вызов" in what or "вызов есть" in what
+        if module and procedure_exists and call_exists:
+            lines.extend(ready_edits(places, "\n".join(code), call, hints))
+        handlers = (getattr(result, "handlers", None) or {}).get(address) or []
+        if handlers:
             # Имена — те же, что в коде формы (приставка «Подключаемый_»),
             # сигнатуры — по корпусу: иначе процедуру пришлось бы угадывать.
-            пиши(f"\nПроцедуры-обработчики — в модуль формы «{модуль_формы}», тоже с метками:")
-            for where, name, directive, parameters in обработчики:
-                пиши(f"   {directive} Процедура {name}({parameters})   — {where}")
-        if куда_код and address in куда_код:
-            пиши(куда_код[address])
+            emit(f"\nПроцедуры-обработчики — в модуль формы «{form_module}», тоже с метками:")
+            for where, name, directive, parameters in handlers:
+                emit(f"   {directive} Процедура {name}({parameters})   — {where}")
+        if code_destination and address in code_destination:
+            emit(code_destination[address])
 
     if result.plan is None:
         if apply_now and getattr(result, "code", None):
             # С «код»: true запись не пишет ничего, и сказать это надо прямо:
             # иначе вывод ничем не отличается от просмотра.
-            пиши("\nЗаписи нет: типовая форма в XML не правится — внесите код заданием на код.")
+            emit("\nЗаписи нет: типовая форма в XML не правится — внесите код заданием на код.")
         elif getattr(result, "code", None):
             # Порядок «просмотр, затем запись» подталкивает вызвать запись и
             # здесь, хотя писать в XML нечего.
-            пиши("\nЗапись формы не нужна: с «код» в XML не пишется ничего — код вносится "
-                 f"заданием на код ({подсказки.code}).")
+            emit("\nЗапись формы не нужна: с «код» в XML не пишется ничего — код вносится "
+                 f"заданием на код ({hints.code}).")
         return lines
-    пиши("\nПлан:")
+    emit("\nПлан:")
     for line in result.plan.describe():
-        пиши("   " + line)
+        emit("   " + line)
     if files and not apply_now:
-        lines.extend(тексты_файлов(result.plan))
+        lines.extend(file_texts(result.plan))
     if apply_now:
-        пиши(f"\nЗаписано файлов: {len(result.written)}")
-        пиши("ConfigDumpInfo.xml не изменялся — его пересоберёт платформа.")
+        emit(f"\nЗаписано файлов: {len(result.written)}")
+        emit("ConfigDumpInfo.xml не изменялся — его пересоберёт платформа.")
     else:
-        пиши(f"\nПросмотр: ничего не записано. Для записи {подсказки.записать}.")
+        emit(f"\nПросмотр: ничего не записано. Для записи {hints.write}.")
     return lines
 
 
-def тексты_файлов(plan):
+def file_texts(plan):
     """Что окажется в файлах: новые — целиком, изменённые — разницей.
 
     По плану из одних размеров не проверить, то ли запишется, не записав и
     не открыв файл.
     """
-    texts, с_uuid = [], False
-    for path, before, станет in plan.contents():
-        if станет is None:
+    texts, with_uuid = [], False
+    for path, before, becomes in plan.contents():
+        if becomes is None:
             texts.append(f"\n── удалить {path}")
         elif before is None:
             texts.append(f"\n── создать {path}:")
-            texts.extend("   " + line for line in станет.splitlines())
-            с_uuid = с_uuid or 'uuid="' in станет
+            texts.extend("   " + line for line in becomes.splitlines())
+            with_uuid = with_uuid or 'uuid="' in becomes
         else:
             texts.append(f"\n── изменить {path}:")
-            разница = list(difflib.unified_diff(before.splitlines(), станет.splitlines(),
+            diff = list(difflib.unified_diff(before.splitlines(), becomes.splitlines(),
                                                 lineterm="", n=2))[2:]
-            texts.extend("   " + line for line in разница)
-            с_uuid = с_uuid or any(ss.startswith("+") and 'uuid="' in ss for ss in разница)
-            if not разница:
+            texts.extend("   " + line for line in diff)
+            with_uuid = with_uuid or any(ss.startswith("+") and 'uuid="' in ss for ss in diff)
+            if not diff:
                 texts.append("   (текст тот же)")
     # Показ выглядит как точный diff, а uuid в нём не те, что запишутся: сверка
     # с записанным нашла бы расхождение. Оговорка — только когда новые uuid в
     # показанном есть: у правки формы их нет.
     return (["\nТексты файлов (uuid новых объектов порождаются при каждом вызове — "
-             "в записи они будут другими):"] if с_uuid else ["\nТексты файлов:"]) + texts
+             "в записи они будут другими):"] if with_uuid else ["\nТексты файлов:"]) + texts
 
 
-def готовые_правки(места, procedure, call, подсказки):
+def ready_edits(places, procedure, call, hints):
     """Правки задания на код по местам кода формы — готовым текстом.
 
     Иначе двадцать строк процедуры, номера строк и тексты якорей пришлось бы
@@ -217,11 +217,11 @@ def готовые_правки(места, procedure, call, подсказки)
     ставить ли табуляцию самому.
     """
     code = {"процедура": procedure, "дополнение": procedure, "вызов": call}
-    modules = [{подсказки.ключ_модуля: м.module,
-               "edits": [{"line": м.line, "lines": 0, "first_line": м.anchor,
-                          "code": code[м.what]}]}
-              for м in места if м.what in code]
-    lines = [f"\nГотовые правки для задания на код ({подсказки.code}) — «modules» как есть, "
+    modules = [{hints.module_key: mm.module,
+               "edits": [{"line": mm.line, "lines": 0, "first_line": mm.anchor,
+                          "code": code[mm.what]}]}
+              for mm in places if mm.what in code]
+    lines = [f"\nГотовые правки для задания на код ({hints.code}) — «modules» как есть, "
               "task, date и author — свои; номера строк — по файлам сейчас; отступ "
               "вызова до уровня места ставит инструмент:",
               '{"modules": [']

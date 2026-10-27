@@ -43,9 +43,9 @@ repeatPeriodInDay="3600" weeksPeriod="1">
 """
 
 
-def выполнить(src, tmp_path, **задание):
+def выполнить(src, tmp_path, **job_spec):
     path = tmp_path / "задание.json"
-    path.write_text(json.dumps({"repo": str(src), **задание}, ensure_ascii=False), encoding="utf-8")
+    path.write_text(json.dumps({"repo": str(src), **job_spec}, ensure_ascii=False), encoding="utf-8")
     return main([str(path), "--apply", "--профиль", ПРОФИЛЬ])
 
 
@@ -54,10 +54,10 @@ def file(src):
 
 
 def test_a_scheduled_job_is_created_with_its_schedule(проект, tmp_path):
-    задание = json.loads(json.dumps(ЗАДАНИЕ))
-    задание["поля"]["расписание"] = РАСПИСАНИЕ
+    job_spec = json.loads(json.dumps(ЗАДАНИЕ))
+    job_spec["поля"]["расписание"] = РАСПИСАНИЕ
     assert выполнить(проект, tmp_path, objects=[МОДУЛЬ]) == 0
-    assert выполнить(проект, tmp_path, objects=[задание]) == 0
+    assert выполнить(проект, tmp_path, objects=[job_spec]) == 0
     assert open(file(проект), "rb").read() == ОЖИДАНИЕ.encode("utf-8")
 
 
@@ -74,11 +74,11 @@ def test_the_schedule_is_changed_and_shown(проект, tmp_path, capsys):
 
 
 def test_a_wrong_schedule_is_refused(проект, tmp_path, capsys):
-    задание = json.loads(json.dumps(ЗАДАНИЕ))
-    задание["поля"]["расписание"] = {"дниНедели": ["Пн"], "времяНачала": "25:00:00", "частота": 1}
+    job_spec = json.loads(json.dumps(ЗАДАНИЕ))
+    job_spec["поля"]["расписание"] = {"дниНедели": ["Пн"], "времяНачала": "25:00:00", "частота": 1}
     assert выполнить(проект, tmp_path, objects=[МОДУЛЬ]) == 0
     capsys.readouterr()
-    assert выполнить(проект, tmp_path, objects=[задание]) != 0
+    assert выполнить(проект, tmp_path, objects=[job_spec]) != 0
     text = capsys.readouterr().out
     assert "РАСПИСАНИЕ-НЕВЕРНО" in text and "частота" in text and "Понедельник" in text
 

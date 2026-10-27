@@ -58,9 +58,9 @@ def apply(src, tmp_path, forms=False):
         if not name.endswith(".json") or ("-форма-" in name and not forms):
             continue
         with open(os.path.join(ЗАДАНИЯ, name), encoding="utf-8") as f:
-            задание = json.loads(f.read().replace("{repo}", str(src).replace("\\", "/")))
+            job_spec = json.loads(f.read().replace("{repo}", str(src).replace("\\", "/")))
         path = tmp_path / name
-        path.write_text(json.dumps(задание, ensure_ascii=False), encoding="utf-8")
+        path.write_text(json.dumps(job_spec, ensure_ascii=False), encoding="utf-8")
         assert main([str(path), "--apply", "--профиль", ПРОФИЛЬ]) == 0, name
 
 
@@ -108,11 +108,11 @@ def test_what_the_edt_platform_writes_verify_accepts(проект, tmp_path):
     git("add", "-A")
     git("commit", "-q", "-m", "база")
     apply(проект, tmp_path)
-    ответ = tmp_path / "ответ.json"
-    main(["--проверить", str(проект), "--задача", "ОРАКУЛ-1", "--профиль", ПРОФИЛЬ, "--json", str(ответ)])
-    data = json.loads(ответ.read_text(encoding="utf-8"))
-    коды = {f["код"] for f in data["находки"]}
-    assert коды <= {"ПРАВА-НЕ-ВЫДАНЫ"}, data["находки"]
+    answer = tmp_path / "ответ.json"
+    main(["--проверить", str(проект), "--задача", "ОРАКУЛ-1", "--профиль", ПРОФИЛЬ, "--json", str(answer)])
+    data = json.loads(answer.read_text(encoding="utf-8"))
+    codes = {f["код"] for f in data["находки"]}
+    assert codes <= {"ПРАВА-НЕ-ВЫДАНЫ"}, data["находки"]
     assert data["источник"].startswith("проект EDT")
 
 

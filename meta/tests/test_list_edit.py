@@ -24,7 +24,7 @@ from meta.jobs import dialect  # noqa: E402
 ПРОФИЛЬ = os.path.join(ROOT, "meta", "tests", "профиль-тестов.json")
 
 
-def задание(tmp_path, data):
+def job_spec(tmp_path, data):
     path = tmp_path / "задание.json"
     path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
     return [str(path), "--apply", "--профиль", ПРОФИЛЬ]
@@ -44,7 +44,7 @@ def выгрузка(tmp_path):
     objects.append({"вид": "Подсистема", "поля": {
         "имя": "мой_Раздел", "синоним": "Раздел", "включатьСправкуВСодержание": False,
         "включатьВКомандныйИнтерфейс": True, "состав": ["Справочник.мой_А", "Справочник.мой_Б"]}})
-    assert main(задание(tmp_path, {"repo": str(root), "objects": objects})) == 0
+    assert main(job_spec(tmp_path, {"repo": str(root), "objects": objects})) == 0
     return root
 
 
@@ -53,7 +53,7 @@ def composition(root):
     return [line.strip() for line in text.splitlines() if "<xr:Item" in line]
 
 
-def правка(root, field):
+def edit_job(root, field):
     return {"repo": str(root), "changes": [{"путь": "Подсистема.мой_Раздел", "поля": {"состав": field}}]}
 
 
@@ -61,45 +61,45 @@ def test_a_bare_list_in_a_change_is_refused(выгрузка, tmp_path):
     """Голый список — отказ с подсказкой режимов; файл не тронут."""
     before = composition(выгрузка)
     with pytest.raises(Refuse, match="голый список заменил бы перечень целиком"):
-        main(задание(tmp_path, правка(выгрузка, ["Справочник.мой_В"])))
+        main(job_spec(tmp_path, edit_job(выгрузка, ["Справочник.мой_В"])))
     assert composition(выгрузка) == before
 
 
 def test_add_keeps_what_was_there(выгрузка, tmp_path):
     """«добавить» дописывает в конец; прежние объекты на месте."""
-    assert main(задание(tmp_path, правка(выгрузка, {"добавить": ["Справочник.мой_В"]}))) == 0
+    assert main(job_spec(tmp_path, edit_job(выгрузка, {"добавить": ["Справочник.мой_В"]}))) == 0
     assert [x.split(">")[1].split("<")[0] for x in composition(выгрузка)] == [
         "Catalog.мой_А", "Catalog.мой_Б", "Catalog.мой_В"]
 
 
 def test_remove_drops_only_what_is_named(выгрузка, tmp_path):
-    assert main(задание(tmp_path, правка(выгрузка, {"убрать": ["Справочник.мой_А"]}))) == 0
+    assert main(job_spec(tmp_path, edit_job(выгрузка, {"убрать": ["Справочник.мой_А"]}))) == 0
     assert [x.split(">")[1].split("<")[0] for x in composition(выгрузка)] == ["Catalog.мой_Б"]
 
 
 def test_removing_what_is_absent_is_an_error(выгрузка, tmp_path, capsys):
     before = composition(выгрузка)
-    assert main(задание(tmp_path, правка(выгрузка, {"убрать": ["Справочник.мой_В"]}))) != 0
+    assert main(job_spec(tmp_path, edit_job(выгрузка, {"убрать": ["Справочник.мой_В"]}))) != 0
     assert "ПЕРЕЧЕНЬ-УБРАТЬ-НЕТ" in capsys.readouterr().out
     assert composition(выгрузка) == before
 
 
 def test_an_added_object_must_exist(выгрузка, tmp_path, capsys):
     """Добавляемое проверяется, как при создании: несуществующего — нельзя."""
-    assert main(задание(tmp_path, правка(выгрузка, {"добавить": ["Справочник.мой_Нет"]}))) != 0
+    assert main(job_spec(tmp_path, edit_job(выгрузка, {"добавить": ["Справочник.мой_Нет"]}))) != 0
     assert "ПОДСИСТЕМА-СОСТАВ-НЕТ" in capsys.readouterr().out
 
 
 def test_adding_what_is_there_is_a_warning_not_a_duplicate(выгрузка, tmp_path, capsys):
     before = composition(выгрузка)
-    assert main(задание(tmp_path, правка(выгрузка, {"добавить": ["Справочник.мой_А"]}))) == 0
+    assert main(job_spec(tmp_path, edit_job(выгрузка, {"добавить": ["Справочник.мой_А"]}))) == 0
     assert "ПЕРЕЧЕНЬ-УЖЕ-ЕСТЬ" in capsys.readouterr().out
     assert composition(выгрузка) == before
 
 
 def test_replace_is_explicit_and_names_what_leaves(выгрузка, tmp_path, capsys):
     """«заменить» — можно, но ответ называет, что уходит."""
-    assert main(задание(tmp_path, правка(выгрузка, {"заменить": ["Справочник.мой_В"]}))) == 0
+    assert main(job_spec(tmp_path, edit_job(выгрузка, {"заменить": ["Справочник.мой_В"]}))) == 0
     assert "уходит 2: Справочник.мой_А, Справочник.мой_Б" in capsys.readouterr().out
     assert [x.split(">")[1].split("<")[0] for x in composition(выгрузка)] == ["Catalog.мой_В"]
 

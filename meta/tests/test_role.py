@@ -172,9 +172,9 @@ def test_atomic_roles_come_in_a_pair_by_the_project_template(dump):
         assert "<name>Configuration.ПробнаяКонфигурация</name>" in rights
         assert "<name>MainWindowModeKiosk</name>" in rights
     # «Просмотр» без права на проведение — иначе пара ничем не отличалась бы
-    просмотр = open(os.path.join(dump, "Roles", "мой_атом_Документ_мой_Заявка_Просмотр",
+    preview = open(os.path.join(dump, "Roles", "мой_атом_Документ_мой_Заявка_Просмотр",
                                  "Ext", "Rights.xml"), encoding="utf-8-sig").read()
-    assert "<name>Posting</name>" not in просмотр
+    assert "<name>Posting</name>" not in preview
     registry = open(os.path.join(dump, "Configuration.xml"), encoding="utf-8-sig").read()
     assert registry.count("<Role>мой_атом_Документ_мой_Заявка_") == 2
 
@@ -187,7 +187,7 @@ def test_a_shown_role_carries_its_rights(dump):
     AtomicRolesUseCase(DesignerDump(dump), ТЕСТ).execute(
         [("Документ", "мой_Заявка", ["Просмотр"])], apply_now=True)
     spec, _ = DesignerDump(dump).read_spec([("Роль", "мой_атом_Документ_мой_Заявка_Просмотр")])
-    rights = {выдача["объект"]: выдача["права"] for выдача in spec.get("права")}
+    rights = {grant["объект"]: grant["права"] for grant in spec.get("права")}
     assert rights["Документ.мой_Заявка"] == ["Чтение", "Просмотр", "ВводПоСтроке"]
     assert "РежимОсновногоОкнаКиоск" in rights["Конфигурация"]
     assert spec.get("праваРеквизитовПоУмолчанию") is True
@@ -395,8 +395,8 @@ def test_rights_are_written_in_the_canonical_order(dump):
     create(dump, role(права=[{"объект": "Справочник.мой_Цель",
                               "права": ["Просмотр", "Добавление", "Чтение",
                                         "ВводПоСтроке", "Изменение"]}]))
-    записано = re.findall(r"<right>\s*<name>(\w+)</name>", rights_of(dump))
-    assert записано == ["Read", "Insert", "Update", "View", "InputByString"]
+    written_as = re.findall(r"<right>\s*<name>(\w+)</name>", rights_of(dump))
+    assert written_as == ["Read", "Insert", "Update", "View", "InputByString"]
 
 
 def test_rights_order_covers_the_configuration():
@@ -451,9 +451,9 @@ def test_atomic_roles_need_the_team_scheme():
 
 
 def test_roles_are_named_by_the_team_scheme():
-    (просмотр, _), (изменение, _) = atomic_roles.roles_for(
+    (preview, _), (изменение, _) = atomic_roles.roles_for(
         "РегистрСведений", "Лимиты", "Лимиты оплат", schema=ИХ)
-    assert просмотр.get("имя") == "их_РегистрСведений_Лимиты_Просмотр"
+    assert preview.get("имя") == "их_РегистрСведений_Лимиты_Просмотр"
     assert изменение.get("синоним") == "Атом Регистр сведений: Лимиты оплат (Изменение)"
     (короткая, _), = atomic_roles.roles_for("Документ", "ОченьДлинноеИмя", "Длинное",
                                             ["Просмотр"], "Короткое", schema=ИХ)
