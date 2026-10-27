@@ -88,39 +88,39 @@ def корпус_форм():
     from lxml import etree
 
     дерево = LxmlCardTree()
-    итог = {"форм": 0, "побайтно": 0, "разошлись": [], "чужие_виды": set(),
+    result = {"форм": 0, "побайтно": 0, "разошлись": [], "чужие_виды": set(),
             "спутников": 0, "спутники_выводятся": 0, "номера_подряд": 0}
     for каталог, _, файлы in os.walk(corpus.CORPUS):
         if os.path.basename(каталог) != "Ext" or "Form.xml" not in файлы:
             continue
-        путь = os.path.join(каталог, "Form.xml")
-        исходник = open(путь, encoding="utf-8-sig").read().replace("\r\n", "\n")
-        итог["форм"] += 1
+        path = os.path.join(каталог, "Form.xml")
+        исходник = open(path, encoding="utf-8-sig").read().replace("\r\n", "\n")
+        result["форм"] += 1
 
         разобранное = дерево.parse(исходник)
         if дерево.serialize(разобранное) == исходник:
-            итог["побайтно"] += 1
-        elif len(итог["разошлись"]) < 5:
-            итог["разошлись"].append(os.path.relpath(путь, corpus.CORPUS))
+            result["побайтно"] += 1
+        elif len(result["разошлись"]) < 5:
+            result["разошлись"].append(os.path.relpath(path, corpus.CORPUS))
 
         узел = дерево.to_node(разобранное)
-        итог["чужие_виды"] |= form.kinds_of(узел) - set(form.ЭЛЕМЕНТЫ)
+        result["чужие_виды"] |= form.kinds_of(узел) - set(form.ЭЛЕМЕНТЫ)
 
         for узел_xml in разобранное.iter():
             if not isinstance(узел_xml.tag, str):
                 continue
             if etree.QName(узел_xml).localname not in form.СПУТНИКИ:
                 continue
-            итог["спутников"] += 1
-            родитель = узел_xml.getparent().get("name") or ""
-            своё = узел_xml.get("name") or ""
-            if родитель and своё.startswith(родитель):
-                итог["спутники_выводятся"] += 1
+            result["спутников"] += 1
+            parent = узел_xml.getparent().get("name") or ""
+            is_own = узел_xml.get("name") or ""
+            if parent and is_own.startswith(parent):
+                result["спутники_выводятся"] += 1
 
-        номера = [int(н) for н in re.findall(r' id="(\d+)"', исходник)]
-        if номера and sorted(номера) == list(range(1, len(номера) + 1)):
-            итог["номера_подряд"] += 1
-    return итог
+        numbers = [int(н) for н in re.findall(r' id="(\d+)"', исходник)]
+        if numbers and sorted(numbers) == list(range(1, len(numbers) + 1)):
+            result["номера_подряд"] += 1
+    return result
 
 
 def test_every_form_of_the_configuration_survives_the_round_trip(корпус_форм):
@@ -143,10 +143,10 @@ def test_the_view_keeps_the_tree_and_the_bindings(узел):
     assert 'data-направление="Горизонтальная"' in html
     assert 'data-рамка="StrongSeparation"' in html
     # поле лежит внутри группы, а не рядом с ней
-    группа = html.index('data-рамка="StrongSeparation"')
-    поле = html.index('data-путь="СкладОтбор"')
-    закрытие = html.index("</div>", группа)
-    assert группа < поле < закрытие
+    group = html.index('data-рамка="StrongSeparation"')
+    field = html.index('data-путь="СкладОтбор"')
+    закрытие = html.index("</div>", group)
+    assert group < field < закрытие
 
 
 def test_a_caption_comes_from_the_form_attribute(узел):

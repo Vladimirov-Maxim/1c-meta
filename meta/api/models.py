@@ -238,10 +238,10 @@ def метаданные_в_язык_заданий(repo, операции, acce
     """Модели -> задание на метаданные словарём, с теми же ключами, что в файле
     для терминала. Пункт-строка (удаление, роли) остаётся строкой."""
     задание = {"repo": repo}
-    for ключ, пункты in операции.items():
+    for key, пункты in операции.items():
         if пункты:
-            задание[ключ] = [п if isinstance(п, str) else п.model_dump(exclude_none=True)
-                             for п in пункты]
+            задание[key] = [pt if isinstance(pt, str) else pt.model_dump(exclude_none=True)
+                             for pt in пункты]
     if accepted:
         задание["принято"] = list(accepted)
     return задание
@@ -337,10 +337,10 @@ class MethodMove(_Model):
     to_line: int = Field(description="строка приёмника, перед которой встанет метод")
 
 
-def код_в_язык_заданий(модули, перенос):
+def код_в_язык_заданий(modules, перенос):
     """Модели -> ключи задания на код, те же, что в файле для терминала."""
     задание = {"modules": []}
-    for м in модули:
+    for м in modules:
         данные = м.model_dump(by_alias=True, exclude_none=True)
         if "module" in данные:
             if "модуль" in данные:
@@ -379,6 +379,6 @@ class PlanObject(_Model):
                           "МодульМенеджераЗначения")
 
 
-def план_в_язык_плана(объекты):
+def план_в_язык_плана(objects):
     """Модели -> объекты плана словарями, теми же ключами, что в файле плана."""
-    return [о.model_dump(exclude_none=True) if hasattr(о, "model_dump") else о for о in объекты or ()]
+    return [ob.model_dump(exclude_none=True) if hasattr(ob, "model_dump") else ob for ob in objects or ()]

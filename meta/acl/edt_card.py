@@ -56,7 +56,7 @@ ENUM_WORDS = {
     "com._1c.g5.v8.dt.metadata.common.ApplicationUsePurpose": {
         "PlatformApplication": "PersonalComputer", "MobilePlatformApplication": "MobileDevice"},
 }
-ENUM_WORDS_BACK = {тип: {edt: выгр for выгр, edt in слова.items()} for тип, слова in ENUM_WORDS.items()}
+ENUM_WORDS_BACK = {type_: {edt: выгр for выгр, edt in слова.items()} for type_, слова in ENUM_WORDS.items()}
 
 
 def feature_name(tag):
@@ -79,31 +79,31 @@ class Translation:
 
     def card(self, root):
         """`MetaDataObject` выгрузки -> корень карточки EDT."""
-        вид = root.children[0] if root.tag == "MetaDataObject" else root
-        cls = MDCLASS + вид.tag
+        kind = root.children[0] if root.tag == "MetaDataObject" else root
+        cls = MDCLASS + kind.tag
         if edt_model.features(cls) is None:
-            self.problem(вид.tag, "вида нет в метамодели EDT")
+            self.problem(kind.tag, "вида нет в метамодели EDT")
         # атрибуты корня — все: у плана обмена кроме uuid есть и thisNode
-        узел = Node(f"mdclass:{вид.tag}", attrs={"uuid": вид.attrs.get("uuid", ""),
-                                                 **{k: v for k, v in вид.attrs.items() if k != "uuid"}})
-        self.fill(узел, вид, cls, вид.tag)
+        узел = Node(f"mdclass:{kind.tag}", attrs={"uuid": kind.attrs.get("uuid", ""),
+                                                 **{k: v for k, v in kind.attrs.items() if k != "uuid"}})
+        self.fill(узел, kind, cls, kind.tag)
         return узел
 
     def fill(self, target, source, cls, where):
         """Свойства и дети элемента выгрузки -> дети узла EDT в порядке метамодели."""
         собрано = []
-        for часть in source.children:
-            if часть.tag == "InternalInfo":
-                собрано += self.produced_types(часть, cls, where)
-            elif часть.tag == "Properties":
-                for свойство in часть.children:
+        for part in source.children:
+            if part.tag == "InternalInfo":
+                собрано += self.produced_types(part, cls, where)
+            elif part.tag == "Properties":
+                for свойство in part.children:
                     собрано += self.property(свойство, cls, where)
-            elif часть.tag == "ChildObjects":
-                for ребёнок in часть.children:
+            elif part.tag == "ChildObjects":
+                for ребёнок in part.children:
                     собрано += self.child(ребёнок, cls, where)
             else:
-                self.problem(where, f"незнакомый раздел карточки «{часть.tag}»")
-        собрано.sort(key=lambda пара: пара[0])           # сортировка устойчива: список — по порядку
+                self.problem(where, f"незнакомый раздел карточки «{part.tag}»")
+        собрано.sort(key=lambda pair: pair[0])           # сортировка устойчива: список — по порядку
         target.children.extend(узел for _, узел in собрано)
 
     # --- порождаемые типы ---
@@ -119,28 +119,28 @@ class Translation:
         for gen in info.children:
             if gen.tag != "GeneratedType":
                 continue
-            имя = self._produced_name(gen.attrs.get("category", ""), f.type)
-            if имя is None:
+            name = self._produced_name(gen.attrs.get("category", ""), f.type)
+            if name is None:
                 self.problem(where, f"порождаемый тип «{gen.attrs.get('category')}» не найден в {f.type}")
                 continue
-            поля = {c.tag: c.text or "" for c in gen.children}
-            собрано.append((edt_model.position(f.type, имя),
-                            Node(имя, attrs={"typeId": поля.get("TypeId", ""),
-                                             "valueTypeId": поля.get("ValueId", "")})))
-        собрано.sort(key=lambda пара: пара[0])
+            fields = {c.tag: c.text or "" for c in gen.children}
+            собрано.append((edt_model.position(f.type, name),
+                            Node(name, attrs={"typeId": fields.get("TypeId", ""),
+                                             "valueTypeId": fields.get("ValueId", "")})))
+        собрано.sort(key=lambda pair: pair[0])
         узел.children = [n for _, n in собрано]
         return [(edt_model.position(cls, "producedTypes"), узел)]
 
     @staticmethod
     def _produced_name(category, types_cls):
         if category.startswith("@"):                   # имя свойства, перенесённое обратной перекладкой
-            кандидаты = {category[1:]}
+            candidates = {category[1:]}
         else:
-            кандидаты = {category[:1].lower() + category[1:] + "Type",
+            candidates = {category[:1].lower() + category[1:] + "Type",
                          {"TabularSection": "objectType", "TabularSectionRow": "rowType",
                           "DefinedType": "containerType", "Characteristic": "containerType"}.get(category, "")}
         for f in edt_model.features(types_cls) or ():
-            if f.name in кандидаты:
+            if f.name in candidates:
                 return f.name
         return None
 
@@ -148,17 +148,17 @@ class Translation:
 
     def property(self, свойство, cls, where):
         if свойство.tag == RAW:                        # прошло переходник насквозь
-            место = edt_model.position(cls, свойство.attrs.get("feature", ""))
-            return [(место, restore_raw(n)) for n in свойство.children]
-        имя = feature_name(свойство.tag)
-        f = edt_model.feature(cls, имя)
+            place = edt_model.position(cls, свойство.attrs.get("feature", ""))
+            return [(place, restore_raw(n)) for n in свойство.children]
+        name = feature_name(свойство.tag)
+        f = edt_model.feature(cls, name)
         if f is None:
             if self._empty(свойство):
                 return []                              # пустое свойство, которого у EDT нет, — не потеря
             self.problem(where, f"свойства «{свойство.tag}» нет у {cls.rsplit('.', 1)[-1]}")
             return []
-        место = edt_model.position(cls, имя)
-        return [(место, n) for n in self.value_nodes(свойство, f, cls, f"{where}.{свойство.tag}")]
+        place = edt_model.position(cls, name)
+        return [(place, n) for n in self.value_nodes(свойство, f, cls, f"{where}.{свойство.tag}")]
 
     @staticmethod
     def _empty(свойство):
@@ -186,10 +186,10 @@ class Translation:
             if свойство.children:
                 self.problem(where, "у атрибута вложенные элементы")
                 return []
-            текст = слова.get(свойство.text or "", свойство.text or "")
-            if текст == "" or edt_model.is_default(f, текст, cls):
+            text = слова.get(свойство.text or "", свойство.text or "")
+            if text == "" or edt_model.is_default(f, text, cls):
                 return []
-            return [Node(f.name, text=текст)]
+            return [Node(f.name, text=text)]
         if self._empty(свойство):
             return []
         if f.type == MCORE + "Color" and свойство.text == "auto" and not свойство.children:
@@ -201,51 +201,51 @@ class Translation:
 
     def type_description(self, свойство, name, where):
         узел = Node(name)
-        типы, квалификаторы = [], []
+        types, квалификаторы = [], []
         for c in свойство.children:
             if c.tag in ("Type", "TypeSet"):
-                слово = edt_type_word(c.text or "")
-                if слово is None:
+                word = edt_type_word(c.text or "")
+                if word is None:
                     self.problem(where, f"незнакомая запись типа «{c.text}»")
                     continue
-                типы.append(Node("types", text=слово))
+                types.append(Node("types", text=word))
             elif c.tag in QUALIFIERS:
-                имя_q, поля = QUALIFIERS[c.tag]
+                имя_q, fields = QUALIFIERS[c.tag]
                 q = Node(имя_q)
                 класс_q = edt_model.feature(TYPE_DESCRIPTION, имя_q).type
-                for поле in c.children:
-                    имя_п = поля.get(поле.tag)
+                for field in c.children:
+                    имя_п = fields.get(field.tag)
                     if имя_п is None:
-                        self.problem(where, f"незнакомое поле квалификатора «{поле.tag}»")
+                        self.problem(where, f"незнакомое поле квалификатора «{field.tag}»")
                         continue
-                    текст = поле.text or ""
-                    if поле.tag in QUALIFIER_FLAGS:
-                        текст = "true" if текст == QUALIFIER_FLAGS[поле.tag] else "false"
+                    text = field.text or ""
+                    if field.tag in QUALIFIER_FLAGS:
+                        text = "true" if text == QUALIFIER_FLAGS[field.tag] else "false"
                     fq = edt_model.feature(класс_q, имя_п)
-                    if not edt_model.is_default(fq, текст, класс_q):
-                        q.children.append((edt_model.position(класс_q, имя_п), Node(имя_п, text=текст)))
-                q.children = [n for _, n in sorted(q.children, key=lambda пара: пара[0])]
+                    if not edt_model.is_default(fq, text, класс_q):
+                        q.children.append((edt_model.position(класс_q, имя_п), Node(имя_п, text=text)))
+                q.children = [n for _, n in sorted(q.children, key=lambda pair: pair[0])]
                 квалификаторы.append((edt_model.position(TYPE_DESCRIPTION, имя_q), q))
             else:
                 self.problem(where, f"незнакомая часть описания типа «{c.tag}»")
-        узел.children = типы + [q for _, q in sorted(квалификаторы, key=lambda пара: пара[0])]
+        узел.children = types + [q for _, q in sorted(квалификаторы, key=lambda pair: pair[0])]
         return узел
 
     def value(self, свойство, name, where):
         if свойство.attrs.get("nil") == "true":
             return Node(name, attrs={"xsi:type": "core:UndefinedValue"})
-        тип = свойство.attrs.get("type")
-        класс = VALUE_TYPES.get(тип)
+        type_ = свойство.attrs.get("type")
+        класс = VALUE_TYPES.get(type_)
         if класс is None:
-            if тип is None and not свойство.text:
+            if type_ is None and not свойство.text:
                 return None
-            self.problem(where, f"незнакомое значение типа «{тип}»")
+            self.problem(where, f"незнакомое значение типа «{type_}»")
             return None
         узел = Node(name, attrs={"xsi:type": f"core:{класс}"})
-        текст = свойство.text or ""
+        text = свойство.text or ""
         f = edt_model.feature(MCORE + класс, "value")
-        if текст and not edt_model.is_default(f, текст, MCORE + класс):
-            узел.children.append(Node("value", text=текст))
+        if text and not edt_model.is_default(f, text, MCORE + класс):
+            узел.children.append(Node("value", text=text))
         return узел
 
     # --- дети ---
@@ -261,7 +261,7 @@ class Translation:
         if f is None:
             self.problem(where, f"ребёнка вида «{ребёнок.tag}» нет у {cls.rsplit('.', 1)[-1]}")
             return []
-        место = edt_model.position(cls, f.name)
+        place = edt_model.position(cls, f.name)
         if not ребёнок.children and ребёнок.text:     # форма, макет, подсистема: имя, карточка — спутник
             спутник = self.satellite(ребёнок.tag, ребёнок.text)
             if спутник is None:
@@ -270,7 +270,7 @@ class Translation:
             ребёнок = спутник.children[0] if спутник.tag == "MetaDataObject" else спутник
         узел = Node(f.name, attrs={"uuid": ребёнок.attrs.get("uuid", "")})
         self.fill(узел, ребёнок, f.type, f"{where}.{ребёнок.tag}")
-        return [(место, узел)]
+        return [(place, узел)]
 
 
 #: Свойство-переходник: часть карточки EDT, у которой в карточке выгрузки нет
@@ -297,12 +297,12 @@ def restore_raw(n):
     """Узел из переходника -> узел EDT: текст и приставка `xsi:type` — как были
     (дерево выгрузки приставки атрибутов снимает)."""
     attrs = {}
-    for ключ, значение in n.attrs.items():
-        if ключ == RAW_TEXT:
+    for key, value in n.attrs.items():
+        if key == RAW_TEXT:
             continue
-        if ключ == "type" and ":" in значение:
-            ключ = "xsi:type"
-        attrs[ключ] = значение
+        if key == "type" and ":" in value:
+            key = "xsi:type"
+        attrs[key] = value
     return Node(n.tag, text=n.attrs.get(RAW_TEXT), attrs=attrs, children=[restore_raw(c) for c in n.children])
 
 
@@ -318,8 +318,8 @@ def registry_features():
     """Списки объектов в реестре EDT — свойства конфигурации после `languages`:
     `subsystems`, `roles`, …, `catalogs`, …, каждое — ссылки «Вид.Имя»."""
     свойства = edt_model.features(CONFIGURATION)
-    начало = [f.name for f in свойства].index("languages") + 1
-    return tuple(f for f in свойства[начало:] if f.kind == "refers" and f.many)
+    start = [f.name for f in свойства].index("languages") + 1
+    return tuple(f for f in свойства[start:] if f.kind == "refers" and f.many)
 
 
 def registry_feature(tag):
@@ -341,9 +341,9 @@ def edt_type_word(text):
     """Запись типа выгрузки -> слово EDT; незнакомая — None."""
     if text in PRIMITIVE_TYPES:
         return PRIMITIVE_TYPES[text]
-    приставка, _, слово = text.partition(":")
-    if приставка in ("cfg", "v8") and слово:
-        return слово
+    prefix, _, word = text.partition(":")
+    if prefix in ("cfg", "v8") and word:
+        return word
     return None
 
 
@@ -358,22 +358,22 @@ def child_feature(cls, tag):
     for f in свойства:
         if f.name == по_имени:
             return f
-    кандидаты = [f for f in свойства if f.type.rsplit(".", 1)[-1].endswith(tag)]
-    if not кандидаты:
+    candidates = [f for f in свойства if f.type.rsplit(".", 1)[-1].endswith(tag)]
+    if not candidates:
         return None
-    return min(кандидаты, key=lambda f: len(f.type.rsplit(".", 1)[-1]))
+    return min(candidates, key=lambda f: len(f.type.rsplit(".", 1)[-1]))
 
 
 # --- обратная перекладка ------------------------------------------------------------------
 
 
 #: Слово EDT -> запись типа выгрузки (обратное `PRIMITIVE_TYPES`).
-PRIMITIVE_BACK = {слово: запись for запись, слово in PRIMITIVE_TYPES.items()}
+PRIMITIVE_BACK = {word: запись for запись, word in PRIMITIVE_TYPES.items()}
 #: Поле квалификатора EDT -> поле выгрузки; булевы — словом выгрузки.
-QUALIFIERS_BACK = {имя_q: (тег, {edt: выгр for выгр, edt in поля.items()})
-                   for тег, (имя_q, поля) in QUALIFIERS.items()}
+QUALIFIERS_BACK = {имя_q: (тег, {edt: выгр for выгр, edt in fields.items()})
+                   for тег, (имя_q, fields) in QUALIFIERS.items()}
 FLAGS_BACK = {"fixed": ("Fixed", "Variable"), "nonNegative": ("Nonnegative", "Any")}
-VALUE_BACK = {класс: тип for тип, класс in VALUE_TYPES.items()}
+VALUE_BACK = {класс: type_ for type_, класс in VALUE_TYPES.items()}
 
 
 def is_md_object(cls):
@@ -408,46 +408,46 @@ class Reverse:
 
     def card(self, root):
         cls = edt_model.class_of("http://g5.1c.ru/v8/dt/metadata/mdclass", root.tag.partition(":")[2])
-        вид = self.element(root, cls, root.tag.partition(":")[2])
-        return Node("MetaDataObject", children=[вид])
+        kind = self.element(root, cls, root.tag.partition(":")[2])
+        return Node("MetaDataObject", children=[kind])
 
     def element(self, node, cls, tag):
         info, props, children = Node("InternalInfo"), Node("Properties"), Node("ChildObjects")
-        ещё = []
-        группы = []
+        more = []
+        groups = []
         for ребёнок in node.children:
-            if группы and группы[-1][0] == ребёнок.tag:
-                группы[-1][1].append(ребёнок)
+            if groups and groups[-1][0] == ребёнок.tag:
+                groups[-1][1].append(ребёнок)
             else:
-                группы.append((ребёнок.tag, [ребёнок]))
-        for имя, узлы in группы:
-            f = edt_model.feature(cls, имя)
+                groups.append((ребёнок.tag, [ребёнок]))
+        for name, узлы in groups:
+            f = edt_model.feature(cls, name)
             if f is None:
-                props.children.append(raw(имя, узлы))
-            elif имя == "producedTypes":
+                props.children.append(raw(name, узлы))
+            elif name == "producedTypes":
                 info.children += self.produced(узлы[0], cls)
             elif f.kind == "contains" and f.many and is_md_object(f.type):
                 for n in узлы:
-                    children.children.append(self.element(n, f.type, designer_tag(имя[:-1])))
+                    children.children.append(self.element(n, f.type, designer_tag(name[:-1])))
             elif cls == CONFIGURATION and f in registry_features() and self.registry_entries(f, узлы):
                 children.children += self.registry_entries(f, узлы)
             else:
                 props.children += self.property(f, узлы)
         attrs = {k: v for k, v in node.attrs.items() if not k.startswith("xmlns:")}
-        части = [p for p in (info, props, children) if p.children or p is props] + ещё
-        return Node(tag, attrs=attrs, children=части)
+        parts = [p for p in (info, props, children) if p.children or p is props] + more
+        return Node(tag, attrs=attrs, children=parts)
 
     @staticmethod
     def registry_entries(f, узлы):
         """`<catalogs>Catalog.X</catalogs>` -> `<Catalog>X</Catalog>` реестра выгрузки;
         запись не того вида — None (свойство пойдёт переходником)."""
-        вид = f.type.rsplit(".", 1)[-1]
+        kind = f.type.rsplit(".", 1)[-1]
         записи = []
         for n in узлы:
-            текст = n.text or ""
-            if n.children or n.attrs or not текст.startswith(вид + ".") or not plain(текст):
+            text = n.text or ""
+            if n.children or n.attrs or not text.startswith(kind + ".") or not plain(text):
                 return None
-            записи.append(Node(вид, text=текст[len(вид) + 1:]))
+            записи.append(Node(kind, text=text[len(kind) + 1:]))
         return записи
 
     @staticmethod
@@ -463,18 +463,18 @@ class Reverse:
         if f.kind == "contains" and f.type == LOCAL_STRING:
             items = []
             for n in узлы:
-                поля = {c.tag: c for c in n.children}
-                if set(поля) != {"key", "value"} or any(c.children for c in n.children)                         or any(c.text and not plain(c.text) for c in n.children):
+                fields = {c.tag: c for c in n.children}
+                if set(fields) != {"key", "value"} or any(c.children for c in n.children)                         or any(c.text and not plain(c.text) for c in n.children):
                     return [raw(f.name, узлы)]
-                items.append(Node("item", children=[Node("lang", text=поля["key"].text or ""),
-                                                    Node("content", text=поля["value"].text or "")]))
+                items.append(Node("item", children=[Node("lang", text=fields["key"].text or ""),
+                                                    Node("content", text=fields["value"].text or "")]))
             return [Node(тег, children=items)]
         if f.kind == "contains" and f.type == TYPE_DESCRIPTION and len(узлы) == 1:
-            тип = self.type_description(узлы[0], тег)
-            return [тип] if тип is not None else [raw(f.name, узлы)]
+            type_ = self.type_description(узлы[0], тег)
+            return [type_] if type_ is not None else [raw(f.name, узлы)]
         if f.kind == "contains" and f.type == VALUE and len(узлы) == 1:
-            значение = self.value(узлы[0], тег)
-            return [значение] if значение is not None else [raw(f.name, узлы)]
+            value = self.value(узлы[0], тег)
+            return [value] if value is not None else [raw(f.name, узлы)]
         if f.kind in ("refers", "attribute"):
             if any(n.children or n.attrs or not plain(n.text) for n in узлы):
                 return [raw(f.name, узлы)]
@@ -489,24 +489,24 @@ class Reverse:
         дети = []
         for n in узел.children:
             if n.tag == "types":
-                слово = n.text or ""
-                if слово in PRIMITIVE_BACK:
-                    дети.append(Node("Type", text=PRIMITIVE_BACK[слово]))
-                elif "." in слово or слово in ("AnyRef",):
-                    набор = слово.split(".", 1)[0] in ("DefinedType", "Characteristic")
-                    дети.append(Node("TypeSet" if набор else "Type", text="cfg:" + слово))
+                word = n.text or ""
+                if word in PRIMITIVE_BACK:
+                    дети.append(Node("Type", text=PRIMITIVE_BACK[word]))
+                elif "." in word or word in ("AnyRef",):
+                    набор = word.split(".", 1)[0] in ("DefinedType", "Characteristic")
+                    дети.append(Node("TypeSet" if набор else "Type", text="cfg:" + word))
                 else:
-                    дети.append(Node("Type", text="v8:" + слово))
+                    дети.append(Node("Type", text="v8:" + word))
             elif n.tag in QUALIFIERS_BACK:
-                тег_q, поля = QUALIFIERS_BACK[n.tag]
+                тег_q, fields = QUALIFIERS_BACK[n.tag]
                 q = Node(тег_q)
-                for поле in n.children:
-                    if поле.tag not in поля or поле.children:
+                for field in n.children:
+                    if field.tag not in fields or field.children:
                         return None
-                    текст = поле.text or ""
-                    if поле.tag in FLAGS_BACK:
-                        текст = FLAGS_BACK[поле.tag][0] if текст == "true" else FLAGS_BACK[поле.tag][1]
-                    q.children.append(Node(поля[поле.tag], text=текст))
+                    text = field.text or ""
+                    if field.tag in FLAGS_BACK:
+                        text = FLAGS_BACK[field.tag][0] if text == "true" else FLAGS_BACK[field.tag][1]
+                    q.children.append(Node(fields[field.tag], text=text))
                 дети.append(q)
             else:
                 return None
@@ -517,13 +517,13 @@ class Reverse:
         класс = узел.attrs.get("xsi:type", "").partition(":")[2]
         if класс == "UndefinedValue" and not узел.children:
             return Node(тег, attrs={"nil": "true"})
-        тип = VALUE_BACK.get(класс)
-        if тип is None:
+        type_ = VALUE_BACK.get(класс)
+        if type_ is None:
             return None
-        значение = [c for c in узел.children if c.tag == "value"]
-        if len(значение) != len(узел.children) or len(значение) > 1:
+        value = [c for c in узел.children if c.tag == "value"]
+        if len(value) != len(узел.children) or len(value) > 1:
             return None
-        текст = значение[0].text if значение else None
-        if значение and not plain(текст):
+        text = value[0].text if value else None
+        if value and not plain(text):
             return None                                # пустая строка, края пробелами — переходником
-        return Node(тег, text=текст, attrs={"type": тип})
+        return Node(тег, text=text, attrs={"type": type_})

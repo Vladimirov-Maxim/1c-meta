@@ -4,7 +4,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, replace
 
 from ...domain import edits, form_events
-from ...domain.conventions import НЕЙТРАЛЬНЫЕ, Соглашения
+from ...domain.conventions import NEUTRAL, Conventions
 from ...domain.edits import Edit, ModuleJob
 from ...domain.model import Refuse
 from ...domain.modules import own_qualifiers
@@ -27,7 +27,7 @@ class EditCodeUseCase:
     #: дата меток — дата правки.
     today: Callable[[], str] = None
     #: Соглашения команды: метка команды, которую ставят открывающие метки.
-    соглашения: Соглашения = НЕЙТРАЛЬНЫЕ
+    conventions: Conventions = NEUTRAL
 
     def execute(self, jobs, apply_now=False):
         """Договор общий для всех сценариев — список работ; у задания на код
@@ -35,7 +35,7 @@ class EditCodeUseCase:
         (job,) = jobs
         # Метка команды — соглашение команды, а не поле задания: задание
         # называет задачу, дату и автора, а чья это команда, говорит профиль.
-        signature = replace(job.signature, tag=self.соглашения.тег_меток)
+        signature = replace(job.signature, tag=self.conventions.marker_tag)
         # База сверки — общая на всё задание: «создан задачей» и сверка отката
         # спрашивают одну и ту же ревизию до задачи.
         self._base = job.base
@@ -43,32 +43,32 @@ class EditCodeUseCase:
         entries = list(job.modules)
         # Отказы — по всем модулям сразу: по первому видна была бы одна ошибка,
         # следующая — только после исправления. Отказ переноса — один из них.
-        prepared, отказы = [], []
+        prepared, refusals = [], []
         if job.move is not None:
             try:
                 entries.extend(self._expand_move(job.move))
-            except Refuse as отказ:
-                отказы.append(str(отказ))
-        if not entries and not отказы:
+            except Refuse as refusal:
+                refusals.append(str(refusal))
+        if not entries and not refusals:
             raise Refuse("в задании нет ни одного модуля")
         for entry in entries:
             try:
                 with при(str(entry.ref)):
                     prepared.append(self._prepare(entry, signature))
-            except Refuse as отказ:
-                отказы.append(str(отказ))
-        if len(отказы) == 1:
-            raise Refuse(отказы[0])
-        if отказы:
-            raise Refuse(f"отказов по модулям: {len(отказы)} — не меняется ни один модуль:\n"
-                         + "\n".join(f"  {номер}. {текст}" for номер, текст in enumerate(отказы, 1)))
+            except Refuse as refusal:
+                refusals.append(str(refusal))
+        if len(refusals) == 1:
+            raise Refuse(refusals[0])
+        if refusals:
+            raise Refuse(f"отказов по модулям: {len(refusals)} — не меняется ни один модуль:\n"
+                         + "\n".join(f"  {number}. {text}" for number, text in enumerate(refusals, 1)))
         plan = self.modules.prepare([(ref, lines) for ref, lines, _ in prepared])
         written = plan.apply() if apply_now else []
-        дата = edits.date_note(signature.date, self.today() if self.today else None)
+        date = edits.date_note(signature.date, self.today() if self.today else None)
         форматы = {str(ref): self.modules.file_format(ref) for ref, _, _ in prepared}
         return CodeResult(signature, [(ref, decisions) for ref, _, decisions in prepared],
-                          plan, written, ([дата] if дата else []) + self._внимание,
-                          {ref: формат for ref, формат in форматы.items() if формат})
+                          plan, written, ([date] if date else []) + self._внимание,
+                          {ref: fmt for ref, fmt in форматы.items() if fmt})
 
     def _prepare(self, entry, signature):
         lines = self.modules.read(entry.ref)
@@ -85,7 +85,7 @@ class EditCodeUseCase:
             work.extend(renamed)
         new_lines, decisions = edits.edit_module(lines, work, signature,
                                                  self.modules.is_new(entry.ref, self._base), notes,
-                                                 markers=self.соглашения.метки)
+                                                 markers=self.conventions.markers)
         self._внимание += self._unbound(entry.ref, lines, new_lines)
         return entry.ref, new_lines, decisions
 
@@ -93,14 +93,14 @@ class EditCodeUseCase:
         """Новые процедуры модуля формы, названные как событие, но не
         привязанные в описании формы, — предупреждения: код компилируется,
         а обработчик платформа не вызовет."""
-        новые = [имя for имя in edits.declared_names(new_lines) if имя not in set(edits.declared_names(lines))]
-        if not новые:
+        new_items = [name for name in edits.declared_names(new_lines) if name not in set(edits.declared_names(lines))]
+        if not new_items:
             return []
-        привязки = self.modules.form_bindings(ref)
-        if привязки is None:
+        bindings = self.modules.form_bindings(ref)
+        if bindings is None:
             return []
-        return [f"ВНИМАНИЕ: {ref}: " + form_events.unbound_message(имя, чьё)
-                for имя, чьё in form_events.unbound_handlers(новые, *привязки)]
+        return [f"ВНИМАНИЕ: {ref}: " + form_events.unbound_message(name, whose)
+                for name, whose in form_events.unbound_handlers(new_items, *bindings)]
 
     def _expand_move(self, move):
         """Перенос метода: удаление в источнике и добавление в приёмнике — один

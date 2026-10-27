@@ -35,10 +35,10 @@ ORACLE_SEED = 20261007
 
 def files(root):
     found = {}
-    for папка, _, имена in os.walk(root):
-        for имя in имена:
-            путь = os.path.join(папка, имя)
-            found[os.path.relpath(путь, root).replace(os.sep, "/")] = путь
+    for папка, _, names in os.walk(root):
+        for name in names:
+            path = os.path.join(папка, name)
+            found[os.path.relpath(path, root).replace(os.sep, "/")] = path
     return found
 
 
@@ -52,24 +52,24 @@ def проект(tmp_path, monkeypatch):
     return src
 
 
-def применить(src, tmp_path, формы=False):
+def apply(src, tmp_path, формы=False):
     """Задания по порядку: без форм (эталон `ожидание`) или все (`ожидание-формы`)."""
-    for имя in sorted(os.listdir(ЗАДАНИЯ)):
-        if not имя.endswith(".json") or ("-форма-" in имя and not формы):
+    for name in sorted(os.listdir(ЗАДАНИЯ)):
+        if not name.endswith(".json") or ("-форма-" in name and not формы):
             continue
-        with open(os.path.join(ЗАДАНИЯ, имя), encoding="utf-8") as f:
+        with open(os.path.join(ЗАДАНИЯ, name), encoding="utf-8") as f:
             задание = json.loads(f.read().replace("{repo}", str(src).replace("\\", "/")))
-        путь = tmp_path / имя
-        путь.write_text(json.dumps(задание, ensure_ascii=False), encoding="utf-8")
-        assert main([str(путь), "--apply", "--профиль", ПРОФИЛЬ]) == 0, имя
+        path = tmp_path / name
+        path.write_text(json.dumps(задание, ensure_ascii=False), encoding="utf-8")
+        assert main([str(path), "--apply", "--профиль", ПРОФИЛЬ]) == 0, name
 
 
 def test_new_objects_of_every_kind_are_written_as_edt_writes_them(проект, tmp_path):
-    применить(проект, tmp_path)
-    ожидание, стало = files(os.path.join(EDT, "ожидание")), files(проект)
-    assert sorted(стало) == sorted(ожидание)
-    разошлись = [путь for путь in ожидание
-                 if open(ожидание[путь], "rb").read() != open(стало[путь], "rb").read()]
+    apply(проект, tmp_path)
+    ожидание, after_ = files(os.path.join(EDT, "ожидание")), files(проект)
+    assert sorted(after_) == sorted(ожидание)
+    разошлись = [path for path in ожидание
+                 if open(ожидание[path], "rb").read() != open(after_[path], "rb").read()]
     assert разошлись == []
 
 
@@ -77,19 +77,19 @@ def test_forms_are_written_as_edt_writes_them(проект, tmp_path):
     """Формы: новая форма объекта (запись в карточке хозяина, описание, модуль,
     настройки динамического списка) и правка существующей — те же байты, что у
     EDT после импорта выгрузки, в которой те же задания записал писатель выгрузки."""
-    применить(проект, tmp_path, формы=True)
-    ожидание, стало = files(os.path.join(EDT, "ожидание-формы")), files(проект)
-    assert sorted(стало) == sorted(ожидание)
-    разошлись = [путь for путь in ожидание
-                 if open(ожидание[путь], "rb").read() != open(стало[путь], "rb").read()]
+    apply(проект, tmp_path, формы=True)
+    ожидание, after_ = files(os.path.join(EDT, "ожидание-формы")), files(проект)
+    assert sorted(after_) == sorted(ожидание)
+    разошлись = [path for path in ожидание
+                 if open(ожидание[path], "rb").read() != open(after_[path], "rb").read()]
     assert разошлись == []
 
 
 def test_a_new_file_is_utf8_without_bom_and_lf(проект, tmp_path):
-    применить(проект, tmp_path)
-    for путь in files(проект).values():
-        данные = open(путь, "rb").read()
-        assert not данные.startswith(b"\xef\xbb\xbf") and b"\r\n" not in данные, путь
+    apply(проект, tmp_path)
+    for path in files(проект).values():
+        данные = open(path, "rb").read()
+        assert not данные.startswith(b"\xef\xbb\xbf") and b"\r\n" not in данные, path
 
 
 def test_what_the_edt_platform_writes_verify_accepts(проект, tmp_path):
@@ -102,12 +102,12 @@ def test_what_the_edt_platform_writes_verify_accepts(проект, tmp_path):
         subprocess.run(["git", "-C", str(проект), *args], check=True, capture_output=True)
 
     git("init", "-q")
-    for ключ, значение in (("user.email", "t@example.local"), ("user.name", "Фикстуры"),
+    for key, value in (("user.email", "t@example.local"), ("user.name", "Фикстуры"),
                            ("core.autocrlf", "false"), ("core.quotepath", "false")):
-        git("config", ключ, значение)
+        git("config", key, value)
     git("add", "-A")
     git("commit", "-q", "-m", "база")
-    применить(проект, tmp_path)
+    apply(проект, tmp_path)
     ответ = tmp_path / "ответ.json"
     main(["--проверить", str(проект), "--задача", "ОРАКУЛ-1", "--профиль", ПРОФИЛЬ, "--json", str(ответ)])
     данные = json.loads(ответ.read_text(encoding="utf-8"))
@@ -132,17 +132,17 @@ def test_a_form_read_from_edt_is_the_same_form_as_in_the_dump(tmp_path, monkeypa
     edt_oracle.apply_jobs(str(cf), main)
     формы = os.path.join(EDT, "ожидание-формы", "Documents", "мой_Заявка", "Forms")
     сверено = 0
-    for имя in sorted(os.listdir(формы)):
-        edt_text = open(os.path.join(формы, имя, "Form.form"), encoding="utf-8").read()
-        xml = open(cf / "Documents" / "мой_Заявка" / "Forms" / имя / "Ext" / "Form.xml",
+    for name in sorted(os.listdir(формы)):
+        edt_text = open(os.path.join(формы, name, "Form.form"), encoding="utf-8").read()
+        xml = open(cf / "Documents" / "мой_Заявка" / "Forms" / name / "Ext" / "Form.xml",
                    encoding="utf-8-sig").read().replace("\r\n", "\n")
         owner = ("Документ", "мой_Заявка")
-        выгрузка = for_text(xml).view(for_text(xml).load(xml), owner, имя)
-        edt = for_text(edt_text).view(for_text(edt_text).load(edt_text), owner, имя)
-        for поле in ("elements", "commands", "events", "main", "assignment",
+        выгрузка = for_text(xml).view(for_text(xml).load(xml), owner, name)
+        edt = for_text(edt_text).view(for_text(edt_text).load(edt_text), owner, name)
+        for field in ("elements", "commands", "events", "main", "assignment",
                      "dynamic_lists", "commands_actions"):
-            assert getattr(edt, поле) == getattr(выгрузка, поле), (имя, поле)
+            assert getattr(edt, field) == getattr(выгрузка, field), (name, field)
         # типы домена сравниваются записью: равенства по значению у них нет
-        assert {k: str(v) for k, v in edt.attributes.items()}             == {k: str(v) for k, v in выгрузка.attributes.items()}, имя
+        assert {k: str(v) for k, v in edt.attributes.items()}             == {k: str(v) for k, v in выгрузка.attributes.items()}, name
         сверено += 1
     assert сверено >= 5

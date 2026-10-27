@@ -28,14 +28,14 @@ import re
 from collections import OrderedDict
 
 from ..domain.model import (
+    Collected,
     Refuse,
     Spec,
     TypeRef,
     ValueType,
-    Собранные,
-    вид_табличной_части,
+    table_kind,
 )
-from ..domain.plan import Состав
+from ..domain.plan import Composition
 from ..domain.platform import RIGHTS_BY_KIND
 from .schema import SCHEMA, Field
 from .vocabulary import (
@@ -355,12 +355,12 @@ def _properties(schema, spec, host=None):
     # Копится всё, чем может возразить укладка значения, а не только
     # незнакомые слова словаря: два поля-длины, записанные числом, иначе
     # тоже стоили бы двух запусков, хотя про второе инструмент уже знает.
-    непонятые = Собранные("непонятых значений")
+    непонятые = Collected("непонятых значений")
     for field in fields:
         value = spec.get(field.domain)
         if field.dictionary is not None and value:
             if value not in field.dictionary:
-                непонятые.добавить(
+                непонятые.add(
                     "не знаю, как записать «{}» в поле «{}»; допустимо: {}".format(
                         value, field.domain, ", ".join(field.dictionary)))
                 continue
@@ -372,9 +372,9 @@ def _properties(schema, spec, host=None):
         try:
             узел = _value(field, value)
             properties.extend(узел if isinstance(узел, list) else [узел])
-        except Refuse as отказ:
-            непонятые.добавить(str(отказ))
-    непонятые.предъявить()
+        except Refuse as refusal:
+            непонятые.add(str(refusal))
+    непонятые.raise_collected()
     return properties
 
 
@@ -510,10 +510,10 @@ def render_rights(spec, configuration=None):
             if name not in RIGHTS:
                 # Список сужается до вида, если он назван: всех прав 70,
                 # а у справочника их 25 — и читать нужно те самые.
-                вид = (granted.get("объект") or "").partition(".")[0]
-                у_вида = RIGHTS_BY_KIND.get(вид)
+                kind = (granted.get("объект") or "").partition(".")[0]
+                у_вида = RIGHTS_BY_KIND.get(kind)
                 raise Refuse("не знаю права «{}»; у вида «{}» бывают: {}".format(
-                    name, вид, ", ".join(sorted(у_вида)))
+                    name, kind, ", ".join(sorted(у_вида)))
                     if у_вида else "не знаю права «{}»; допустимы: {}".format(
                         name, ", ".join(sorted(RIGHTS))))
             named.append(RIGHTS[name])
@@ -547,13 +547,13 @@ def rights_from_node(node):
             fields[flags[child.tag]] = child.text == "true"
         elif child.tag == "object":
             name = next((c.text for c in child.children if c.tag == "name"), "") or ""
-            права = []
+            rights = []
             for right in child.children:
                 if right.tag == "right":
-                    значения = {c.tag: c.text for c in right.children}
-                    if значения.get("value") == "true":
-                        права.append(по_русски.get(значения.get("name"), значения.get("name")))
-            granted.append({"объект": _rights_object(name), "права": права})
+                    values = {c.tag: c.text for c in right.children}
+                    if values.get("value") == "true":
+                        rights.append(по_русски.get(values.get("name"), values.get("name")))
+            granted.append({"объект": _rights_object(name), "права": rights})
     fields["права"] = granted
     return fields
 
@@ -563,8 +563,8 @@ def granted_rights(pairs):
     по-русски, как у `rights_from_node`. Для чтения многих ролей разом: файл
     разбирает площадка, а слова переводятся здесь."""
     по_русски = {англ: рус for рус, англ in RIGHTS.items()}
-    return [{"объект": _rights_object(name), "права": [по_русски.get(п, п) for п in права]}
-            for name, права in pairs]
+    return [{"объект": _rights_object(name), "права": [по_русски.get(pt, pt) for pt in rights]}
+            for name, rights in pairs]
 
 
 def _rights_object(name):
@@ -576,9 +576,9 @@ def _rights_object(name):
 @functools.cache
 def _виды_файла():
     """Слово вида в файле прав -> вид по-русски: корни выгрузки и элементы схемы."""
-    виды = dict(ROOTS_BACK)
-    виды.update({kind.element: имя for имя, kind in SCHEMA.items()})
-    return виды
+    kinds = dict(ROOTS_BACK)
+    kinds.update({kind.element: name for name, kind in SCHEMA.items()})
+    return kinds
 
 
 def _rights_target(address, configuration=None):
@@ -825,7 +825,7 @@ def translate_node(spec, uuid, host=None, owner=None, new_id=None):
         # смотря по тому, хранится ли объект. Тот же вопрос домен решает
         # в `_child_host` — и решать его надо одинаково, иначе проверка
         # и запись разойдутся.
-        внутрь = (вид_табличной_части(host) if spec.kind == "ТабличнаяЧасть"
+        внутрь = (table_kind(host) if spec.kind == "ТабличнаяЧасть"
                   else spec.kind)
         inner.append(Node("ChildObjects",
                           children=_children(schema, spec, new_id, owner,
@@ -940,15 +940,15 @@ def check_layers():
         # и половина его полей для каждой из них бессмысленна. Какие
         # сочетания законны, из класса не видно — здесь видно.
         if not schema.wrapped:
-            лишнее = [имя for имя, значение in (
+            surplus = [field_name for field_name, value in (
                 ("container", schema.container),
                 ("registry_tag", schema.registry_tag),
                 ("generated", schema.generated),
-                ("satellites", schema.satellites)) if значение]
-            if лишнее:
+                ("satellites", schema.satellites)) if value]
+            if surplus:
                 problems.append(
                     f"вид «{name}» живёт в схеме компоновки, а у него "
-                    f"заполнено карточное: {', '.join(лишнее)}")
+                    f"заполнено карточное: {', '.join(surplus)}")
         elif schema.inside or schema.node_attrs:
             problems.append(
                 f"вид «{name}» пишется карточкой, а у него заполнено "
@@ -1029,17 +1029,17 @@ def _слова_мест():
     Поле ищется сперва у самого вида, потом по всей схеме: «состав» у
     функциональной опции тот же `Content`, что у подсистемы.
     """
-    сколько = collections.Counter(схема.element for схема in SCHEMA.values())
-    сущности = {тег: вид for вид, тег in NESTED_ROOTS.items()}
-    сущности.update((схема.element, вид) for вид, схема in SCHEMA.items()
-                    if схема.container is None and сколько[схема.element] == 1)
-    сущности.update((тег, слово) for слово, теги in MEMBER_TAGS.items()
+    how_many = collections.Counter(schema.element for schema in SCHEMA.values())
+    сущности = {тег: kind for kind, тег in NESTED_ROOTS.items()}
+    сущности.update((schema.element, kind) for kind, schema in SCHEMA.items()
+                    if schema.container is None and how_many[schema.element] == 1)
+    сущности.update((тег, word) for word, теги in MEMBER_TAGS.items()
                     for тег in теги)
-    поля = {}
-    for схема in SCHEMA.values():
-        for поле in схема.fields:
-            поля.setdefault(_хвост_тега(поле.tag), поле.domain)
-    return сущности, поля
+    fields = {}
+    for schema in SCHEMA.values():
+        for field in schema.fields:
+            fields.setdefault(_хвост_тега(field.tag), field.domain)
+    return сущности, fields
 
 
 def reference_place(prefix, owner_kind, steps, prop):
@@ -1051,14 +1051,14 @@ def reference_place(prefix, owner_kind, steps, prop):
     находится поиском в файле. Так у графы журнала свойство `References`:
     инструмент его не пишет, своего слова у него нет.
     """
-    сущности, поля = _слова_мест()
-    адрес = prefix + "".join(f".{сущности.get(тег, тег)}.{имя}" for тег, имя in steps)
+    сущности, fields = _слова_мест()
+    address = prefix + "".join(f".{сущности.get(тег, тег)}.{name}" for тег, name in steps)
     if prop is None:
-        return адрес
-    вид = сущности.get(steps[-1][0]) if steps else owner_kind
-    свои = {_хвост_тега(поле.tag): поле.domain
-            for поле in (SCHEMA[вид].fields if вид in SCHEMA else ())}
-    return f"{адрес} ({свои.get(prop) or поля.get(prop, prop)})"
+        return address
+    kind = сущности.get(steps[-1][0]) if steps else owner_kind
+    own = {_хвост_тега(field.tag): field.domain
+            for field in (SCHEMA[kind].fields if kind in SCHEMA else ())}
+    return f"{address} ({own.get(prop) or fields.get(prop, prop)})"
 
 # --- обратная сторона: карточка -> спецификация ------------------------------
 #
@@ -1096,41 +1096,41 @@ def _тип_из_узлов(children):
     # записан тегом TypeSet. Без него реквизит определяемого типа показывался
     # бы «Произвольным» — а так в замеренной выгрузке записаны 1597 типов в
     # справочниках и документах.
-    типы = [(имя == "TypeSet", c) for имя, c in по_тегам if имя in ("Type", "TypeSet")]
-    квалификаторы = {имя: c for имя, c in по_тегам if имя.endswith("Qualifiers")}
+    types = [(name == "TypeSet", c) for name, c in по_тегам if name in ("Type", "TypeSet")]
+    квалификаторы = {name: c for name, c in по_тегам if name.endswith("Qualifiers")}
     собрано = []
-    for набор, узел in типы:
-        текст = (узел.text or "").strip()
-        if набор or текст.startswith("cfg:"):
-            собрано.append(_ссылка_или_как_записано(текст, набор))
-        elif текст == "xs:string":
+    for набор, узел in types:
+        text = (узел.text or "").strip()
+        if набор or text.startswith("cfg:"):
+            собрано.append(_ссылка_или_как_записано(text, набор))
+        elif text == "xs:string":
             q = _по_тегам(квалификаторы.get("StringQualifiers", Node("x")))
             длина = int(q["Length"].text or "0") if "Length" in q else 0
             фикс = ("AllowedLength" in q
                     and q["AllowedLength"].text == STRING_LENGTH["Фиксированная"])
             собрано.append(dm.StringType(длина, фикс))
-        elif текст == "xs:decimal":
+        elif text == "xs:decimal":
             q = _по_тегам(квалификаторы.get("NumberQualifiers", Node("x")))
             собрано.append(dm.NumberType(
                 int(q["Digits"].text or "0") if "Digits" in q else 0,
                 int(q["FractionDigits"].text or "0") if "FractionDigits" in q else 0,
                 "AllowedSign" in q
                 and q["AllowedSign"].text == NUMBER_SIGN["Неотрицательный"]))
-        elif текст == "xs:dateTime":
+        elif text == "xs:dateTime":
             q = _по_тегам(квалификаторы.get("DateQualifiers", Node("x")))
-            слово = q["DateFractions"].text if "DateFractions" in q else None
+            word = q["DateFractions"].text if "DateFractions" in q else None
             назад = {v: k for k, v in DATE_PARTS.items()}
-            собрано.append(dm.DateType(назад.get(слово, "ДатаВремя")))
-        elif текст == "xs:boolean":
+            собрано.append(dm.DateType(назад.get(word, "ДатаВремя")))
+        elif text == "xs:boolean":
             собрано.append(dm.BooleanType())
-        elif текст:
-            собрано.append(dm.PlatformType(_слово_платформы(текст)))
+        elif text:
+            собрано.append(dm.PlatformType(_слово_платформы(text)))
     if not собрано:
         return dm.AnyType()
     return собрано[0] if len(собрано) == 1 else собрано
 
 
-def _ссылка_или_как_записано(текст, набор):
+def _ссылка_или_как_записано(text, набор):
     """`cfg:…` -> ссылка домена; незнакомое обозначение — как записано.
 
     Чтение служит показу и проверкам, и одно редкое обозначение не должно
@@ -1138,42 +1138,42 @@ def _ссылка_или_как_записано(текст, набор):
     """
     from ..domain import model as dm
     try:
-        return parse_type_notation(текст, is_set=набор)
+        return parse_type_notation(text, is_set=набор)
     except Refuse:
-        return dm.PlatformType(текст)
+        return dm.PlatformType(text)
 
 
-def _слово_платформы(текст):
+def _слово_платформы(text):
     """`v8:ValueTable`, `mxl:SpreadsheetDocument` -> слово задания или показа."""
     назад = {v: k for k, v in PLATFORM_TYPES.items()}
-    if текст in назад:
-        return назад[текст]
-    return READ_ONLY_TYPES_BACK.get(текст.rpartition(":")[2], текст)
+    if text in назад:
+        return назад[text]
+    return READ_ONLY_TYPES_BACK.get(text.rpartition(":")[2], text)
 
 
-def _обозначение_назад(текст):
+def _обозначение_назад(text):
     """`Report.X.Template.Y` -> `Отчет.X.Макет.Y`."""
-    части = [ч for ч in (текст or "").split(".") if ч]
-    if len(части) < 2 or len(части) % 2:
-        return текст
+    parts = [ч for ч in (text or "").split(".") if ч]
+    if len(parts) < 2 or len(parts) % 2:
+        return text
     назад_корни = OBJECT_WORDS_BACK
     назад_вложенные = {v: k for k, v in NESTED_ROOTS.items()}
-    вышло = []
-    for i in range(0, len(части), 2):
-        корень, имя = части[i], части[i + 1]
-        словарь = назад_корни if i == 0 else назад_вложенные
-        вышло += [словарь.get(корень, корень), имя]
-    return ".".join(вышло)
+    came_out = []
+    for i in range(0, len(parts), 2):
+        корень, name = parts[i], parts[i + 1]
+        vocabulary = назад_корни if i == 0 else назад_вложенные
+        came_out += [vocabulary.get(корень, корень), name]
+    return ".".join(came_out)
 
 
 def _значение_поля(field, node):
     """Узел свойства -> значение на языке задания. `None` — читать нечем."""
-    текст = node.text
+    text = node.text
     if field.dictionary:
         назад = {v: k for k, v in field.dictionary.items()}
-        return назад.get(текст, текст)
+        return назад.get(text, text)
     if field.value_kind == BOOLEAN:
-        return текст == "true"
+        return text == "true"
     if field.value_kind == DIMENSION_ROLE:
         return any(ребёнок.tag.endswith("dimension") and ребёнок.text == "true" for ребёнок in node.children)
     if field.value_kind == MULTILANG:
@@ -1181,18 +1181,18 @@ def _значение_поля(field, node):
     if field.value_kind in (VALUE_TYPE, TYPES):
         return _тип_из_узлов(node.children)
     if field.value_kind == OBJECT_REFERENCE:
-        return _обозначение_назад(текст) if текст else ""
+        return _обозначение_назад(text) if text else ""
     if field.value_kind == FIELDS:
         return [ребёнок.text for ребёнок in node.children if ребёнок.text]
     if field.value_kind == ITEMS:
         return [_обозначение_назад(ребёнок.text) for ребёнок in node.children
                 if ребёнок.text]
     if field.value_kind == TEXT:
-        значение = текст or ""
-        приставка = field.prefix
-        return значение[len(приставка):] if приставка and значение.startswith(
-            приставка) else значение
-    return текст
+        value = text or ""
+        prefix = field.prefix
+        return value[len(prefix):] if prefix and value.startswith(
+            prefix) else value
+    return text
 
 
 def spec_from_node(kind, node):
@@ -1203,14 +1203,14 @@ def spec_from_node(kind, node):
     спецификацию не попадают — «не задано» и «задано пустым» это разные вещи.
     """
     schema = _schema(kind)
-    карточка = node
+    card = node
     if _хвост_тега(node.tag) == "MetaDataObject":
-        свои = [c for c in node.children
+        own = [c for c in node.children
                 if _хвост_тега(c.tag) == _хвост_тега(schema.element)]
-        if not свои:
+        if not own:
             raise Refuse(f"в файле нет элемента «{schema.element}»")
-        карточка = свои[0]
-    по_тегам = _по_тегам(карточка)
+        card = own[0]
+    по_тегам = _по_тегам(card)
     свойства = по_тегам.get("Properties")
     исходные = _по_тегам(свойства) if свойства is not None else по_тегам
     fields = {}
@@ -1219,15 +1219,15 @@ def spec_from_node(kind, node):
         if узел is None:
             continue
         fields[field.domain] = _значение_поля(field, узел)
-    состав = по_тегам.get("ChildObjects")
-    for поле, вид_ребёнка in schema.child_fields or ():
-        if состав is None:
+    composition = по_тегам.get("ChildObjects")
+    for child_field, вид_ребёнка in schema.child_fields or ():
+        if composition is None:
             continue
         тег = _schema(вид_ребёнка).element
-        дети = [c for c in состав.children
+        дети = [c for c in composition.children
                 if _хвост_тега(c.tag) == _хвост_тега(тег)]
         if дети:
-            fields[поле] = [spec_from_node(вид_ребёнка, ребёнок) for ребёнок in дети]
+            fields[child_field] = [spec_from_node(вид_ребёнка, ребёнок) for ребёнок in дети]
     return Spec(kind, fields)
 
 
@@ -1235,11 +1235,11 @@ def spec_from_node(kind, node):
 def _группы_по_тегам():
     """Тег ребёнка в карточке -> группа состава: из схемы видов, а не отдельным
     словарём — читается то же, что пишется."""
-    группы = {}
-    for схема in SCHEMA.values():
-        for группа, вид_ребёнка in схема.child_fields or ():
-            группы[_хвост_тега(_schema(вид_ребёнка).element)] = группа
-    return группы
+    groups = {}
+    for schema in SCHEMA.values():
+        for group, вид_ребёнка in schema.child_fields or ():
+            groups[_хвост_тега(_schema(вид_ребёнка).element)] = group
+    return groups
 
 
 def composition_from_node(node):
@@ -1251,26 +1251,26 @@ def composition_from_node(node):
     регистра бухгалтерии устроен так же. Вложенное (реквизиты табличных
     частей) в состав не входит.
     """
-    карточка = node
+    card = node
     if _хвост_тега(node.tag) == "MetaDataObject":
-        карточка = node.children[0] if node.children else Node("x")
-    члены, группы = {}, _группы_по_тегам()
-    состав = _по_тегам(карточка).get("ChildObjects")
-    for ребёнок in (состав.children if состав is not None else ()):
-        группа = группы.get(_хвост_тега(ребёнок.tag))
+        card = node.children[0] if node.children else Node("x")
+    members, groups = {}, _группы_по_тегам()
+    composition = _по_тегам(card).get("ChildObjects")
+    for ребёнок in (composition.children if composition is not None else ()):
+        group = groups.get(_хвост_тега(ребёнок.tag))
         свойства = _по_тегам(ребёнок).get("Properties")
-        if группа is None or свойства is None:
+        if group is None or свойства is None:
             continue
         по_тегам = _по_тегам(свойства)
-        имя = (по_тегам["Name"].text or "").strip() if "Name" in по_тегам else ""
-        if not имя:
+        name = (по_тегам["Name"].text or "").strip() if "Name" in по_тегам else ""
+        if not name:
             continue
-        типы = ()
+        types = ()
         if "Type" in по_тегам:
-            тип = _тип_из_узлов(по_тегам["Type"].children)
-            типы = tuple(тип) if isinstance(тип, list) else (тип,)
-        члены.setdefault(группа, {})[имя] = типы
-    return Состав(члены)
+            type_ = _тип_из_узлов(по_тегам["Type"].children)
+            types = tuple(type_) if isinstance(type_, list) else (type_,)
+        members.setdefault(group, {})[name] = types
+    return Composition(members)
 
 
 def forms_from_node(node):
@@ -1280,22 +1280,22 @@ def forms_from_node(node):
     объекты. Но спрашивают про объект и затем, чтобы узнать, какие у него
     формы, — показ обязан их перечислять.
     """
-    карточка = node
+    card = node
     if _хвост_тега(node.tag) == "MetaDataObject" and node.children:
-        карточка = node.children[0]
-    состав = _по_тегам(карточка).get("ChildObjects")
-    if состав is None:
+        card = node.children[0]
+    composition = _по_тегам(card).get("ChildObjects")
+    if composition is None:
         return []
-    имена = []
-    for c in состав.children:
+    names = []
+    for c in composition.children:
         if _хвост_тега(c.tag) != "Form":
             continue
         if c.text:
-            имена.append(c.text)
+            names.append(c.text)
         else:
             # Форма целиком — так её отдаёт карточка проекта EDT: имя в свойствах.
             свойства = _по_тегам(c).get("Properties")
-            имя = _по_тегам(свойства).get("Name") if свойства is not None else None
-            if имя is not None and имя.text:
-                имена.append(имя.text)
-    return имена
+            name = _по_тегам(свойства).get("Name") if свойства is not None else None
+            if name is not None and name.text:
+                names.append(name.text)
+    return names

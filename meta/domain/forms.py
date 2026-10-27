@@ -27,12 +27,12 @@
 import re
 from typing import NamedTuple
 
-from .conventions import НЕЙТРАЛЬНЫЕ, КодФорм
-from .form_dialect import ПЛАТФОРМА as ПЛАТФОРМА_ДИАЛЕКТ
+from .conventions import NEUTRAL, FormCode
+from .form_dialect import PLATFORM as PLATFORM_DIALECT
 from .form_dialect import CodeProcedure  # noqa: F401 — часть интерфейса модуля
 from .form_events import EVENTS, kinds_with
 from .form_properties import ENUMS, PROPERTIES
-from .model import BooleanType, Finding, NumberType, PlatformType, Refuse, TypeRef, запись_типа
+from .model import BooleanType, Finding, NumberType, PlatformType, Refuse, TypeRef, type_record
 from .platform import STANDARD_ATTRIBUTES, STANDARD_ATTRIBUTES_RU
 
 #: Имя, каким платформа принимает идентификаторы: буквы, цифры, подчёркивание,
@@ -153,16 +153,16 @@ ELEMENT_KINDS = ("ПолеВвода", "ПолеФлажка", "ПолеНадп
                  "Страницы", "Страница", "ГруппаКолонок", "КоманднаяПанель",
                  "ГруппаКнопок", "Кнопка", "ТаблицаФормы")
 
-def is_ours(owner_name, form_name, приставка=None):
+def is_ours(owner_name, form_name, prefix=None):
     """Своя ли это форма. Своя — когда объект или сама форма названы с
     приставкой доработок команды: форма с приставкой в чужом объекте — законный
     и нередкий приём. Без соглашения о приставке
     своё от типового не отличить, и правило «типовая — только кодом» не
     применяется: форма считается своей. `приставка` — строка или кортеж своих
     приставок."""
-    if not приставка:
+    if not prefix:
         return True
-    return (owner_name or "").startswith(приставка) or (form_name or "").startswith(приставка)
+    return (owner_name or "").startswith(prefix) or (form_name or "").startswith(prefix)
 
 
 #: Приставка процедур, которые подключает код (#std492): без неё
@@ -550,11 +550,11 @@ def _picture(russian, value):
         raise Refuse(f"свойство «{russian}» — картинка вида "
                      f"«БиблиотекаКартинок.Имя» или «СтандартнаяКартинка.Имя», "
                      f"получено {value!r}")
-    источник, имя = value.split(".")
-    if источник not in PICTURE_SOURCES or not имя:
-        raise Refuse(f"у картинки «{value}» непонятный источник «{источник}»; "
+    source, name = value.split(".")
+    if source not in PICTURE_SOURCES or not name:
+        raise Refuse(f"у картинки «{value}» непонятный источник «{source}»; "
                      f"бывает: {', '.join(sorted(set(PICTURE_SOURCES.values())))}")
-    return PICTURE_SOURCES[источник], имя
+    return PICTURE_SOURCES[source], name
 
 
 def _value_list(russian, value):
@@ -567,34 +567,34 @@ def _value_list(russian, value):
     if not isinstance(value, (list, tuple)) or not value:
         raise Refuse(f"свойство «{russian}» — непустой список элементов вида "
                      f"{{«значение»: …, «представление»: …}}, получено {value!r}")
-    итог = []
+    result = []
     for item in value:
         if not isinstance(item, dict) or "значение" not in item:
             raise Refuse(f"в списке «{russian}» ожидался элемент со «значение», "
                          f"получено {item!r}")
-        лишнее = set(item) - {"значение", "представление"}
-        if лишнее:
+        surplus = set(item) - {"значение", "представление"}
+        if surplus:
             raise Refuse(f"в элементе списка «{russian}» лишние ключи: "
-                         f"{', '.join(sorted(лишнее))}")
-        знач = item["значение"]
-        if isinstance(знач, str) and знач.startswith("Перечисление."):
-            if знач.count(".") != 2:
+                         f"{', '.join(sorted(surplus))}")
+        val = item["значение"]
+        if isinstance(val, str) and val.startswith("Перечисление."):
+            if val.count(".") != 2:
                 raise Refuse(f"значение перечисления пишется «Перечисление.Вид.Значение», "
-                             f"получено {знач!r}")
-        elif not isinstance(знач, (bool, int, float, str)):
+                             f"получено {val!r}")
+        elif not isinstance(val, (bool, int, float, str)):
             raise Refuse(f"значением списка «{russian}» бывает число, строка, булево "
-                         f"или значение перечисления, получено {знач!r}")
-        представление = item.get("представление")
-        if представление is not None and not isinstance(представление, str):
+                         f"или значение перечисления, получено {val!r}")
+        presentation = item.get("представление")
+        if presentation is not None and not isinstance(presentation, str):
             raise Refuse(f"представление в списке «{russian}» — строка, "
-                         f"получено {представление!r}")
-        итог.append((знач, представление))
-    return tuple(итог)
+                         f"получено {presentation!r}")
+        result.append((val, presentation))
+    return tuple(result)
 
 
 # --- привязки ----------------------------------------------------------------
 
-def _без_ё(text):
+def _without_yo(text):
     return (text or "").replace("ё", "е").replace("Ё", "Е")
 
 
@@ -614,8 +614,8 @@ STANDARD_PAIRS = {
 def standard_attribute_name(owner_kind, said):
     """«Номер» -> «Number», «Проведён»/«Проведен» -> «Posted». `None` — у этого
     вида такого стандартного реквизита нет."""
-    russian = {_без_ё(r) for r in STANDARD_ATTRIBUTES_RU.get(owner_kind, ())}
-    plain = _без_ё(said)
+    russian = {_without_yo(r) for r in STANDARD_ATTRIBUTES_RU.get(owner_kind, ())}
+    plain = _without_yo(said)
     if plain in russian and plain in STANDARD_PAIRS:
         english = STANDARD_PAIRS[plain]
         if english in STANDARD_ATTRIBUTES.get(owner_kind, ()):
@@ -680,26 +680,26 @@ def bind_paths(edits, view=None):
         assignment = view.assignment if view else "Произвольная"
         attributes = set(view.attributes) if view else set()
     attributes |= {a.name for a in edits.attributes if a.table is None}
-    списки = set(view.dynamic_lists) if view else set()
+    lists = set(view.dynamic_lists) if view else set()
     if edits.create is not None and assignment in LIST_ASSIGNMENTS and main_name:
-        списки.add(main_name)
+        lists.add(main_name)
     for element in edits.all_elements():
         if element.kind not in BOUND_KINDS:
             continue
         if element.path:
             element.path = resolve_path(element.path, edits.owner_kind, main_name,
                                         assignment, attributes)
-        по_списку = element.kind == "ТаблицаФормы" and element.path in списки
+        by_list = element.kind == "ТаблицаФормы" and element.path in lists
         for child in element.children:
             if child.column and not child.path and element.path:
                 # Стандартное поле и в колонке пишется по-английски: у колонки
                 # табличной части это «Объект.Статьи.LineNumber» (эталон),
                 # у колонки списка — «Список.Date».
-                поле = standard_attribute_name(edits.owner_kind, child.column) or child.column
-                child.path = f"{element.path}.{поле}"
+                field = standard_attribute_name(edits.owner_kind, child.column) or child.column
+                child.path = f"{element.path}.{field}"
             # Динамический список показывают, а не правят: колонка у него —
             # поле-надписи (19 465 колонок корпуса против 1262 полей ввода).
-            if по_списку and child.kind_defaulted:
+            if by_list and child.kind_defaulted:
                 child.kind = "ПолеНадписи"
 
 
@@ -716,8 +716,8 @@ def _check_list_field(element, rest, known_paths, field, owner_kind):
     if known_paths is None:
         return []
     first = rest.split(".")[0]
-    known = set(known_paths) | {_без_ё(n) for n in STANDARD_ATTRIBUTES_RU.get(owner_kind, ())}
-    if _без_ё(first) in {_без_ё(n) for n in known}:
+    known = set(known_paths) | {_without_yo(n) for n in STANDARD_ATTRIBUTES_RU.get(owner_kind, ())}
+    if _without_yo(first) in {_without_yo(n) for n in known}:
         return []
     return [Finding("ФОРМА-ПОЛЕ-СПИСКА-НЕ-НАЙДЕНО",
                     f"«{element.name}» показывает поле «{element.path}», а такого поля "
@@ -759,7 +759,7 @@ def is_boolean(value_type):
 
 # --- проверки --------------------------------------------------------------
 
-def check(edits, view=None, owner_spec=None, configuration=None, соглашения=НЕЙТРАЛЬНЫЕ):
+def check(edits, view=None, owner_spec=None, configuration=None, conventions=NEUTRAL):
     """Инварианты правок формы. Возвращает находки; блокирующие — писать нельзя.
 
     `view` — что в форме уже есть (у новой формы — `None` или пустой вид);
@@ -770,10 +770,10 @@ def check(edits, view=None, owner_spec=None, configuration=None, соглаше�
     """
     findings = []
     kind = edits.owner_kind
-    приставка = соглашения.приставка
-    приставки = соглашения.приставки or None    # свои — и прежние, и тестовые
-    код_форм = соглашения.код_форм
-    if edits.owner and not is_ours(edits.owner_name, edits.name, приставки) and not edits.as_code:
+    prefix = conventions.prefix
+    prefixes = conventions.prefixes or None    # свои — и прежние, и тестовые
+    form_code = conventions.form_code
+    if edits.owner and not is_ours(edits.owner_name, edits.name, prefixes) and not edits.as_code:
         # Правило: типовые формы меняются только программно. Инструмент
         # видит XML типовой формы точно так же, как своей, и молча правил бы
         # её — поэтому правило проверяется здесь, а не оставляется на
@@ -781,13 +781,13 @@ def check(edits, view=None, owner_spec=None, configuration=None, соглаше�
         findings.append(Finding(
             "ФОРМА-ТИПОВАЯ-ТОЛЬКО-КОДОМ",
             f"«{edits.address}» — типовая форма: ни объект, ни форма не названы "
-            f"с «{приставка}». В XML такая форма не правится: типовые формы "
+            f"с «{prefix}». В XML такая форма не правится: типовые формы "
             "меняются только программно. Добавьте в задание «код»: true — "
             "инструмент выдаст фрагмент кода доработки формы для вызова из "
             "ПриСозданииНаСервере", "форма"))
     if edits.as_code:
-        findings.extend(_check_code_mode(edits, приставка, код_форм, приставки))
-        findings.extend(_check_code_target(edits, configuration, приставка, код_форм, приставки))
+        findings.extend(_check_code_mode(edits, prefix, form_code, prefixes))
+        findings.extend(_check_code_target(edits, configuration, prefix, form_code, prefixes))
     if edits.create is not None:
         findings.extend(_check_birth(edits.create, configuration))
     elif view is None:
@@ -842,12 +842,12 @@ def check(edits, view=None, owner_spec=None, configuration=None, соглаше�
         # Табличный документ и прочие документы показываются только своим
         # полем, а его инструмент не заводит: без находки реквизит проходил
         # бы, и что показать его нечем, выяснялось бы на следующем шаге.
-        тип = getattr(attribute.value_type, "name", None)
-        поле = DOCUMENT_FIELDS.get(тип)
-        if attribute.table is None and поле and поле not in ELEMENT_KINDS:
+        type_ = getattr(attribute.value_type, "name", None)
+        field = DOCUMENT_FIELDS.get(type_)
+        if attribute.table is None and field and field not in ELEMENT_KINDS:
             findings.append(Finding(
                 "ФОРМА-РЕКВИЗИТ-БЕЗ-ПОЛЯ",
-                f"реквизит «{attribute.name}» типа {тип} показывается только элементом {поле}, "
+                f"реквизит «{attribute.name}» типа {type_} показывается только элементом {field}, "
                 "а его инструмент не заводит ни в XML, ни кодом формы: без поля реквизит "
                 "на форме не виден. Своей форме поле добавляют в конфигураторе, типовой — "
                 "кодом в модуле формы (Элементы.Добавить) заданием на код", "реквизиты",
@@ -871,8 +871,8 @@ def check(edits, view=None, owner_spec=None, configuration=None, соглаше�
         findings.extend(_check_checkbox_type(element, attributes_after, main_name, owner_spec))
         elements_after[element.name] = (element.kind, element.parent)
         if element.kind == "ТаблицаФормы":
-            for суффикс, вид in TABLE_CONTAINERS:
-                elements_after.setdefault(element.name + суффикс, (вид, element.name))
+            for suffix, container_kind in TABLE_CONTAINERS:
+                elements_after.setdefault(element.name + suffix, (container_kind, element.name))
     if owner_spec is None and edits.owner and any(
             e.path and e.path.startswith((main_name or "") + ".") for e in edits.all_elements()):
         findings.append(Finding("ФОРМА-ПРИВЯЗКИ-НЕ-ПРОВЕРЕНЫ",
@@ -892,9 +892,9 @@ def _bound_type(path, attributes, main_name, owner_spec):
     if not rest:
         return attributes.get(head)
     if head == main_name and owner_spec is not None and "." not in rest:
-        for реквизит in owner_spec.get("реквизиты") or []:
-            if реквизит.get("имя") == rest:
-                return реквизит.get("тип")
+        for attribute in owner_spec.get("реквизиты") or []:
+            if attribute.get("имя") == rest:
+                return attribute.get("тип")
     return None
 
 
@@ -904,15 +904,15 @@ def _check_checkbox_type(element, attributes, main_name, owner_spec):
     проверки флажок на строковом «Примечании» проходил бы с «замечаний нет»."""
     if element.kind != "ПолеФлажка" or not element.path:
         return []
-    тип = _bound_type(element.path, attributes, main_name, owner_spec)
-    if тип is None:
+    type_ = _bound_type(element.path, attributes, main_name, owner_spec)
+    if type_ is None:
         return []
-    части = тип if isinstance(тип, (list, tuple)) else [тип]
-    if any(isinstance(часть, (BooleanType, NumberType)) for часть in части):
+    parts = type_ if isinstance(type_, (list, tuple)) else [type_]
+    if any(isinstance(part, (BooleanType, NumberType)) for part in parts):
         return []
     return [Finding("ФОРМА-ФЛАЖОК-ТИП",
                     f"«{element.name}» (ПолеФлажка) привязан к «{element.path}» типа "
-                    f"{запись_типа(тип)}, а флажок редактирует Булево (Число — при "
+                    f"{type_record(type_)}, а флажок редактирует Булево (Число — при "
                     "«ТриСостояния»): нужен другой вид поля или реквизит Булево", "элементы")]
 
 
@@ -923,7 +923,7 @@ def _added_names(edits):
             + [c.name for c in edits.commands])
 
 
-def _creates(вид, код_форм):
+def _creates(kind, form_code):
     """Как модуль заводит кодом элемент, реквизит или команду формы — имя первым
     аргументом: вызовами платформы и вызовами языка команды.
 
@@ -933,34 +933,34 @@ def _creates(вид, код_форм):
     формы имена — разные пространства: поле «Комментарий» и реквизит
     «Комментарий» живут рядом законно.
     """
-    шаблоны = [ПЛАТФОРМА_ДИАЛЕКТ.заводящие[вид]]
-    диалект = _язык(код_форм).диалект
-    if диалект is not ПЛАТФОРМА_ДИАЛЕКТ and диалект.заводящие.get(вид):
-        шаблоны.append(диалект.заводящие[вид])
-    return "(?:" + "|".join(шаблоны) + ")"
+    patterns = [PLATFORM_DIALECT.creating[kind]]
+    dialect = _language(form_code).dialect
+    if dialect is not PLATFORM_DIALECT and dialect.creating.get(kind):
+        patterns.append(dialect.creating[kind])
+    return "(?:" + "|".join(patterns) + ")"
 
 
-def _added_by_code(edits, lines, where, advice, код_форм=None):
+def _added_by_code(edits, lines, where, advice, form_code=None):
     """Имена задания, которые модуль уже заводит кодом в том же пространстве
     имён формы. Закомментированное не в счёт."""
     findings = []
-    for вид, имена in (("элемент", [e.name for e in edits.all_elements()]),
+    for kind, names in (("элемент", [e.name for e in edits.all_elements()]),
                        ("реквизит", [a.name for a in edits.attributes if a.table is None]),
                        ("команда", [c.name for c in edits.commands])):
-        for имя in имена:
-            заводит = re.compile(_creates(вид, код_форм) + rf'\s*\(\s*"{re.escape(имя)}"')
-            номер = next((n for n, строка in enumerate(lines or [], 1)
-                          if not строка.lstrip().startswith("//") and заводит.search(строка)),
+        for name in names:
+            creates = re.compile(_creates(kind, form_code) + rf'\s*\(\s*"{re.escape(name)}"')
+            number = next((n for n, line in enumerate(lines or [], 1)
+                          if not line.lstrip().startswith("//") and creates.search(line)),
                          None)
-            if номер:
+            if number:
                 findings.append(Finding(
                     "ФОРМА-КОД-УЖЕ-В-МОДУЛЕ",
-                    f"{вид} «{имя}» уже заводится кодом {where} (строка {номер}) — второй с тем "
+                    f"{kind} «{name}» уже заводится кодом {where} (строка {number}) — второй с тем "
                     f"же именем форма не примет: {advice}", "код"))
     return findings
 
 
-def _check_code_target(edits, configuration, приставка=None, код_форм=None, приставки=None):
+def _check_code_target(edits, configuration, prefix=None, form_code=None, prefixes=None):
     """Куда ляжет процедура кода формы: модуль есть, серверный, свой, имя в
     нём свободно или занято процедурой, которую можно дополнить. Без модуля —
     совет, какой назвать."""
@@ -972,131 +972,131 @@ def _check_code_target(edits, configuration, приставка=None, код_ф�
     # заводится в модуле формы, надпись с тем же именем без этой сверки прошла
     # бы с «замечаний нет» — а форма упала бы при открытии. Смотреть только
     # целевой модуль мало.
-    строки_формы = (configuration.form_module_lines(edits.owner, edits.name)
+    form_lines = (configuration.form_module_lines(edits.owner, edits.name)
                     if configuration is not None else None)
     if configuration is not None:
         findings.extend(_added_by_code(
-            edits, строки_формы, "в модуле формы",
+            edits, form_lines, "в модуле формы",
             "имя занято элементом, который модуль формы заводит сам, — новому нужно другое",
-            код_форм))
-    процедура = edits.code_procedure_name
+            form_code))
+    procedure = edits.code_procedure_name
     # Модуль формы уже зовёт процедуру с этим именем — доработка формы есть, и
     # новая процедура с новым вызовом её задвоили бы, а в режиме «код»: true
     # это прошло бы молча.
-    вызов = existing_call(строки_формы, процедура)
-    модуль = edits.code_module_name
-    if модуль is None:
-        свой = f"{приставка}{edits.owner_name}" if приставка and edits.owner_name else None
-        есть = bool(свой) and configuration is not None and configuration.common_module_exists(свой)
-        уже = есть and configuration.handler_arity(свой, процедура) is not None
+    call = existing_call(form_lines, procedure)
+    module = edits.code_module_name
+    if module is None:
+        own_one = f"{prefix}{edits.owner_name}" if prefix and edits.owner_name else None
+        exists = bool(own_one) and configuration is not None and configuration.common_module_exists(own_one)
+        already = exists and configuration.handler_arity(own_one, procedure) is not None
         findings.append(Finding(
             "ФОРМА-КОД-БЕЗ-МОДУЛЯ",
             "общий модуль для процедуры не назван — вызов выдан с заглушкой «<Модуль>»"
-            + (f"; у объекта есть свой модуль «{свой}»" if есть else "")
-            + (f", и в нём уже есть процедура «{процедура}» — назовите модуль, и фрагмент "
-               "дополнит её" if уже else "")
-            + f". Укажите «код»: {{«модуль»: «ОбщийМодуль.{приставка or ''}…»}} — инструмент проверит модуль "
+            + (f"; у объекта есть свой модуль «{own_one}»" if exists else "")
+            + (f", и в нём уже есть процедура «{procedure}» — назовите модуль, и фрагмент "
+               "дополнит её" if already else "")
+            + f". Укажите «код»: {{«модуль»: «ОбщийМодуль.{prefix or ''}…»}} — инструмент проверит модуль "
             "и имя процедуры и выдаст готовый вызов", "код", Finding.WARNING))
-        if вызов:
-            findings.append(_call_exists(вызов, процедура))
+        if call:
+            findings.append(_call_exists(call, procedure))
         return findings
-    if not is_identifier(модуль):
+    if not is_identifier(module):
         findings.append(Finding("ФОРМА-КОД-МОДУЛЬ", f"«{edits.code_module}» — не адрес общего "
-                                f"модуля: «ОбщийМодуль.{приставка or ''}Имя»", "код"))
+                                f"модуля: «ОбщийМодуль.{prefix or ''}Имя»", "код"))
         return findings
     if configuration is None:
         return findings
-    if not configuration.common_module_exists(модуль):
-        findings.append(Finding("ФОРМА-КОД-МОДУЛЬ", f"общего модуля «{модуль}» в выгрузке нет",
+    if not configuration.common_module_exists(module):
+        findings.append(Finding("ФОРМА-КОД-МОДУЛЬ", f"общего модуля «{module}» в выгрузке нет",
                                 "код"))
         return findings
     # Одного признака «Сервер» мало: клиент-серверный модуль и модуль вызова
     # сервера прошли бы с «замечаний нет», а в первом серверный код формы не
     # скомпилируется на клиенте, экспорт второго виден клиенту, а форму на
     # сервер не передать.
-    флаги = configuration.common_module_flags(модуль)
-    if флаги is not None and not флаги.get("сервер"):
+    flags = configuration.common_module_flags(module)
+    if flags is not None and not flags.get("сервер"):
         findings.append(Finding(
             "ФОРМА-КОД-МОДУЛЬ-НЕ-СЕРВЕР",
-            f"«{модуль}» не серверный: процедуру зовут из ПриСозданииНаСервере, модулю "
+            f"«{module}» не серверный: процедуру зовут из ПриСозданииНаСервере, модулю "
             "нужен признак «Сервер»", "код"))
-    elif флаги is not None and (флаги.get("клиентУправляемоеПриложение")
-                                or флаги.get("глобальный")):
+    elif flags is not None and (flags.get("клиентУправляемоеПриложение")
+                                or flags.get("глобальный")):
         findings.append(Finding(
             "ФОРМА-КОД-МОДУЛЬ-КЛИЕНТ",
-            f"«{модуль}» компилируется и на клиенте: код доработки формы серверный "
+            f"«{module}» компилируется и на клиенте: код доработки формы серверный "
             "(элементы и реквизиты формы добавляются только на сервере) — процедуре "
             "место в серверном модуле", "код"))
-    elif флаги is not None and флаги.get("вызовСервера"):
+    elif flags is not None and flags.get("вызовСервера"):
         findings.append(Finding(
             "ФОРМА-КОД-МОДУЛЬ-ВЫЗОВ-СЕРВЕРА",
-            f"«{модуль}» — модуль вызова сервера: его экспорт виден клиенту, а форму на "
+            f"«{module}» — модуль вызова сервера: его экспорт виден клиенту, а форму на "
             "сервер не передать — процедуре место в серверном модуле без вызова сервера",
             "код"))
-    if приставка and not модуль.startswith(приставки or приставка):
+    if prefix and not module.startswith(prefixes or prefix):
         findings.append(Finding(
             "ФОРМА-КОД-МОДУЛЬ-ТИПОВОЙ",
-            f"«{модуль}» — типовой модуль: реализация доработки живёт в своём модуле "
-            f"«{приставка}…», в типовом остаётся вызов", "код",
+            f"«{module}» — типовой модуль: реализация доработки живёт в своём модуле "
+            f"«{prefix}…», в типовом остаётся вызов", "код",
             Finding.WARNING))
     # Совет «назовите иначе» вёл бы в ловушку: повтор той же доработки под
     # другим именем заводит второй элемент с тем же именем.
     # Процедура доработки, которую можно узнать, — не ошибка: новые
     # элементы дописываются в неё, и фрагмент выдаётся для этого места,
     # чтобы не дописывать её руками.
-    строки_модуля = configuration.common_module_lines(модуль)
-    арность = configuration.handler_arity(модуль, процедура)
-    if арность is not None:
-        if code_procedure(строки_модуля, процедура, код_форм, арность) is None:
+    module_lines = configuration.common_module_lines(module)
+    arity_ = configuration.handler_arity(module, procedure)
+    if arity_ is not None:
+        if code_procedure(module_lines, procedure, form_code, arity_) is None:
             findings.append(Finding(
                 "ФОРМА-КОД-ИМЯ-ЗАНЯТО",
-                f"в «{модуль}» метод «{процедура}» уже есть, и процедуры доработки формы "
-                f"в нём не узнать ({_признак_процедуры(код_форм)}) — если это та же "
+                f"в «{module}» метод «{procedure}» уже есть, и процедуры доработки формы "
+                f"в нём не узнать ({_procedure_sign(form_code)}) — если это та же "
                 "доработка, она уже внесена: дополните ту процедуру заданием на код; другое "
                 "имя («код»: {«модуль»: …, «процедура»: «…»}) — только для другой доработки",
                 "код"))
-    elif вызов:
-        findings.append(_call_exists(вызов, процедура))
+    elif call:
+        findings.append(_call_exists(call, procedure))
     elif edits.code_procedure:
         # Имя процедуры задано явно — это законный путь для другой доработки
         # той же формы, но и путь задвоить ту же в обход защиты от второго
         # вызова. Предупреждение, а не ошибка.
-        обычная = f"{edits.name}_ПриСозданииНаСервере"
-        прежний = existing_call(строки_формы, обычная) if обычная != процедура else None
-        if прежний:
+        ordinary = f"{edits.name}_ПриСозданииНаСервере"
+        previous = existing_call(form_lines, ordinary) if ordinary != procedure else None
+        if previous:
             findings.append(Finding(
                 "ФОРМА-КОД-ВТОРАЯ-ДОРАБОТКА",
-                f"модуль формы уже вызывает процедуру доработки «{прежний[1]}.{обычная}» "
-                f"(строка {прежний[0]}) — «{процедура}» станет второй доработкой этой формы; "
+                f"модуль формы уже вызывает процедуру доработки «{previous[1]}.{ordinary}» "
+                f"(строка {previous[0]}) — «{procedure}» станет второй доработкой этой формы; "
                 f"если это та же доработка, дополните ту: «код»: {{«модуль»: "
-                f"«ОбщийМодуль.{прежний[1]}»}} без «процедура»", "код", Finding.WARNING))
+                f"«ОбщийМодуль.{previous[1]}»}} без «процедура»", "код", Finding.WARNING))
     findings.extend(_added_by_code(
-        edits, строки_модуля, f"в «{модуль}»",
-        "это повтор доработки — элемент уже есть", код_форм))
+        edits, module_lines, f"в «{module}»",
+        "это повтор доработки — элемент уже есть", form_code))
     return findings
 
 
-def _call_exists(вызов, процедура):
-    строка, модуль = вызов
+def _call_exists(call, procedure):
+    line, module = call
     return Finding(
         "ФОРМА-КОД-ВЫЗОВ-ЕСТЬ",
-        f"модуль формы уже вызывает «{модуль}.{процедура}» (строка {строка}) — доработка формы "
-        f"живёт в «{модуль}»: укажите «код»: {{«модуль»: «ОбщийМодуль.{модуль}»}}, и фрагмент "
+        f"модуль формы уже вызывает «{module}.{procedure}» (строка {line}) — доработка формы "
+        f"живёт в «{module}»: укажите «код»: {{«модуль»: «ОбщийМодуль.{module}»}}, и фрагмент "
         "дополнит её процедуру; второй вызов задвоил бы доработку", "код")
 
 
-def _язык(код_форм):
+def _language(form_code):
     """Язык кода формы; без соглашений — методы платформы."""
-    return код_форм if код_форм is not None else КодФорм()
+    return form_code if form_code is not None else FormCode()
 
 
-def _признак_процедуры(код_форм):
+def _procedure_sign(form_code):
     """По чему узнаётся процедура доработки формы — словами, для отказа."""
-    язык = _язык(код_форм)
-    return язык.диалект.признак_процедуры(язык.словарь)
+    language = _language(form_code)
+    return language.dialect.procedure_sign(language.vocabulary)
 
 
-def code_procedure(lines, name, код_форм=None, arity=None):
+def code_procedure(lines, name, form_code=None, arity=None):
     """Процедура доработки формы `name` в строках модуля — или `None`:
     процедуры нет или дополнять её нечем узнать. Как её узнать, решает язык
     кода (`arity` — сколько параметров у метода, если известно)."""
@@ -1105,16 +1105,16 @@ def code_procedure(lines, name, код_форм=None, arity=None):
     span = method_range(lines or [], name)
     if span is None:
         return None
-    язык = _язык(код_форм)
-    return язык.диалект.процедура(lines, span, arity, язык.словарь)
+    language = _language(form_code)
+    return language.dialect.procedure(lines, span, arity, language.vocabulary)
 
 
-def code_addition(text, procedure, код_форм=None):
+def code_addition(text, procedure, form_code=None):
     """Код формы -> то, что дописывается в существующую процедуру; как —
     решает язык кода."""
-    язык = _язык(код_форм)
-    строки = text.rstrip("\n").split("\n")
-    return "\n".join(язык.диалект.дополнение(строки, procedure, язык.словарь)) + "\n"
+    language = _language(form_code)
+    lines = text.rstrip("\n").split("\n")
+    return "\n".join(language.dialect.extension(lines, procedure, language.vocabulary)) + "\n"
 
 
 def existing_call(lines, procedure):
@@ -1122,11 +1122,11 @@ def existing_call(lines, procedure):
     Закомментированный не в счёт."""
     if not procedure:
         return None
-    вызов = re.compile(rf"([\wА-Яа-яЁё]+)\s*\.\s*{re.escape(procedure)}\s*\(")
+    call = re.compile(rf"([\wА-Яа-яЁё]+)\s*\.\s*{re.escape(procedure)}\s*\(")
     for number, line in enumerate(lines or [], 1):
         if line.lstrip().startswith("//"):
             continue
-        found = вызов.search(line.split("//")[0])
+        found = call.search(line.split("//")[0])
         if found:
             return number, found.group(1)
     return None
@@ -1150,15 +1150,15 @@ class CodePlace(NamedTuple):
 
 def form_module_address(address):
     """Адрес формы в заданиях на формы -> адрес её модуля в задании на код."""
-    части = address.split(".")
-    if части[0] == "Общая" and len(части) == 2:
-        return "ОбщаяФорма." + части[1]
-    if len(части) == 3:
-        return f"{части[0]}.{части[1]}.Форма.{части[2]}"
+    parts = address.split(".")
+    if parts[0] == "Общая" and len(parts) == 2:
+        return "ОбщаяФорма." + parts[1]
+    if len(parts) == 3:
+        return f"{parts[0]}.{parts[1]}.Форма.{parts[2]}"
     return address
 
 
-def code_anchors(edits, module_lines, form_lines, код_форм=None):
+def code_anchors(edits, module_lines, form_lines, form_code=None):
     """Куда ложатся процедура доработки формы и её вызов: (места, пояснения).
 
     Одни слова «в область, где у модуля лежит программный интерфейс» и «в
@@ -1171,43 +1171,43 @@ def code_anchors(edits, module_lines, form_lines, код_форм=None):
     from .modules import top_regions
 
     places, notes = [], []
-    модуль = edits.code_module_name
-    имя = edits.code_procedure_name
+    module = edits.code_module_name
+    name = edits.code_procedure_name
     # Процедура доработки уже есть — новые элементы дописываются в неё, а не
     # второй процедурой.
-    готовая = (code_procedure(module_lines, имя, код_форм) if модуль and module_lines
+    ready_one = (code_procedure(module_lines, name, form_code) if module and module_lines
                else None)
-    if готовая:
-        диалект = _язык(код_форм).диалект
-        places.append(CodePlace("дополнение", f"ОбщийМодуль.{модуль}", готовая.insert_line,
-                                module_lines[готовая.insert_line - 1], готовая.variable,
-                                диалект.место_дополнения(готовая)))
-        перед = диалект.якорь_дополнения(готовая)
-        notes.append(f"процедура «{имя}» в «{модуль}» уже есть (строки {готовая.start}-"
-                     f"{готовая.end}) — фрагмент дополняет её: вставкой перед строкой "
-                     f"{готовая.insert_line} ({перед}, lines = 0)")
-    elif модуль and module_lines is not None:
-        область = next((о for о in top_regions(module_lines) if о[0] == "ПрограммныйИнтерфейс"),
+    if ready_one:
+        dialect = _language(form_code).dialect
+        places.append(CodePlace("дополнение", f"ОбщийМодуль.{module}", ready_one.insert_line,
+                                module_lines[ready_one.insert_line - 1], ready_one.variable,
+                                dialect.extension_place(ready_one)))
+        before_it = dialect.extension_anchor(ready_one)
+        notes.append(f"процедура «{name}» в «{module}» уже есть (строки {ready_one.start}-"
+                     f"{ready_one.end}) — фрагмент дополняет её: вставкой перед строкой "
+                     f"{ready_one.insert_line} ({before_it}, lines = 0)")
+    elif module and module_lines is not None:
+        region = next((ob for ob in top_regions(module_lines) if ob[0] == "ПрограммныйИнтерфейс"),
                        None)
-        if область:
-            places.append(CodePlace("процедура", f"ОбщийМодуль.{модуль}", область[2],
-                                    module_lines[область[2] - 1]))
-            notes.append(f"процедура — вставкой перед строкой {область[2]} модуля «{модуль}» "
+        if region:
+            places.append(CodePlace("процедура", f"ОбщийМодуль.{module}", region[2],
+                                    module_lines[region[2] - 1]))
+            notes.append(f"процедура — вставкой перед строкой {region[2]} модуля «{module}» "
                          "(#КонецОбласти области «ПрограммныйИнтерфейс», lines = 0)")
         else:
-            notes.append(f"в «{модуль}» нет области «ПрограммныйИнтерфейс» — положите процедуру "
+            notes.append(f"в «{module}» нет области «ПрограммныйИнтерфейс» — положите процедуру "
                          "рядом с его экспортными методами")
     if form_lines is not None:
-        вызов = existing_call(form_lines, имя)
-        метод = method_range(form_lines, "ПриСозданииНаСервере")
-        if готовая and вызов and вызов[1] == модуль:
-            places.append(CodePlace("вызов есть", form_module_address(edits.address), вызов[0],
-                                    form_lines[вызов[0] - 1]))
-            notes.append(f"вызов в модуле формы уже есть (строка {вызов[0]}) — второй не нужен")
-        elif метод:
-            places.append(CodePlace("вызов", form_module_address(edits.address), метод[1],
-                                    form_lines[метод[1] - 1]))
-            notes.append(f"вызов — вставкой перед строкой {метод[1]} модуля формы (КонецПроцедуры "
+        call = existing_call(form_lines, name)
+        method = method_range(form_lines, "ПриСозданииНаСервере")
+        if ready_one and call and call[1] == module:
+            places.append(CodePlace("вызов есть", form_module_address(edits.address), call[0],
+                                    form_lines[call[0] - 1]))
+            notes.append(f"вызов в модуле формы уже есть (строка {call[0]}) — второй не нужен")
+        elif method:
+            places.append(CodePlace("вызов", form_module_address(edits.address), method[1],
+                                    form_lines[method[1] - 1]))
+            notes.append(f"вызов — вставкой перед строкой {method[1]} модуля формы (КонецПроцедуры "
                          "у ПриСозданииНаСервере, lines = 0)")
         else:
             notes.append("у формы нет ПриСозданииНаСервере — обработчик события формы "
@@ -1215,30 +1215,30 @@ def code_anchors(edits, module_lines, form_lines, код_форм=None):
     return places, notes
 
 
-def placement_notes(edits, view, код_форм=None):
+def placement_notes(edits, view, form_code=None):
     """Как «после» легло в код формы — словами.
 
     У кода формы есть только «перед», и «после «Комментарий»» в коде
     становится вставкой перед следующим элементом; без объяснения это
     выглядит ошибкой.
     """
-    диалект = _язык(код_форм).диалект
+    dialect = _language(form_code).dialect
     notes = []
     for element in edits.all_elements():
         if not element.after:
             continue
-        следующий, известен = after_as_before(view, element.after)
-        if not известен:
+        next_, is_known = after_as_before(view, element.after)
+        if not is_known:
             continue
-        if следующий:
+        if next_:
             # И чем это грозит: код теперь зависит от элемента, которого в
             # задании не было.
-            в_коде = диалект.перемещение(следующий)
+            in_code = dialect.movement(next_)
             notes.append(f"«{element.name}» после «{element.after}»: у кода формы есть только "
-                         f"«перед», поэтому в коде {в_коде} — перед "
+                         f"«перед», поэтому в коде {in_code} — перед "
                          f"следующим за «{element.after}» элементом. Сосед взят по форме в "
                          "выгрузке: элементы, добавленные кодом раньше, в расчёт не входят; "
-                         f"уберёт или переименует вендор «{следующий}» — код бросит "
+                         f"уберёт или переименует вендор «{next_}» — код бросит "
                          "исключение при открытии формы")
         else:
             notes.append(f"«{element.name}» после «{element.after}»: «{element.after}» — "
@@ -1269,7 +1269,7 @@ def after_as_before(view, name):
     return None, True
 
 
-def _check_code_mode(edits, приставка=None, код_форм=None, приставки=None):
+def _check_code_mode(edits, prefix=None, form_code=None, prefixes=None):
     """Чего программная доработка формы не умеет по устройству платформы."""
     findings = []
     if edits.create is not None:
@@ -1293,17 +1293,17 @@ def _check_code_mode(edits, приставка=None, код_форм=None, пр�
     # Ошибка, а не предупреждение: приставка обязательна, и у
     # метаданных то же правило (МД-ПРЕФИКС) — ошибка; предупреждение
     # принималось бы через «accepted».
-    if not is_ours(edits.owner_name, edits.name, приставки or приставка):
-        чужие = [имя for имя in _added_names(edits) if not имя.startswith(приставки or приставка)]
-        if чужие:
+    if not is_ours(edits.owner_name, edits.name, prefixes or prefix):
+        foreign = [name for name in _added_names(edits) if not name.startswith(prefixes or prefix)]
+        if foreign:
             findings.append(Finding(
                 "ФОРМА-БЕЗ-ПРИСТАВКИ",
-                f"в типовую форму добавляется без приставки «{приставка}»: {', '.join(чужие)} — "
+                f"в типовую форму добавляется без приставки «{prefix}»: {', '.join(foreign)} — "
                 "всё добавляемое в типовые объекты называется с ней, иначе его не отличить "
                 "от вендорского", "имя"))
     # Чего язык кода не выражает из описания — говорит сам язык.
-    язык = _язык(код_форм)
-    findings.extend(язык.диалект.находки(edits, язык.словарь))
+    language = _language(form_code)
+    findings.extend(language.dialect.findings(edits, language.vocabulary))
     return findings
 
 
@@ -1332,14 +1332,14 @@ def _check_column_name(element):
     Предупреждение, а не отказ: поле таблицы может и правда начинаться с её
     имени.
     """
-    таблица = element.parent
-    if not element.column or not таблица or not element.column.startswith(таблица) \
-            or element.column == таблица:
+    table = element.parent
+    if not element.column or not table or not element.column.startswith(table) \
+            or element.column == table:
         return []
-    поле = element.column[len(таблица):]
+    field = element.column[len(table):]
     return [Finding("ФОРМА-КОЛОНКА-ИМЯ",
-                    f"колонка «{element.column}» таблицы «{таблица}»: «имя» колонки — поле "
-                    f"строки (здесь, видимо, «{поле}»), имя элемента инструмент собирает сам — "
+                    f"колонка «{element.column}» таблицы «{table}»: «имя» колонки — поле "
+                    f"строки (здесь, видимо, «{field}»), имя элемента инструмент собирает сам — "
                     f"выйдет «{element.name}»", "элементы", Finding.WARNING)]
 
 
@@ -1400,8 +1400,8 @@ def _check_element(element, elements, attributes, commands, main_name, assignmen
     for name, value in element.properties.items():
         try:
             check_property(element.kind, name, value)
-        except Refuse as отказ:
-            findings.append(Finding("ФОРМА-СВОЙСТВО", f"«{element.name}»: {отказ}", field))
+        except Refuse as refusal:
+            findings.append(Finding("ФОРМА-СВОЙСТВО", f"«{element.name}»: {refusal}", field))
     for handler in element.events.values():
         if not is_identifier(handler):
             findings.append(Finding("ФОРМА-ОБРАБОТЧИК-ИМЯ",
@@ -1416,21 +1416,21 @@ def _check_events(element, field):
     Иначе неизвестное имя всплывало бы позже, отказом записи без кода и по
     одному, а событие чужого вида проходило бы вовсе.
     """
-    допустимые = EVENTS.get(element.kind)
-    if допустимые is None:
+    allowed = EVENTS.get(element.kind)
+    if allowed is None:
         return []
     findings = []
-    for событие in element.events:
-        if событие in допустимые:
+    for event in element.events:
+        if event in allowed:
             continue
-        у_кого = kinds_with(событие)
-        перечень = ", ".join(допустимые) if допустимые else "нет ни одного"
+        holder = kinds_with(event)
+        listing = ", ".join(allowed) if allowed else "нет ни одного"
         findings.append(Finding(
-            "ФОРМА-СОБЫТИЕ-НЕ-ДЛЯ-ВИДА" if у_кого else "ФОРМА-СОБЫТИЕ-НЕИЗВЕСТНО",
+            "ФОРМА-СОБЫТИЕ-НЕ-ДЛЯ-ВИДА" if holder else "ФОРМА-СОБЫТИЕ-НЕИЗВЕСТНО",
             f"«{element.name}» ({element.kind}): "
-            + (f"«{событие}» — событие вида {', '.join(у_кого[:3])}, а не этого"
-               if у_кого else f"события «{событие}» у элементов формы нет")
-            + f"; у {element.kind} событий: {перечень}", field))
+            + (f"«{event}» — событие вида {', '.join(holder[:3])}, а не этого"
+               if holder else f"события «{event}» у элементов формы нет")
+            + f"; у {element.kind} событий: {listing}", field))
     return findings
 
 
@@ -1447,13 +1447,13 @@ def _check_path(element, attributes, main_name, known_paths, field,
         # Реквизит-документ показывается своим полем, а не полем ввода:
         # ПолеВвода, привязанное к табличному документу, без этой проверки
         # прошло бы молча.
-        тип = getattr(attributes.get(head), "name", None)
-        нужен = DOCUMENT_FIELDS.get(тип)
-        if нужен and element.kind != нужен:
+        type_ = getattr(attributes.get(head), "name", None)
+        needed = DOCUMENT_FIELDS.get(type_)
+        if needed and element.kind != needed:
             return [Finding("ФОРМА-ПОЛЕ-НЕ-ДЛЯ-ТИПА",
-                            f"«{element.name}» ({element.kind}) привязан к «{head}» типа {тип}, "
-                            f"а такой реквизит показывается элементом {нужен}"
-                            + ("" if нужен in ELEMENT_KINDS else " — его инструмент не заводит"),
+                            f"«{element.name}» ({element.kind}) привязан к «{head}» типа {type_}, "
+                            f"а такой реквизит показывается элементом {needed}"
+                            + ("" if needed in ELEMENT_KINDS else " — его инструмент не заводит"),
                             field)]
         return []
     if head != main_name:

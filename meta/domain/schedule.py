@@ -37,53 +37,53 @@ MONTHS = {"Январь": "Jan", "Февраль": "Feb", "Март": "Mar", "А
           "Июнь": "Jun", "Июль": "Jul", "Август": "Aug", "Сентябрь": "Sep", "Октябрь": "Oct",
           "Ноябрь": "Nov", "Декабрь": "Dec"}
 LISTS = ("дниНедели", "месяцы", "расписанияДня")
-FIELDS = tuple(поле for поле, _ in ATTRIBUTES) + LISTS
+FIELDS = tuple(field for field, _ in ATTRIBUTES) + LISTS
 
-ДАТА = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-ВРЕМЯ = re.compile(r"^([01]\d|2[0-3]):[0-5]\d:[0-5]\d$")
-ЧИСЛА = ("повторДней", "повторВТечениеДня", "интервалЗавершения", "паузаПовтора", "повторНедель",
+DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+TIME = re.compile(r"^([01]\d|2[0-3]):[0-5]\d:[0-5]\d$")
+NUMBERS = ("повторДней", "повторВТечениеДня", "интервалЗавершения", "паузаПовтора", "повторНедель",
          "деньМесяца")
 
 
-def problems(расписание):
+def problems(schedule):
     """Беды расписания задания словами — пусто, если всё понятно."""
-    if not isinstance(расписание, dict):
+    if not isinstance(schedule, dict):
         return ["«расписание» — объект с полями: " + ", ".join(FIELDS)]
-    беды = []
-    лишние = [поле for поле in расписание if поле not in FIELDS]
-    if лишние:
-        беды.append(f"неизвестные поля расписания: {', '.join(лишние)}; известны: {', '.join(FIELDS)}")
-    for поле, значение in расписание.items():
-        if поле.startswith("дата") and (not isinstance(значение, str) or not ДАТА.match(значение)):
-            беды.append(f"«{поле}» — дата «ГГГГ-ММ-ДД», получено {значение!r}")
-        elif поле.startswith("время") and (not isinstance(значение, str) or not ВРЕМЯ.match(значение)):
-            беды.append(f"«{поле}» — время «ЧЧ:ММ:СС», получено {значение!r}")
-        elif поле in ЧИСЛА and (not isinstance(значение, int) or isinstance(значение, bool)
-                                 or (значение < 0 and поле != "деньМесяца")):
-            беды.append(f"«{поле}» — целое число" + (" (−1 — последний день)" if поле == "деньМесяца" else "")
-                        + f", получено {значение!r}")
-    for поле, словарь in (("дниНедели", WEEKDAYS), ("месяцы", MONTHS)):
-        значение = расписание.get(поле)
-        if значение is not None and (not isinstance(значение, list)
-                                     or any(x not in словарь for x in значение)):
-            беды.append(f"«{поле}» — список из: {', '.join(словарь)}; получено {значение!r}")
-    дни = расписание.get("расписанияДня")
-    if дни is not None:
-        if not isinstance(дни, list) or not all(isinstance(x, dict) for x in дни):
-            беды.append("«расписанияДня» — список объектов {времяНачала, времяОкончания, времяЗавершения}")
+    problems = []
+    extra = [field for field in schedule if field not in FIELDS]
+    if extra:
+        problems.append(f"неизвестные поля расписания: {', '.join(extra)}; известны: {', '.join(FIELDS)}")
+    for field, value in schedule.items():
+        if field.startswith("дата") and (not isinstance(value, str) or not DATE.match(value)):
+            problems.append(f"«{field}» — дата «ГГГГ-ММ-ДД», получено {value!r}")
+        elif field.startswith("время") and (not isinstance(value, str) or not TIME.match(value)):
+            problems.append(f"«{field}» — время «ЧЧ:ММ:СС», получено {value!r}")
+        elif field in NUMBERS and (not isinstance(value, int) or isinstance(value, bool)
+                                 or (value < 0 and field != "деньМесяца")):
+            problems.append(f"«{field}» — целое число" + (" (−1 — последний день)" if field == "деньМесяца" else "")
+                        + f", получено {value!r}")
+    for field, vocabulary in (("дниНедели", WEEKDAYS), ("месяцы", MONTHS)):
+        value = schedule.get(field)
+        if value is not None and (not isinstance(value, list)
+                                     or any(x not in vocabulary for x in value)):
+            problems.append(f"«{field}» — список из: {', '.join(vocabulary)}; получено {value!r}")
+    days = schedule.get("расписанияДня")
+    if days is not None:
+        if not isinstance(days, list) or not all(isinstance(x, dict) for x in days):
+            problems.append("«расписанияДня» — список объектов {времяНачала, времяОкончания, времяЗавершения}")
         else:
-            for x in дни:
-                беды += [f"расписание дня: {беда}" for беда in problems_daily(x)]
-    return беды
+            for x in days:
+                problems += [f"расписание дня: {problem}" for problem in problems_daily(x)]
+    return problems
 
 
-def problems_daily(день):
-    беды = []
-    for поле, _ in DAILY:
-        значение = день.get(поле, "00:00:00")
-        if not isinstance(значение, str) or not ВРЕМЯ.match(значение):
-            беды.append(f"«{поле}» — время «ЧЧ:ММ:СС», получено {значение!r}")
-    лишние = [поле for поле in день if поле not in dict(DAILY)]
-    if лишние:
-        беды.append(f"неизвестные поля: {', '.join(лишние)}")
-    return беды
+def problems_daily(day):
+    problems = []
+    for field, _ in DAILY:
+        value = day.get(field, "00:00:00")
+        if not isinstance(value, str) or not TIME.match(value):
+            problems.append(f"«{field}» — время «ЧЧ:ММ:СС», получено {value!r}")
+    extra = [field for field in day if field not in dict(DAILY)]
+    if extra:
+        problems.append(f"неизвестные поля: {', '.join(extra)}")
+    return problems

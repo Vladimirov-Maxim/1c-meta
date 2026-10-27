@@ -1,7 +1,7 @@
 """Общее у языков кода доработки формы: литералы BSL, имена обработчиков,
 ссылочные типы, вид кнопки и место элемента.
 
-Язык выбирают соглашения команды (`domain.conventions.КодФорм`): методы
+Язык выбирают соглашения команды (`domain.conventions.FormCode`): методы
 платформы (`platform_code`) или диалект команды из файла, который назвал
 профиль (`domain.form_dialect`); диалект берёт отсюда те же помощники.
 Описание формы одно — меняется только то, какими словами оно записано.
@@ -78,11 +78,11 @@ def place_before(element, view):
         return element.before
     if not element.after:
         return None
-    следующий, известен = fm.after_as_before(view, element.after)
-    if not известен:
+    next_, is_known = fm.after_as_before(view, element.after)
+    if not is_known:
         raise Refuse(f"«{element.name}»: «после» в коде переводится в «перед» по прочитанной "
                      f"форме, а элемента «{element.after}» в ней нет — укажите «перед»")
-    return следующий
+    return next_
 
 
 def parent_of(element, view, parent=None):

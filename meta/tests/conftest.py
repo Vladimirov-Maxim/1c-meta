@@ -32,9 +32,9 @@ for _переменная in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT
 def _тест():
     import json
 
-    from meta.jobs.profile import соглашения
+    from meta.jobs.profile import conventions
     with open(ПРОФИЛЬ, encoding="utf-8") as файл:
-        return соглашения(json.load(файл), "профиль тестов")
+        return conventions(json.load(файл), "профиль тестов")
 
 
 #: Соглашения тестовой команды — для тестов, которые зовут домен напрямую.

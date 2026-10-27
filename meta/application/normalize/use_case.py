@@ -31,12 +31,12 @@ class NormalizeUseCase:
         мерило = src.against_head() or src
         if мерило is not src:
             тронутые = {c.path: c.status for c in мерило.changes()}
-            чужие = [c.path for c in files if c.path not in тронутые]
+            foreign = [c.path for c in files if c.path not in тронутые]
             files = [c for c in files if c.path in тронутые]
             files = [c.__class__(тронутые[c.path], c.path) for c in files]
-            if чужие:
+            if foreign:
                 notes.append(f"база сверки — не HEAD: файлов, изменённых только между базой и HEAD "
-                             f"(правки других задач), — {len(чужие)}, они не трогаются; строки "
+                             f"(правки других задач), — {len(foreign)}, они не трогаются; строки "
                              "сверяются с HEAD")
         fixes, rewrites = [], []
         for c in files:
@@ -48,11 +48,11 @@ class NormalizeUseCase:
             if old is not None:
                 added, _ = changed_lines(мерило.hunks(c.path), мерило.lines(c.path, BEFORE) or [],
                                          мерило.lines(c.path, AFTER) or [])
-            new, что = normalized(data, old, мерило.unchanged_pairs(c.path) if old is not None else (),
+            new, what = normalized(data, old, мерило.unchanged_pairs(c.path) if old is not None else (),
                                   added, src.target_eol(c.path), src.is_module(c.path),
                                   src.target_bom(c.path))
-            if что:
-                fixes.append((c.path, что))
+            if what:
+                fixes.append((c.path, what))
                 rewrites.append((c.path, new))
         plan = src.prepare_rewrites(rewrites) if rewrites else None
         written = plan.apply() if apply_now and plan is not None else []

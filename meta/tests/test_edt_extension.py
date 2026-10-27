@@ -108,11 +108,11 @@ def git(root, *args):
     subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True)
 
 
-def написать(src, rel, текст, eol):
-    путь = os.path.join(str(src), *rel.split("/"))
-    os.makedirs(os.path.dirname(путь), exist_ok=True)
-    with open(путь, "wb") as файл:
-        файл.write(текст.replace("\n", eol).encode("utf-8"))
+def написать(src, rel, text, eol):
+    path = os.path.join(str(src), *rel.split("/"))
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "wb") as файл:
+        файл.write(text.replace("\n", eol).encode("utf-8"))
 
 
 def прочитать(src, rel):
@@ -127,12 +127,12 @@ def расширение(tmp_path):
     src = repo / "src"
     src.mkdir(parents=True)
     git(repo, "init", "-q")
-    for ключ, значение in (("user.email", "t@example.local"), ("user.name", "Фикстуры"),
+    for key, value in (("user.email", "t@example.local"), ("user.name", "Фикстуры"),
                            ("core.autocrlf", "false"), ("core.quotepath", "false")):
-        git(repo, "config", ключ, значение)
+        git(repo, "config", key, value)
     (repo / ".gitattributes").write_bytes(b"* -text\n")
-    for rel, текст in ФАЙЛЫ.items():
-        написать(src, rel, текст, "\r\n")
+    for rel, text in ФАЙЛЫ.items():
+        написать(src, rel, text, "\r\n")
     git(repo, "add", "-A")
     git(repo, "commit", "-q", "-m", "база")
     return src
@@ -140,9 +140,9 @@ def расширение(tmp_path):
 
 @pytest.fixture
 def профиль(tmp_path):
-    путь = tmp_path / "профиль.json"
-    путь.write_text(json.dumps(ПРОФИЛЬ, ensure_ascii=False), encoding="utf-8")
-    return str(путь)
+    path = tmp_path / "профиль.json"
+    path.write_text(json.dumps(ПРОФИЛЬ, ensure_ascii=False), encoding="utf-8")
+    return str(path)
 
 
 def test_extension_cards_go_through_the_adapter_and_back_unchanged(расширение):
@@ -153,10 +153,10 @@ def test_extension_cards_go_through_the_adapter_and_back_unchanged(расшир�
     for rel in ФАЙЛЫ:
         if not rel.endswith(".mdo"):
             continue
-        было = прочитать(расширение, rel)
-        дерево = площадка._designer_text(было)
-        стало = площадка._edt_text(дерево, lambda *_: None).replace("\n", площадка.eol).encode("utf-8")
-        assert стало == было, rel
+        before = прочитать(расширение, rel)
+        дерево = площадка._designer_text(before)
+        after_ = площадка._edt_text(дерево, lambda *_: None).replace("\n", площадка.eol).encode("utf-8")
+        assert after_ == before, rel
 
 
 def test_a_common_module_is_created_in_the_extension_beside_its_neighbours(расширение, tmp_path, capsys, профиль):
@@ -169,22 +169,22 @@ def test_a_common_module_is_created_in_the_extension_beside_its_neighbours(ра�
                "objects": [{"вид": "ОбщийМодуль", "поля": {
                    "имя": "ОМ_мой_Проба", "синоним": "Проба", "сервер": True,
                    "текст": "Процедура Проба() Экспорт\nКонецПроцедуры\n"}}]}
-    путь = tmp_path / "задание.json"
-    путь.write_text(json.dumps(задание, ensure_ascii=False), encoding="utf-8")
-    assert main([str(путь), "--apply", "--профиль", профиль]) == 0
+    path = tmp_path / "задание.json"
+    path.write_text(json.dumps(задание, ensure_ascii=False), encoding="utf-8")
+    assert main([str(path), "--apply", "--профиль", профиль]) == 0
 
-    карточка = прочитать(расширение, "CommonModules/ОМ_мой_Проба/ОМ_мой_Проба.mdo")
-    модуль = прочитать(расширение, "CommonModules/ОМ_мой_Проба/Module.bsl")
-    for данные in (карточка, модуль):
+    card = прочитать(расширение, "CommonModules/ОМ_мой_Проба/ОМ_мой_Проба.mdo")
+    module = прочитать(расширение, "CommonModules/ОМ_мой_Проба/Module.bsl")
+    for данные in (card, module):
         assert b"\r\n" in данные and b"\n" not in данные.replace(b"\r\n", b"")
         assert not данные.startswith(b"\xef\xbb\xbf")
-    assert "<name>ОМ_мой_Проба</name>" in карточка.decode("utf-8")
-    assert b"objectBelonging" not in карточка and b"mdclassExtension" not in карточка
+    assert "<name>ОМ_мой_Проба</name>" in card.decode("utf-8")
+    assert b"objectBelonging" not in card and b"mdclassExtension" not in card
 
-    реестр = прочитать(расширение, "Configuration/Configuration.mdo")
-    строка = "  <commonModules>CommonModule.ОМ_мой_Проба</commonModules>\r\n".encode()
+    registry = прочитать(расширение, "Configuration/Configuration.mdo")
+    line = "  <commonModules>CommonModule.ОМ_мой_Проба</commonModules>\r\n".encode()
     сосед = "  <commonModules>CommonModule.ЮТест</commonModules>\r\n".encode()
-    assert реестр == реестр_до.replace(сосед, сосед + строка)
+    assert registry == реестр_до.replace(сосед, сосед + line)
 
     ответ = tmp_path / "ответ.json"
     capsys.readouterr()
@@ -193,14 +193,14 @@ def test_a_common_module_is_created_in_the_extension_beside_its_neighbours(ра�
     assert данные["находки"] == [], capsys.readouterr().out
 
 
-@pytest.mark.parametrize("реестр, карточки, ожидание", [
+@pytest.mark.parametrize("registry, карточки, ожидание", [
     ("\r\n", "\r\n", "\r\n"),           # расширение тестов: всё в CRLF
     ("\n", "\n", "\n"),                 # основная конфигурация: всё в LF
     ("\r\n", "\n", "\n"),               # autocrlf: перевыгруженный реестр с CRLF среди LF
 ])
-def test_new_files_take_the_line_endings_of_the_project_cards(tmp_path, реестр, карточки, ожидание):
+def test_new_files_take_the_line_endings_of_the_project_cards(tmp_path, registry, карточки, ожидание):
     src = tmp_path / "src"
-    написать(src, "Configuration/Configuration.mdo", РЕЕСТР, реестр)
+    написать(src, "Configuration/Configuration.mdo", РЕЕСТР, registry)
     написать(src, "Catalogs/Договоры/Договоры.mdo", ЗАИМСТВОВАННЫЙ, карточки)
     написать(src, "CommonModules/ЮТест/ЮТест.mdo", СВОЙ, карточки)
     assert EdtDump(str(src)).eol == ожидание

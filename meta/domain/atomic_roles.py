@@ -6,7 +6,7 @@
 создание объекта инструментом всё равно заканчивалось бы в конфигураторе.
 
 Как роли называются, — соглашение команды: шаблоны имени и синонима
-(`СхемаРолей`) приходят из профиля соглашений, и без них атомарных ролей
+(`RoleSchema`) приходят из профиля соглашений, и без них атомарных ролей
 инструмент не заводит — роль с чужим именем хуже, чем никакой. Состав прав в
 роли — общий, он здесь: самое частое сочетание в замеренной выгрузке, где
 такая схема ролей принята:
@@ -40,14 +40,14 @@ from .model import Refuse, Spec
 
 #: Поля шаблона имени — каждое ровно один раз: без любого из них имена ролей
 #: разных объектов, видов или прав совпали бы.
-ПОЛЯ_ИМЕНИ = ("вид", "объект", "право")
+NAME_FIELDS = ("вид", "объект", "право")
 #: Поля шаблона синонима: {вид} — словами («Регистр сведений»), {синоним} —
 #: синоним объекта, {объект} — его имя.
-ПОЛЯ_СИНОНИМА = ("вид", "синоним", "объект", "право")
+SYNONYM_FIELDS = ("вид", "синоним", "объект", "право")
 
 
 @dataclass(frozen=True)
-class СхемаРолей:
+class RoleSchema:
     """Как команда называет атомарные роли.
 
     `имя` — «мой_атом_{вид}_{объект}_{право}», `синоним` — «(Мой) Атом. {вид} -
@@ -55,40 +55,40 @@ class СхемаРолей:
     она дала бы, совпадали бы у разных ролей или не были бы именами.
     """
 
-    имя: str
-    синоним: str
+    name: str
+    synonym: str
 
     def __post_init__(self):
-        поля = _поля(self.имя, "имени")
-        if Counter(поля) != Counter(ПОЛЯ_ИМЕНИ):
-            raise Refuse(f"шаблон имени атомарной роли «{self.имя}» — поля "
-                         f"{', '.join('{' + п + '}' for п in ПОЛЯ_ИМЕНИ)}, каждое ровно один раз")
-        лишнее = "".join(литерал for литерал, *_ in string.Formatter().parse(self.имя))
-        if re.search(r"\W", лишнее):
-            raise Refuse(f"шаблон имени атомарной роли «{self.имя}» — вне полей только буквы, "
+        fields = _fields(self.name, "имени")
+        if Counter(fields) != Counter(NAME_FIELDS):
+            raise Refuse(f"шаблон имени атомарной роли «{self.name}» — поля "
+                         f"{', '.join('{' + pt + '}' for pt in NAME_FIELDS)}, каждое ровно один раз")
+        surplus = "".join(literal for literal, *_ in string.Formatter().parse(self.name))
+        if re.search(r"\W", surplus):
+            raise Refuse(f"шаблон имени атомарной роли «{self.name}» — вне полей только буквы, "
                          "цифры и «_»: имя роли — идентификатор")
-        поля = _поля(self.синоним, "синонима")
-        if not set(поля) <= set(ПОЛЯ_СИНОНИМА) or "право" not in поля or not (
-                {"синоним", "объект"} & set(поля)):
-            raise Refuse(f"шаблон синонима атомарной роли «{self.синоним}» — поля из "
-                         f"{', '.join('{' + п + '}' for п in ПОЛЯ_СИНОНИМА)}, среди них {{право}} "
+        fields = _fields(self.synonym, "синонима")
+        if not set(fields) <= set(SYNONYM_FIELDS) or "право" not in fields or not (
+                {"синоним", "объект"} & set(fields)):
+            raise Refuse(f"шаблон синонима атомарной роли «{self.synonym}» — поля из "
+                         f"{', '.join('{' + pt + '}' for pt in SYNONYM_FIELDS)}, среди них {{право}} "
                          "и {синоним} или {объект}: иначе синонимы разных ролей совпадут")
 
 
-def _поля(шаблон, чего):
+def _fields(pattern, of_what):
     try:
-        разбор = list(string.Formatter().parse(шаблон))
-    except ValueError as ошибка:
-        raise Refuse(f"шаблон {чего} атомарной роли «{шаблон}» не разобрать: {ошибка}") from ошибка
-    поля = []
-    for _, поле, формат, преобразование in разбор:
-        if поле is None:
+        parsed = list(string.Formatter().parse(pattern))
+    except ValueError as error:
+        raise Refuse(f"шаблон {of_what} атомарной роли «{pattern}» не разобрать: {error}") from error
+    fields = []
+    for _, field, fmt, conversion in parsed:
+        if field is None:
             continue
-        if формат or преобразование:
-            raise Refuse(f"шаблон {чего} атомарной роли «{шаблон}» — поля без формата: "
-                         f"{{{поле}}}")
-        поля.append(поле)
-    return поля
+        if fmt or conversion:
+            raise Refuse(f"шаблон {of_what} атомарной роли «{pattern}» — поля без формата: "
+                         f"{{{field}}}")
+        fields.append(field)
+    return fields
 
 
 #: Вид в синониме — словами, как его называет платформа: «Регистр сведений», а
@@ -103,9 +103,9 @@ CONFIGURATION_RIGHTS = (
     "КлиентСистемыАналитики",
 )
 
-_ПРОСМОТР_ССЫЛОЧНОГО = ("Чтение", "Просмотр", "ВводПоСтроке")
-_ПРОСМОТР_РЕГИСТРА = ("Чтение", "Просмотр")
-_ИЗМЕНЕНИЕ_ДОКУМЕНТА = (
+_REFERENCE_VIEW = ("Чтение", "Просмотр", "ВводПоСтроке")
+_REGISTER_VIEW = ("Чтение", "Просмотр")
+_DOCUMENT_CHANGE = (
     "Чтение", "Добавление", "Изменение", "Просмотр", "Редактирование",
     "ВводПоСтроке", "Проведение", "ОтменаПроведения",
     "ИнтерактивноеДобавление", "ИнтерактивнаяПометкаУдаления",
@@ -113,7 +113,7 @@ _ИЗМЕНЕНИЕ_ДОКУМЕНТА = (
     "ИнтерактивноеПроведениеНеОперативное", "ИнтерактивнаяОтменаПроведения",
     "ИнтерактивноеИзменениеПроведенных",
 )
-_ИЗМЕНЕНИЕ_СПРАВОЧНИКА = (
+_CATALOG_CHANGE = (
     "Чтение", "Добавление", "Изменение", "Просмотр", "Редактирование",
     "ВводПоСтроке", "ИнтерактивноеДобавление", "ИнтерактивнаяПометкаУдаления",
     "ИнтерактивноеСнятиеПометкиУдаления",
@@ -125,27 +125,27 @@ _ИЗМЕНЕНИЕ_СПРАВОЧНИКА = (
     "ИзменениеНастроекИсторииДанных", "ИзменениеКомментарияВерсииИсторииДанных",
     "РедактированиеКомментарияВерсииИсторииДанных", "ПереходНаВерсиюИсторииДанных",
 )
-_ИЗМЕНЕНИЕ_РЕГИСТРА_СВЕДЕНИЙ = ("Чтение", "Изменение", "Просмотр", "Редактирование")
-_ИСПОЛЬЗОВАНИЕ = ("Использование", "Просмотр")
-_ИЗМЕНЕНИЕ_РЕГИСТРА_НАКОПЛЕНИЯ = ("Чтение", "Изменение", "Просмотр",
+_INFORMATION_REGISTER_CHANGE = ("Чтение", "Изменение", "Просмотр", "Редактирование")
+_USE = ("Использование", "Просмотр")
+_ACCUMULATION_REGISTER_CHANGE = ("Чтение", "Изменение", "Просмотр",
                                   "Редактирование", "УправлениеИтогами")
 
 #: (вид, право) -> права на объект: типовой состав роли.
 TEMPLATES = {
-    ("Документ", "Просмотр"): _ПРОСМОТР_ССЫЛОЧНОГО,
-    ("Документ", "Изменение"): _ИЗМЕНЕНИЕ_ДОКУМЕНТА,
-    ("Справочник", "Просмотр"): _ПРОСМОТР_ССЫЛОЧНОГО,
-    ("Справочник", "Изменение"): _ИЗМЕНЕНИЕ_СПРАВОЧНИКА,
-    ("РегистрСведений", "Просмотр"): _ПРОСМОТР_РЕГИСТРА,
-    ("РегистрСведений", "Изменение"): _ИЗМЕНЕНИЕ_РЕГИСТРА_СВЕДЕНИЙ,
-    ("РегистрНакопления", "Просмотр"): _ПРОСМОТР_РЕГИСТРА,
-    ("РегистрНакопления", "Изменение"): _ИЗМЕНЕНИЕ_РЕГИСТРА_НАКОПЛЕНИЯ,
+    ("Документ", "Просмотр"): _REFERENCE_VIEW,
+    ("Документ", "Изменение"): _DOCUMENT_CHANGE,
+    ("Справочник", "Просмотр"): _REFERENCE_VIEW,
+    ("Справочник", "Изменение"): _CATALOG_CHANGE,
+    ("РегистрСведений", "Просмотр"): _REGISTER_VIEW,
+    ("РегистрСведений", "Изменение"): _INFORMATION_REGISTER_CHANGE,
+    ("РегистрНакопления", "Просмотр"): _REGISTER_VIEW,
+    ("РегистрНакопления", "Изменение"): _ACCUMULATION_REGISTER_CHANGE,
     # Обработка и отчёт: роль одна и без суффикса — «пользоваться». Замер по
     # проекту, где схема принята: у обработок 32 роли без суффикса против 11
     # с суффиксом, у отчётов 25 против 5; права — «Использование» и
     # «Просмотр» у 47 из них.
-    ("Обработка", ""): _ИСПОЛЬЗОВАНИЕ,
-    ("Отчет", ""): _ИСПОЛЬЗОВАНИЕ,
+    ("Обработка", ""): _USE,
+    ("Отчет", ""): _USE,
 }
 
 #: Права, которые заводятся по умолчанию, — обе роли пары.
@@ -155,189 +155,189 @@ SINGLE_ROLE = {"Обработка": ("",), "Отчет": ("",)}
 #: Ниже этой доли соседей с типовым составом совет говорит, что он не правило.
 FIRM_SHARE = 0.85
 #: Сколько других составов называет совет и сколько прав в каждом отличии.
-ДРУГИХ_СОСТАВОВ = 3
-ПРАВ_В_ОТЛИЧИИ = 3
+OTHER_COMPOSITIONS = 3
+RIGHTS_IN_DIFF = 3
 
 
 def kinds():
     """Виды, для которых есть типовой состав."""
-    return tuple(sorted({вид for вид, _ in TEMPLATES}))
+    return tuple(sorted({kind for kind, _ in TEMPLATES}))
 
 
-def нужна_схема(схема):
+def needs_schema(schema):
     """Схема команды или отказ: имени атомарной роли без неё не из чего взять."""
-    if схема is None:
+    if schema is None:
         raise Refuse("атомарные роли заводятся по схеме команды, а она не задана: "
                      "профиль соглашений, ключ «атомарныеРоли» — шаблоны имени и синонима "
                      "роли, например {\"имя\": \"мой_атом_{вид}_{объект}_{право}\", "
                      "\"синоним\": \"Атом. {вид} - {синоним} - {право}\"}")
-    return схема
+    return schema
 
 
-def role_name(схема, вид, имя, право, сокращение=None):
+def role_name(schema, kind, name, right, abbreviation=None):
     """`сокращение` — короткое имя объекта для имени роли: у длинного объекта
     имя роли выходит за 80 символов (#std474 п. 2.3), и такие сокращают руками."""
-    return _заполнить(схема.имя, вид=вид, объект=сокращение or имя, право=право)
+    return _fill(schema.name, вид=kind, объект=abbreviation or name, право=right)
 
 
-def _заполнить(шаблон, **значения):
+def _fill(pattern, **values):
     """Шаблон схемы с подстановкой. Пустое право убирает и разделитель перед
     ним: «мой_атом_{вид}_{объект}_{право}» -> «мой_атом_Обработка_Имя», а синоним
     «… - {синоним} - {право}» -> «… - Синоним»."""
-    if значения.get("право"):
-        return шаблон.format(**значения)
-    вышло = []
-    for литерал, поле, _, _ in string.Formatter().parse(шаблон):
-        if поле == "право":
+    if values.get("право"):
+        return pattern.format(**values)
+    came_out = []
+    for literal, field, _, _ in string.Formatter().parse(pattern):
+        if field == "право":
             # Разделитель перед правом уходит вместе с ним; право в начале
             # шаблона — разделитель уходит после него.
-            if вышло or литерал:
-                вышло.append(re.sub(r"[\W_]+$", "", литерал))
+            if came_out or literal:
+                came_out.append(re.sub(r"[\W_]+$", "", literal))
             else:
-                вышло.append(None)
+                came_out.append(None)
             continue
-        if вышло and вышло[-1] is None:
-            вышло[-1] = ""
-            литерал = re.sub(r"^[\W_]+", "", литерал)
-        вышло.append(литерал)
-        if поле:
-            вышло.append(str(значения[поле]))
-    return "".join(x for x in вышло if x)
+        if came_out and came_out[-1] is None:
+            came_out[-1] = ""
+            literal = re.sub(r"^[\W_]+", "", literal)
+        came_out.append(literal)
+        if field:
+            came_out.append(str(values[field]))
+    return "".join(x for x in came_out if x)
 
 
-def name_pattern(схема, вид=None):
+def name_pattern(schema, kind=None):
     """Регулярное выражение имён атомарных ролей по схеме — с группами «объект» и
     «право»: так находятся соседи и пара, уже заведённая объекту. Без вида —
     роли любого вида, для которого есть типовой состав."""
-    виды = [вид] if вид else list(kinds())
-    части = []
-    for литерал, поле, _, _ in string.Formatter().parse(схема.имя):
-        if поле == "право":
+    kind_names = [kind] if kind else list(kinds())
+    parts = []
+    for literal, field, _, _ in string.Formatter().parse(schema.name):
+        if field == "право":
             # Право с разделителем перед ним — необязательно: у обработки и
             # отчёта роль одна и без суффикса.
-            разделитель = re.search(r"[\W_]*$", литерал).group(0)
-            части.append(re.escape(литерал[:len(литерал) - len(разделитель)]))
-            части.append("(?:" + re.escape(разделитель) + "(?P<право>"
+            separator = re.search(r"[\W_]*$", literal).group(0)
+            parts.append(re.escape(literal[:len(literal) - len(separator)]))
+            parts.append("(?:" + re.escape(separator) + "(?P<право>"
                          + "|".join(map(re.escape, DEFAULT_RIGHTS)) + "))?")
             continue
-        части.append(re.escape(литерал))
-        if поле == "вид":
-            части.append("(?:" + "|".join(map(re.escape, виды)) + ")")
-        elif поле == "объект":
-            части.append("(?P<объект>.+?)")
-    return "".join(части)
+        parts.append(re.escape(literal))
+        if field == "вид":
+            parts.append("(?:" + "|".join(map(re.escape, kind_names)) + ")")
+        elif field == "объект":
+            parts.append("(?P<объект>.+?)")
+    return "".join(parts)
 
 
-def is_atomic_role(схема, имя):
+def is_atomic_role(schema, name):
     """Названа ли роль по схеме атомарных ролей команды; без схемы — нет."""
-    return схема is not None and re.fullmatch(name_pattern(схема), имя or "") is not None
+    return schema is not None and re.fullmatch(name_pattern(schema), name or "") is not None
 
 
-def roles_of_object(вид, имя, роли):
+def roles_of_object(kind, name, roles):
     """Имена ролей из `роли` ({имя роли: выдачи}), чьи права выданы на объект.
 
     Имя роли по имени объекта не угадать — длинные сокращают, — поэтому по
     правам, а не по имени."""
-    цель = f"{вид}.{имя}"
-    return sorted(роль for роль, выдачи in (роли or {}).items()
-                  if any(в["объект"] == цель for в in выдачи))
+    target = f"{kind}.{name}"
+    return sorted(role for role, grants in (roles or {}).items()
+                  if any(vv["объект"] == target for vv in grants))
 
 
-def составы(вид, право, роли, схема):
+def compositions(kind, right, roles, schema):
     """Составы прав на свой объект у ролей вида с этим правом: [(состав, имя роли)]."""
-    шаблон = re.compile(name_pattern(схема, вид))
-    итог = []
-    for роль, выдачи in sorted((роли or {}).items()):
-        найдено = шаблон.fullmatch(роль)
-        if найдено is None or (найдено.group("право") or "") != право:
+    pattern = re.compile(name_pattern(schema, kind))
+    result = []
+    for role, grants in sorted((roles or {}).items()):
+        found = pattern.fullmatch(role)
+        if found is None or (found.group("право") or "") != right:
             continue
-        свои = [в for в in выдачи
-                if в["объект"].startswith(вид + ".") and в["объект"].count(".") == 1]
-        if len(свои) == 1:
-            итог.append((frozenset(свои[0]["права"]), роль))
-    return итог
+        own = [vv for vv in grants
+                if vv["объект"].startswith(kind + ".") and vv["объект"].count(".") == 1]
+        if len(own) == 1:
+            result.append((frozenset(own[0]["права"]), role))
+    return result
 
 
-def отличие(состав, типовой):
+def difference(composition, is_standard):
     """Чем состав отличается от типового — словами: «без A, B и ещё 3; с C»."""
-    def перечень(права):
-        if len(права) <= ПРАВ_В_ОТЛИЧИИ:
-            return ", ".join(права)
-        return ", ".join(права[:ПРАВ_В_ОТЛИЧИИ]) + f" и ещё {len(права) - ПРАВ_В_ОТЛИЧИИ}"
-    без = [п for п in типовой if п not in состав]
-    сверх = sorted(состав - set(типовой))
-    куски = ([f"без {перечень(без)}"] if без else []) + ([f"с {перечень(сверх)}"] if сверх else [])
-    return "; ".join(куски)
+    def listing(rights):
+        if len(rights) <= RIGHTS_IN_DIFF:
+            return ", ".join(rights)
+        return ", ".join(rights[:RIGHTS_IN_DIFF]) + f" и ещё {len(rights) - RIGHTS_IN_DIFF}"
+    without = [pt for pt in is_standard if pt not in composition]
+    beyond = sorted(composition - set(is_standard))
+    chunks = ([f"без {listing(without)}"] if without else []) + ([f"с {listing(beyond)}"] if beyond else [])
+    return "; ".join(chunks)
 
 
-def совет(вид, право, схема, роли):
+def advice(kind, right, schema, roles):
     """Совет о составе роли по соседям в выгрузке или `None`.
 
     `роли` — {имя роли: выдачи} ролей вида по схеме; `None` — выгрузку не
     спросить, и сказать о соседях нечего. Совета нет и там, где соседей нет
     или типовому составу следуют почти все.
     """
-    типовой = TEMPLATES[(вид, право)]
-    найдено = составы(вид, право, роли, схема)
-    if not найдено:
+    is_standard = TEMPLATES[(kind, right)]
+    found = compositions(kind, right, roles, schema)
+    if not found:
         return None
-    так = sum(1 for состав, _ in найдено if состав == frozenset(типовой))
-    if так / len(найдено) >= FIRM_SHARE:
+    as_is = sum(1 for composition, _ in found if composition == frozenset(is_standard))
+    if as_is / len(found) >= FIRM_SHARE:
         return None
-    счёт = Counter(состав for состав, _ in найдено if состав != frozenset(типовой))
-    пример = {}
-    for состав, роль in найдено:
-        пример.setdefault(состав, роль)
-    другие = "; ".join(f"{отличие(состав, типовой)} — {сколько}, например «Роль.{пример[состав]}»"
-                       for состав, сколько in счёт.most_common(ДРУГИХ_СОСТАВОВ))
-    соседи = _заполнить(схема.имя, вид=вид, объект="*", право=право)
+    count = Counter(composition for composition, _ in found if composition != frozenset(is_standard))
+    example = {}
+    for composition, role in found:
+        example.setdefault(composition, role)
+    others = "; ".join(f"{difference(composition, is_standard)} — {how_many}, например «Роль.{example[composition]}»"
+                       for composition, how_many in count.most_common(OTHER_COMPOSITIONS))
+    neighbours = _fill(schema.name, вид=kind, объект="*", право=right)
     # И как получить другой состав: «права» у атомарных ролей выбирают роли, а
     # не права платформы, и без подсказки путь пришлось бы искать самому.
-    return (f"типовой состав прав роли «{право}» у вида «{вид}» в выгрузке не правило: "
-            f"так устроены {так} из {len(найдено)} ролей «{право}» этого вида"
-            + (f"; другие составы: {другие}" if другие else "")
-            + f". Сверьте с ролями {соседи} соседних объектов — права роли показывает show "
+    return (f"типовой состав прав роли «{right}» у вида «{kind}» в выгрузке не правило: "
+            f"так устроены {as_is} из {len(found)} ролей «{right}» этого вида"
+            + (f"; другие составы: {others}" if others else "")
+            + f". Сверьте с ролями {neighbours} соседних объектов — права роли показывает show "
             "по адресу «Роль.<имя>». Нужен другой состав — заведите эту роль не атомарной "
             "парой, а пунктом objects вида «Роль» с полем «права» (имя и синоним — как в "
             "этом плане)")
 
 
-def roles_for(вид, имя, синоним, права=None, сокращение=None, схема=None, роли=None,
-              комментарий=None):
+def roles_for(kind, name, synonym, rights=None, abbreviation=None, schema=None, roles=None,
+              comment=None):
     """Спецификации ролей для объекта. `права` — какие из пары заводить;
     `роли` — роли вида по схеме, что уже есть в выгрузке (для совета);
     `комментарий` — комментарий роли (у соседей — дата, автор, задача).
 
     Возвращает список пар (спецификация роли, совет или `None`).
     """
-    нужна_схема(схема)
-    if вид in SINGLE_ROLE and права:
-        raise Refuse(f"у вида «{вид}» атомарная роль одна, без суффикса — права "
+    needs_schema(schema)
+    if kind in SINGLE_ROLE and rights:
+        raise Refuse(f"у вида «{kind}» атомарная роль одна, без суффикса — права "
                      "«Использование» и «Просмотр»; «права» здесь не задаются")
-    итог = []
-    for право in права or SINGLE_ROLE.get(вид) or DEFAULT_RIGHTS:
-        свои = TEMPLATES.get((вид, право))
-        if свои is None:
-            известно = sorted({п for в, п in TEMPLATES if в == вид})
+    result = []
+    for right in rights or SINGLE_ROLE.get(kind) or DEFAULT_RIGHTS:
+        own = TEMPLATES.get((kind, right))
+        if own is None:
+            known_set = sorted({pt for vv, pt in TEMPLATES if vv == kind})
             raise Refuse(
-                f"атомарной роли «{право}» для вида «{вид}» нет типового состава; "
-                + (f"для него есть: {', '.join(известно)}" if известно
+                f"атомарной роли «{right}» для вида «{kind}» нет типового состава; "
+                + (f"для него есть: {', '.join(known_set)}" if known_set
                    else f"типовой состав есть для: {', '.join(kinds())}"))
         # Синоним роли пишет инструмент, и «ё» из синонима объекта в нём не
         # оставляет (#std474 п. 4): у чужого объекта синоним не исправить.
-        синоним_роли = _заполнить(
-            схема.синоним, вид=SYNONYM_KIND.get(вид, вид), синоним=синоним or имя,
-            объект=имя, право=право).replace("ё", "е").replace("Ё", "Е")
-        поля = {
-            "имя": role_name(схема, вид, имя, право, сокращение),
-            "синоним": синоним_роли,
+        role_synonym = _fill(
+            schema.synonym, вид=SYNONYM_KIND.get(kind, kind), синоним=synonym or name,
+            объект=name, право=right).replace("ё", "е").replace("Ё", "Е")
+        fields = {
+            "имя": role_name(schema, kind, name, right, abbreviation),
+            "синоним": role_synonym,
             "права": [
-                {"объект": f"{вид}.{имя}", "права": list(свои)},
+                {"объект": f"{kind}.{name}", "права": list(own)},
                 {"объект": "Конфигурация", "права": list(CONFIGURATION_RIGHTS)},
             ],
         }
-        if комментарий:
-            поля["комментарий"] = комментарий
-        spec = Spec("Роль", поля)
-        итог.append((spec, совет(вид, право, схема, роли)))
-    return итог
+        if comment:
+            fields["комментарий"] = comment
+        spec = Spec("Роль", fields)
+        result.append((spec, advice(kind, right, schema, roles)))
+    return result

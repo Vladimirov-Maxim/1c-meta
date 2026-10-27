@@ -9,31 +9,31 @@
 
 def counts(text):
     """{символ: сколько} для `(`, `)`, `{`, `}`, `;` — вне литералов и комментариев."""
-    счёт = dict.fromkeys("(){};", 0)
-    for строка in (text or "").split("\n"):
-        в_литерале, i = False, 0
-        while i < len(строка):
-            ch = строка[i]
+    count = dict.fromkeys("(){};", 0)
+    for line in (text or "").split("\n"):
+        in_literal, i = False, 0
+        while i < len(line):
+            ch = line[i]
             if ch == '"':
-                в_литерале = not в_литерале
-            elif not в_литерале and строка.startswith("//", i):
+                in_literal = not in_literal
+            elif not in_literal and line.startswith("//", i):
                 break
-            elif not в_литерале and ch in счёт:
-                счёт[ch] += 1
+            elif not in_literal and ch in count:
+                count[ch] += 1
             i += 1
-    return счёт
+    return count
 
 
 def problems(old, new):
     """([ошибка], [предупреждение]) правки запроса: непарные скобки, которых
     не было, и сменившееся число запросов пакета."""
-    было, стало = counts(old), counts(new)
-    ошибки, предупреждения = [], []
-    for открыта, закрыта, что in (("(", ")", "круглые"), ("{", "}", "фигурные")):
-        if стало[открыта] != стало[закрыта] and было[открыта] == было[закрыта]:
-            ошибки.append(f"{что} скобки в запросе непарные после правки: «{открыта}» {стало[открыта]}, "
-                          f"«{закрыта}» {стало[закрыта]}")
-    if стало[";"] != было[";"]:
-        предупреждения.append(f"число запросов пакета меняется: «;» было {было[';']}, стало {стало[';']} — "
+    before, after_ = counts(old), counts(new)
+    errors, warnings = [], []
+    for opened, closed, what in (("(", ")", "круглые"), ("{", "}", "фигурные")):
+        if after_[opened] != after_[closed] and before[opened] == before[closed]:
+            errors.append(f"{what} скобки в запросе непарные после правки: «{opened}» {after_[opened]}, "
+                          f"«{closed}» {after_[closed]}")
+    if after_[";"] != before[";"]:
+        warnings.append(f"число запросов пакета меняется: «;» было {before[';']}, стало {after_[';']} — "
                               "правка выходит за один запрос пакета или добавляет запрос")
-    return ошибки, предупреждения
+    return errors, warnings

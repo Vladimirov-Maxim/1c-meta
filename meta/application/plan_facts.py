@@ -11,31 +11,31 @@ from ..domain.changes import AFTER, BEFORE, MODIFIED
 from ..domain.edits import declared_methods
 
 
-def затронутые(source):
+def touched(source):
     """{(вид, имя): статусы файлов} — объекты, файлы которых тронула задача.
     Статус карточки — свой (новая, удалена); правка любого другого файла
     объекта — «изменён»."""
     out = {}
     for c in source.changes():
-        объект = source.owner_of(c.path)
-        if объект is None:
+        obj = source.owner_of(c.path)
+        if obj is None:
             continue
-        статус = c.status if source.object_of(c.path) == объект else MODIFIED
-        out.setdefault(объект, set()).add(статус)
+        статус = c.status if source.object_of(c.path) == obj else MODIFIED
+        out.setdefault(obj, set()).add(статус)
     return out
 
 
 def _методы(source, path, side):
-    строки = source.lines(path, side)
-    return None if строки is None else declared_methods(строки)
+    lines = source.lines(path, side)
+    return None if lines is None else declared_methods(lines)
 
 
-def _модуль(source, path):
-    return rules.МодульФакта(path, _методы(source, path, AFTER), _методы(source, path, BEFORE) or {})
+def _module(source, path):
+    return rules.FactModule(path, _методы(source, path, AFTER), _методы(source, path, BEFORE) or {})
 
 
-def факт_объекта(source, вид, имя, модули):
-    """`ФактОбъекта`: состав до и после, модули {модуль: путь} — их методы."""
-    return rules.ФактОбъекта(вид, имя, source.card_path(вид, имя),
-                             source.composition(вид, имя, AFTER), source.composition(вид, имя, BEFORE),
-                             {модуль: _модуль(source, путь) for модуль, путь in модули.items()})
+def факт_объекта(source, kind, name, modules):
+    """`ObjectFact`: состав до и после, модули {модуль: путь} — их методы."""
+    return rules.ObjectFact(kind, name, source.card_path(kind, name),
+                             source.composition(kind, name, AFTER), source.composition(kind, name, BEFORE),
+                             {module: _module(source, path) for module, path in modules.items()})

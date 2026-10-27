@@ -133,9 +133,9 @@ class LxmlCardTree(CardTree):
         названы тысячи объектов со всеми правами `false` (29 МБ у одной роли
         корпуса), и перевод всего дерева в узлы занимал бы минуту на вид объектов."""
         пространства = {"r": tree.nsmap.get(None)}
-        return [(объект.findtext("r:name", namespaces=пространства) or "",
-                 объект.xpath("r:right[r:value='true']/r:name/text()", namespaces=пространства))
-                for объект in tree.xpath("r:object[r:right/r:value='true']",
+        return [(obj.findtext("r:name", namespaces=пространства) or "",
+                 obj.xpath("r:right[r:value='true']/r:name/text()", namespaces=пространства))
+                for obj in tree.xpath("r:object[r:right/r:value='true']",
                                          namespaces=пространства)]
 
     def to_node(self, element):
@@ -143,8 +143,8 @@ class LxmlCardTree(CardTree):
         return mapping.Node(
             self.tag_of(element),
             text=(element.text or "").strip() or None,
-            attrs={etree.QName(имя).localname if "}" in имя else имя: значение
-                   for имя, значение in element.attrib.items()},
+            attrs={etree.QName(name).localname if "}" in name else name: value
+                   for name, value in element.attrib.items()},
             children=[self.to_node(ребёнок) for ребёнок in element
                       if isinstance(ребёнок.tag, str)])
 

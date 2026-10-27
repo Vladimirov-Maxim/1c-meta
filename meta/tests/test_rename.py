@@ -139,9 +139,9 @@ def положить_схему(root):
     folder = os.path.join(root, "Documents", "мой_Держатель",
                           "Templates", "Отчёт", "Ext")
     os.makedirs(folder)
-    путь = os.path.join(folder, "Template.xml")
-    open(путь, "w", encoding="utf-8-sig", newline="").write(SCHEMA_WITH_QUERY)
-    return путь
+    path = os.path.join(folder, "Template.xml")
+    open(path, "w", encoding="utf-8-sig", newline="").write(SCHEMA_WITH_QUERY)
+    return path
 
 
 def test_a_name_used_only_in_a_query_is_reported(dump):
@@ -152,13 +152,13 @@ def test_a_name_used_only_in_a_query_is_reported(dump):
     хотя бы один объект назван только так: без предупреждения переименование
     ответило бы «ссылок — 0» и оставило бы отчёт сломанным.
     """
-    путь = положить_схему(dump)
+    path = положить_схему(dump)
     результат = rename(dump, "Справочник.мой_Старое", "мой_Новое")
     сказано = "\n".join(результат.plan.describe())
     assert "в текстах запросов" in сказано, сказано
     assert "макет Отчёт" in сказано, сказано
     # и сам текст запроса остался прежним: язык запросов инструмент не правит
-    assert "Справочник.мой_Старое" in text_of(путь)
+    assert "Справочник.мой_Старое" in text_of(path)
 
 
 def test_a_query_mention_of_another_object_is_not_reported(dump):
@@ -349,8 +349,8 @@ def test_a_reference_in_the_registry_is_renamed_too(dump):
             "\t\t</Properties>\n\t</Configuration>"))
 
     rename(dump, "Справочник.мой_Старое", "мой_Новое")
-    стало = open(registry_path, encoding="utf-8-sig").read()
-    assert "<DefaultCatalog>Catalog.мой_Новое</DefaultCatalog>" in стало
-    assert "<Catalog>мой_Новое</Catalog>" in стало
-    assert "мой_Старое" not in стало
+    after_ = open(registry_path, encoding="utf-8-sig").read()
+    assert "<DefaultCatalog>Catalog.мой_Новое</DefaultCatalog>" in after_
+    assert "<Catalog>мой_Новое</Catalog>" in after_
+    assert "мой_Старое" not in after_
 

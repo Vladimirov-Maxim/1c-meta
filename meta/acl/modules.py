@@ -78,7 +78,7 @@ CONFIGURATION_FILES = {
 
 #: Обратное: файл собственного модуля -> слово адреса. Для подсказки
 #: «у объекта есть такие модули».
-OWN_BY_FILE = {файл: слово for слово, файл in OWN_FILES.items()}
+OWN_BY_FILE = {файл: word for word, файл in OWN_FILES.items()}
 
 
 class ModuleLayout:
@@ -106,7 +106,7 @@ class ModuleLayout:
         if container is None:
             raise Refuse(f"у вида «{address.kind}» модулей не бывает или вид не знаю; "
                          f"модули бывают у: {', '.join(CONTAINERS)}")
-        return tuple(часть for часть in self._module_file(container, address) if часть)
+        return tuple(part for part in self._module_file(container, address) if part)
 
     def _module_file(self, container, address):
         if address.kind == "ОбщаяФорма":
@@ -156,9 +156,9 @@ DESIGNER = ModuleLayout("выгрузка конфигуратора", ("Ext",),
 EDT = ModuleLayout("проект EDT", (), ("Module.bsl",), "Configuration")
 
 #: Обратное к `CONTAINERS`: каталог выгрузки -> вид.
-KIND_BY_CONTAINER = {каталог: вид for вид, каталог in CONTAINERS.items()}
+KIND_BY_CONTAINER = {каталог: kind for kind, каталог in CONTAINERS.items()}
 #: Обратное к `CONFIGURATION_FILES`.
-CONFIGURATION_BY_FILE = {файл: слово for слово, файл in CONFIGURATION_FILES.items()}
+CONFIGURATION_BY_FILE = {файл: word for word, файл in CONFIGURATION_FILES.items()}
 
 #: Выгрузка конфигуратора — раскладка по умолчанию.
 module_file = DESIGNER.module_file
@@ -170,4 +170,4 @@ def object_folder(address):
     container = CONTAINERS.get(address.kind)
     if container is None:
         return None
-    return tuple(часть for часть in (container, address.name) if часть)
+    return tuple(part for part in (container, address.name) if part)

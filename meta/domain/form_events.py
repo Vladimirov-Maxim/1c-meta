@@ -11,7 +11,7 @@
 `EVENTS[вид элемента] = события по-русски`. Вид — как в заданиях на формы.
 """
 
-_ПЕРЕТАСКИВАНИЕ = ("НачалоПеретаскивания", "ОкончаниеПеретаскивания", "Перетаскивание",
+_DRAG = ("НачалоПеретаскивания", "ОкончаниеПеретаскивания", "Перетаскивание",
                    "ПроверкаПеретаскивания")
 
 EVENTS = {
@@ -23,10 +23,10 @@ EVENTS = {
                   "УдалениеМножественныхЗначений"),
     "ПолеФлажка": ("ПриИзменении",),
     "ПолеНадписи": ("ПриИзменении", "Нажатие", "ОбработкаНавигационнойСсылки"),
-    "ПолеКартинки": ("ПриИзменении", "Нажатие") + _ПЕРЕТАСКИВАНИЕ,
+    "ПолеКартинки": ("ПриИзменении", "Нажатие") + _DRAG,
     "ПолеПереключателя": ("ПриИзменении",),
     "Надпись": ("Нажатие", "ОбработкаНавигационнойСсылки"),
-    "Картинка": ("Нажатие",) + _ПЕРЕТАСКИВАНИЕ,
+    "Картинка": ("Нажатие",) + _DRAG,
     # «Нажатие» — у группы-гиперссылки (свойство «Гиперссылка»).
     "ГруппаФормы": ("Нажатие",),
     "Страницы": ("ПриСменеСтраницы",),
@@ -68,31 +68,31 @@ def unbound_handlers(new_procedures, bound, elements, form_events):
     проходит все проверки, а обработчик молчит. `bound` — привязанные
     процедуры (события формы и элементов, действия команд), `elements` —
     имена элементов, `form_events` — события самой формы."""
-    события_элементов = {событие for события in EVENTS.values() for событие in события}
+    element_events = {event for events in EVENTS.values() for event in events}
     found = []
-    for имя in new_procedures:
-        if имя in bound:
+    for name in new_procedures:
+        if name in bound:
             continue
-        if имя in form_events:
-            found.append((имя, f"событие формы «{имя}»"))
+        if name in form_events:
+            found.append((name, f"событие формы «{name}»"))
             continue
-        for элемент in sorted(elements, key=len, reverse=True):
-            хвост = имя[len(элемент):]
-            if имя.startswith(элемент) and хвост in события_элементов:
-                found.append((имя, f"событие «{хвост}» элемента «{элемент}»"))
+        for element in sorted(elements, key=len, reverse=True):
+            tail = name[len(element):]
+            if name.startswith(element) and tail in element_events:
+                found.append((name, f"событие «{tail}» элемента «{element}»"))
                 break
     return found
 
 
-def unbound_message(имя, чьё):
-    return (f"процедура «{имя}» названа как {чьё}, а в описании формы не привязана — платформа её "
+def unbound_message(name, whose):
+    return (f"процедура «{name}» названа как {whose}, а в описании формы не привязана — платформа её "
             "не вызовет: привяжите (forms_apply, «события» или «обработчики» элемента) или "
             "переименуйте процедуру")
 
 
 def kinds_with(event):
     """Виды, у которых такое событие есть, — для подсказки в отказе."""
-    return [вид for вид, события in EVENTS.items() if event in события]
+    return [kind for kind, events in EVENTS.items() if event in events]
 
 
 class HandlerDeclaration:
@@ -116,25 +116,25 @@ def existing_handler(lines, name):
     """
     import re
 
-    объявление = re.compile(rf"^\s*(?:Асинх\s+)?(?:Процедура|Функция)\s+{re.escape(name)}\s*\(",
+    declaration = re.compile(rf"^\s*(?:Асинх\s+)?(?:Процедура|Функция)\s+{re.escape(name)}\s*\(",
                             re.IGNORECASE)
     lines = lines or []
     for number, line in enumerate(lines, start=1):
-        if not объявление.match(line):
+        if not declaration.match(line):
             continue
-        текст, k = line, number
-        while ")" not in текст.split("//")[0] and k < len(lines) and k < number + 10:
-            текст += " " + lines[k]
+        text, k = line, number
+        while ")" not in text.split("//")[0] and k < len(lines) and k < number + 10:
+            text += " " + lines[k]
             k += 1
-        внутри = текст[текст.find("(") + 1:текст.find(")")] if ")" in текст else ""
-        параметры = [часть.split("=")[0].split()[-1] for часть in внутри.split(",")
-                     if часть.split("=")[0].strip()]
+        inside = text[text.find("(") + 1:text.find(")")] if ")" in text else ""
+        parameters = [part.split("=")[0].split()[-1] for part in inside.split(",")
+                     if part.split("=")[0].strip()]
         j = number - 2
         while j >= 0 and lines[j].strip().startswith("//"):
             j -= 1
-        директива = lines[j].strip().split()[0] if j >= 0 and lines[j].strip().startswith("&") \
+        directive = lines[j].strip().split()[0] if j >= 0 and lines[j].strip().startswith("&") \
             else "&НаСервере"
-        return HandlerDeclaration(number, директива, параметры)
+        return HandlerDeclaration(number, directive, parameters)
     return None
 
 
@@ -147,15 +147,15 @@ def handler_conflict(lines, name, directive, parameters):
     роли клиентского обработчика элемента. Сравниваются директива и число
     параметров; незамеренная сигнатура (`parameters` = None) — только директива.
     """
-    найдено = existing_handler(lines, name)
-    if найдено is None:
+    found = existing_handler(lines, name)
+    if found is None:
         return None
-    ждём = None if parameters is None else [p for p in parameters.split(",") if p.strip()]
-    директива_не_та = directive and найдено.directive.lower() != directive.lower()
-    число_не_то = ждём is not None and len(ждём) != len(найдено.parameters)
-    if not (директива_не_та or число_не_то):
+    expected = None if parameters is None else [p for p in parameters.split(",") if p.strip()]
+    wrong_directive = directive and found.directive.lower() != directive.lower()
+    wrong_count = expected is not None and len(expected) != len(found.parameters)
+    if not (wrong_directive or wrong_count):
         return None
-    return (f"процедура «{name}» в модуле формы уже есть (строка {найдено.line}), но это "
-            f"«{найдено.directive} Процедура {name}({', '.join(найдено.parameters)})», а "
+    return (f"процедура «{name}» в модуле формы уже есть (строка {found.line}), но это "
+            f"«{found.directive} Процедура {name}({', '.join(found.parameters)})», а "
             f"обработчику нужна «{directive} Процедура {name}({parameters or ''})» — "
             "назовите обработчик иначе")

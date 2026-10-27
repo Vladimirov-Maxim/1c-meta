@@ -24,35 +24,35 @@ from meta.tests.test_verify import выгрузка, зафиксировать,
 def прочитать(root, rel):
     сырое = open(os.path.join(str(root), *rel.split("/")), "rb").read()
     bom = сырое.startswith(b"\xef\xbb\xbf")
-    текст = (сырое[3:] if bom else сырое).decode("utf-8")
-    crlf = текст.count("\r\n")
-    lf = текст.count("\n") - crlf
-    тело = текст[:-1].rstrip("\r") if текст.endswith("\n") else текст
-    строки = [s[:-1] if s.endswith("\r") else s for s in тело.split("\n")] if тело else []
-    return строки, bom, crlf, lf, текст.endswith("\n")
+    text = (сырое[3:] if bom else сырое).decode("utf-8")
+    crlf = text.count("\r\n")
+    lf = text.count("\n") - crlf
+    body = text[:-1].rstrip("\r") if text.endswith("\n") else text
+    lines = [s[:-1] if s.endswith("\r") else s for s in body.split("\n")] if body else []
+    return lines, bom, crlf, lf, text.endswith("\n")
 
 
 def нормализовать(capsys, *аргументы):
     capsys.readouterr()
-    код = main(["--нормализовать", *map(str, аргументы)])
-    return код, capsys.readouterr().out
+    code = main(["--нормализовать", *map(str, аргументы)])
+    return code, capsys.readouterr().out
 
 
 def test_bom_is_returned_to_a_new_file(tmp_path, capsys):
     root = выгрузка(tmp_path)
     написать(root, НОВЫЙ, ["Процедура Б() Экспорт", "\tВозврат;", "КонецПроцедуры"], bom=False)
-    код, текст = нормализовать(capsys, root)
-    assert код == 1 and f"[к правке] {НОВЫЙ}: BOM" in текст and not прочитать(root, НОВЫЙ)[1]
-    код, текст = нормализовать(capsys, root, "--apply")
-    assert код == 0 and прочитать(root, НОВЫЙ)[1] and "ИСПРАВЛЕНО: файлов 1" in текст
+    code, text = нормализовать(capsys, root)
+    assert code == 1 and f"[к правке] {НОВЫЙ}: BOM" in text and not прочитать(root, НОВЫЙ)[1]
+    code, text = нормализовать(capsys, root, "--apply")
+    assert code == 0 and прочитать(root, НОВЫЙ)[1] and "ИСПРАВЛЕНО: файлов 1" in text
 
 
 def test_line_endings_follow_the_repository(tmp_path, capsys):
     root = выгрузка(tmp_path)
     написать(root, НОВЫЙ, ["Процедура Б() Экспорт", "\tВозврат;", "КонецПроцедуры"], eol="\n")
-    _, текст = нормализовать(capsys, root, "--apply")
+    _, text = нормализовать(capsys, root, "--apply")
     _, _, crlf, lf, _ = прочитать(root, НОВЫЙ)
-    assert crlf == 3 and lf == 0, текст
+    assert crlf == 3 and lf == 0, text
 
 
 def test_blank_lines_in_methods_get_their_indent(tmp_path, capsys):
@@ -61,12 +61,12 @@ def test_blank_lines_in_methods_get_their_indent(tmp_path, capsys):
                            "\tКонецЕсли;", "", "КонецПроцедуры", "", "Процедура В() Экспорт",
                            "\tВозврат;", "КонецПроцедуры"])
     нормализовать(capsys, root, "--apply")
-    строки = прочитать(root, НОВЫЙ)[0]
-    assert строки[1] == "\t"            # после заголовка процедуры
-    assert строки[3] == "\t\t"          # внутри Если
-    assert строки[5] == "\t\t"          # перед КонецЕсли — ещё внутри блока
-    assert строки[7] == "\t"            # перед КонецПроцедуры
-    assert строки[9] == ""              # между процедурами отступ не ставится
+    lines = прочитать(root, НОВЫЙ)[0]
+    assert lines[1] == "\t"            # после заголовка процедуры
+    assert lines[3] == "\t\t"          # внутри Если
+    assert lines[5] == "\t\t"          # перед КонецЕсли — ещё внутри блока
+    assert lines[7] == "\t"            # перед КонецПроцедуры
+    assert lines[9] == ""              # между процедурами отступ не ставится
 
 
 def test_an_added_blank_line_gets_the_exact_indent_even_with_whitespace(tmp_path, capsys):
@@ -75,12 +75,12 @@ def test_an_added_blank_line_gets_the_exact_indent_even_with_whitespace(tmp_path
     root = выгрузка(tmp_path)
     написать(root, ТЕСТ, ["Процедура А() Экспорт", "\tВозврат;", "КонецПроцедуры"])
     зафиксировать(root)
-    for отступ in ("", "\t", "\t\t", "\t\t\t\t"):
+    for indent in ("", "\t", "\t\t", "\t\t\t\t"):
         написать(root, ТЕСТ, ["Процедура А() Экспорт", "\tДля Каждого А Из Массив Цикл",
-                              "\t\tДля Каждого Б Из А Цикл", "\t\t\tСделать(Б);", отступ,
+                              "\t\tДля Каждого Б Из А Цикл", "\t\t\tСделать(Б);", indent,
                               "\t\tКонецЦикла;", "\tКонецЦикла;", "КонецПроцедуры"])
         нормализовать(capsys, root, "--apply")
-        assert прочитать(root, ТЕСТ)[0][4] == "\t\t\t", repr(отступ)
+        assert прочитать(root, ТЕСТ)[0][4] == "\t\t\t", repr(indent)
 
 
 def test_a_foreign_line_with_whitespace_is_left_alone(tmp_path, capsys):
@@ -89,8 +89,8 @@ def test_a_foreign_line_with_whitespace_is_left_alone(tmp_path, capsys):
     root = выгрузка(tmp_path)
     написать(root, ТЕСТ, ["Процедура А() Экспорт", "\t\t", "\tБ = 1;", "КонецПроцедуры"])
     зафиксировать(root)
-    код, текст = нормализовать(capsys, root)
-    assert код == 0 and "ФОРМАТ В НОРМЕ" in текст
+    code, text = нормализовать(capsys, root)
+    assert code == 0 and "ФОРМАТ В НОРМЕ" in text
 
 
 def test_a_cut_trailing_space_comes_back_from_the_base(tmp_path, capsys):
@@ -100,10 +100,10 @@ def test_a_cut_trailing_space_comes_back_from_the_base(tmp_path, capsys):
     написать(root, ТЕСТ, ["Процедура А() Экспорт", "\tВендорская = 1;   ", "\tДругая = 2;", "КонецПроцедуры"])
     зафиксировать(root)
     написать(root, ТЕСТ, ["Процедура А() Экспорт", "\tВендорская = 1;", "\tДругая = 3;", "КонецПроцедуры"])
-    _, текст = нормализовать(capsys, root, "--apply")
-    строки = прочитать(root, ТЕСТ)[0]
-    assert строки[1] == "\tВендорская = 1;   " and строки[2] == "\tДругая = 3;", текст
-    assert "хвостовые пробелы: 1 строк" in текст
+    _, text = нормализовать(capsys, root, "--apply")
+    lines = прочитать(root, ТЕСТ)[0]
+    assert lines[1] == "\tВендорская = 1;   " and lines[2] == "\tДругая = 3;", text
+    assert "хвостовые пробелы: 1 строк" in text
 
 
 def test_where_git_normalizes_line_endings_the_file_is_not_rewritten(tmp_path, capsys):
@@ -111,8 +111,8 @@ def test_where_git_normalizes_line_endings_the_file_is_not_rewritten(tmp_path, c
     состояние рабочей копии на коммит не влияет, переписывать файлы незачем."""
     root = выгрузка(tmp_path, autocrlf=True)
     написать(root, НОВЫЙ, ["Процедура А() Экспорт", "\tВозврат;", "КонецПроцедуры"], eol="\n")
-    код, текст = нормализовать(capsys, root)
-    assert "переводы строк LF ->" not in текст and "core.autocrlf" in текст and код == 0
+    code, text = нормализовать(capsys, root)
+    assert "переводы строк LF ->" not in text and "core.autocrlf" in text and code == 0
 
 
 def test_foreign_blank_lines_stay_and_own_get_indented(tmp_path, capsys):
@@ -122,8 +122,8 @@ def test_foreign_blank_lines_stay_and_own_get_indented(tmp_path, capsys):
     написать(root, ТЕСТ, ["Процедура Старая() Экспорт", "", "\tЗначение = 1;", "КонецПроцедуры", "",
                           "Процедура Новая() Экспорт", "", "\tЗначение = 2;", "КонецПроцедуры"])
     нормализовать(capsys, root, "--apply")
-    строки = прочитать(root, ТЕСТ)[0]
-    assert строки[1] == "" and строки[6] == "\t"
+    lines = прочитать(root, ТЕСТ)[0]
+    assert lines[1] == "" and lines[6] == "\t"
 
 
 def test_the_final_line_ending_is_as_in_the_base(tmp_path, capsys):
@@ -131,8 +131,8 @@ def test_the_final_line_ending_is_as_in_the_base(tmp_path, capsys):
     написать(root, ТЕСТ, ["Процедура А() Экспорт", "\tБ = 1;", "КонецПроцедуры"], final=False)
     зафиксировать(root)
     написать(root, ТЕСТ, ["Процедура А() Экспорт", "\tБ = 2;", "КонецПроцедуры"], final=True)
-    _, текст = нормализовать(capsys, root, "--apply")
-    assert not прочитать(root, ТЕСТ)[4] and "снять завершающий перевод строки" in текст
+    _, text = нормализовать(capsys, root, "--apply")
+    assert not прочитать(root, ТЕСТ)[4] and "снять завершающий перевод строки" in text
 
 
 def test_it_is_an_operation_not_an_event(tmp_path, capsys):
@@ -141,28 +141,28 @@ def test_it_is_an_operation_not_an_event(tmp_path, capsys):
     root = выгрузка(tmp_path)
     написать(root, НОВЫЙ, ["Процедура А() Экспорт", "", "\tБ = 1;", "", "КонецПроцедуры"], eol="\n",
              bom=False)
-    код, текст = нормализовать(capsys, root, "--apply")
-    assert код == 0 and "ИСПРАВЛЕНО" in текст
-    код, текст = нормализовать(capsys, root)
-    assert код == 0 and "ФОРМАТ В НОРМЕ" in текст
+    code, text = нормализовать(capsys, root, "--apply")
+    assert code == 0 and "ИСПРАВЛЕНО" in text
+    code, text = нормализовать(capsys, root)
+    assert code == 0 and "ФОРМАТ В НОРМЕ" in text
 
 
 def test_a_directory_pair_takes_the_format_of_the_baseline(tmp_path, capsys):
     """Обработка вне репозитория: BOM и переводы строк — как у эталона,
     хвостовые пробелы — по совпадению строк без них."""
-    эталон, копия = tmp_path / "эталон", tmp_path / "копия"
+    эталон, copy_ = tmp_path / "эталон", tmp_path / "копия"
     написать(эталон, "Обработка/Ext/ObjectModule.bsl",
              ["Процедура Сформировать()", "\tЗначение = 1;  ", "\tДругое = 2;", "КонецПроцедуры"])
-    написать(копия, "Обработка/Ext/ObjectModule.bsl",
+    написать(copy_, "Обработка/Ext/ObjectModule.bsl",
              ["Процедура Сформировать()", "\tЗначение = 1;", "\tДругое = 3;", "КонецПроцедуры"],
              eol="\n", bom=False)
-    код, текст = нормализовать(capsys, "--эталон", эталон, "--копия", копия, "--apply")
-    строки, bom, crlf, lf, _ = прочитать(копия, "Обработка/Ext/ObjectModule.bsl")
-    assert код == 0 and bom and crlf == 4 and lf == 0, текст
-    assert строки[1] == "\tЗначение = 1;  " and строки[2] == "\tДругое = 3;"
+    code, text = нормализовать(capsys, "--эталон", эталон, "--копия", copy_, "--apply")
+    lines, bom, crlf, lf, _ = прочитать(copy_, "Обработка/Ext/ObjectModule.bsl")
+    assert code == 0 and bom and crlf == 4 and lf == 0, text
+    assert lines[1] == "\tЗначение = 1;  " and lines[2] == "\tДругое = 3;"
     assert прочитать(эталон, "Обработка/Ext/ObjectModule.bsl")[1]          # эталон не тронут
-    код, текст = нормализовать(capsys, "--эталон", эталон, "--копия", копия)
-    assert код == 0 and "ФОРМАТ В НОРМЕ" in текст
+    code, text = нормализовать(capsys, "--эталон", эталон, "--копия", copy_)
+    assert code == 0 and "ФОРМАТ В НОРМЕ" in text
 
 
 def test_the_agent_normalizes_only_allowed_dumps(tmp_path):
@@ -193,13 +193,13 @@ def test_with_a_base_older_than_head_files_of_other_tasks_are_not_touched(tmp_pa
     import subprocess
 
     root = выгрузка(tmp_path)
-    база = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], capture_output=True,
+    base = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], capture_output=True,
                           text=True).stdout.strip()
     написать(root, ТЕСТ, ["Процедура Старая() Экспорт", "", "\tЗначение = 1;", "КонецПроцедуры"])
     зафиксировать(root, "другая задача")
     чужой = прочитать(root, ТЕСТ)
     написать(root, НОВЫЙ, ["Процедура Б() Экспорт", "", "\tВозврат;", "КонецПроцедуры"])
-    код, текст = нормализовать(capsys, root, "--база", база, "--apply")
-    assert прочитать(root, ТЕСТ) == чужой, текст
-    assert "база сверки — не HEAD" in текст and "1, они не трогаются" in текст
+    code, text = нормализовать(capsys, root, "--база", base, "--apply")
+    assert прочитать(root, ТЕСТ) == чужой, text
+    assert "база сверки — не HEAD" in text and "1, они не трогаются" in text
     assert прочитать(root, НОВЫЙ)[0][1] == "\t"              # свой файл нормализован

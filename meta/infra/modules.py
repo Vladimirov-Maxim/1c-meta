@@ -62,26 +62,26 @@ class DumpModules(Modules):
         if ref.address is None:
             return Refuse(f"модуль не найден: {ref.path}")
         folder = vocabulary.object_folder(ref.address)
-        есть = self._existing(ref.address, folder) if folder else []
-        if not есть:
+        exists = self._existing(ref.address, folder) if folder else []
+        if not exists:
             return Refuse(f"модуля «{ref.address}» в выгрузке нет")
         return Refuse(f"модуля «{ref.address}» в выгрузке нет; у объекта есть: "
-                      + ", ".join(есть))
+                      + ", ".join(exists))
 
     def _existing(self, address, folder):
         base = os.path.join(self.root, *folder)
-        есть = []
+        exists = []
         ext = os.path.join(base, *self.files.own)
         if os.path.isdir(ext):
-            есть += [f"{address.kind}.{address.name}.{vocabulary.OWN_BY_FILE[имя]}"
-                     for имя in sorted(os.listdir(ext)) if имя in vocabulary.OWN_BY_FILE]
-        for папка, метка in (("Forms", "Форма"), ("Commands", "Команда")):
+            exists += [f"{address.kind}.{address.name}.{vocabulary.OWN_BY_FILE[name]}"
+                     for name in sorted(os.listdir(ext)) if name in vocabulary.OWN_BY_FILE]
+        for папка, marker in (("Forms", "Форма"), ("Commands", "Команда")):
             where = os.path.join(base, папка)
             if os.path.isdir(where):
-                есть += [f"{address.kind}.{address.name}.{метка}.{имя}"
-                         for имя in sorted(os.listdir(where))
-                         if os.path.isdir(os.path.join(where, имя))]
-        return есть
+                exists += [f"{address.kind}.{address.name}.{marker}.{name}"
+                         for name in sorted(os.listdir(where))
+                         if os.path.isdir(os.path.join(where, name))]
+        return exists
 
     # --- порт ---
 
@@ -90,14 +90,14 @@ class DumpModules(Modules):
         его создаёт. Новый модуль объекта — обычное дело (менеджер регистра,
         которого не было), и писать его мимо инструмента значит проверять
         формат файла и метки руками."""
-        адрес = ref.address
-        if адрес is None or адрес.sub is not None or адрес.kind not in MODULES_OF_KIND.get(адрес.module, ()):
+        address = ref.address
+        if address is None or address.sub is not None or address.kind not in MODULES_OF_KIND.get(address.module, ()):
             return False
-        папка = vocabulary.object_folder(адрес)
+        папка = vocabulary.object_folder(address)
         if not папка:
             return False
         каталог = os.path.join(self.root, *папка)
-        return (os.path.isfile(os.path.join(каталог, адрес.name + ".mdo"))      # проект EDT
+        return (os.path.isfile(os.path.join(каталог, address.name + ".mdo"))      # проект EDT
                 or os.path.isfile(каталог + ".xml"))                          # выгрузка
 
     def _new_format(self, ref):
@@ -136,20 +136,20 @@ class DumpModules(Modules):
         # не примет, а в индексе они сводятся, и diff во весь файл не возникает
         от_git = git.checkout_eol(self.root, self.relative(ref))
         if от_git:
-            своё = "CRLF" if eol == "\r\n" else "LF"
+            is_own = "CRLF" if eol == "\r\n" else "LF"
             eol = "\r\n" if от_git == "CRLF" else "\n"
-            if "\n" in text and своё != от_git:
-                self._converted[path] = своё
+            if "\n" in text and is_own != от_git:
+                self._converted[path] = is_own
         self._format[path] = (bom, eol, final_eol)
         return re.split(r"\r\n|\n|\r", text) if text else []
 
     def form_bindings(self, ref):
         """(привязанные процедуры, элементы, события формы) по описанию формы
         рядом с модулем; не модуль формы или описания нет — None."""
-        описание = form_bindings.form_file(self.full_path(ref))
-        if описание is None or not os.path.isfile(описание):
+        description = form_bindings.form_file(self.full_path(ref))
+        if description is None or not os.path.isfile(description):
             return None
-        with open(описание, encoding="utf-8-sig") as файл:
+        with open(description, encoding="utf-8-sig") as файл:
             привязаны, элементы = form_bindings.bindings(файл.read())
         return привязаны, элементы, form_bindings.FORM_EVENT_NAMES
 
@@ -158,14 +158,14 @@ class DumpModules(Modules):
         if known is None:
             return None
         bom, eol, _ = known
-        слово = "CRLF" if eol == "\r\n" else "LF"
+        word = "CRLF" if eol == "\r\n" else "LF"
         if self.full_path(ref) in self._created:
-            return f"{слово}{', BOM' if bom else ', без BOM'} — новый: модуля не было, правка его создаёт"
-        было = self._converted.get(self.full_path(ref))
-        if было:
-            return (f"{было}{', BOM' if bom else ', без BOM'} — станет {слово}: так файл кладёт в рабочую "
+            return f"{word}{', BOM' if bom else ', без BOM'} — новый: модуля не было, правка его создаёт"
+        before = self._converted.get(self.full_path(ref))
+        if before:
+            return (f"{before}{', BOM' if bom else ', без BOM'} — станет {word}: так файл кладёт в рабочую "
                     "копию git (core.autocrlf), иначе git add при core.safecrlf=true откажет")
-        return слово + (", BOM" if bom else ", без BOM")
+        return word + (", BOM" if bom else ", без BOM")
 
     def _git(self, *args, why):
         """git над выгрузкой; git нет — None, не ответил в срок — отказ (`infra.git`)."""

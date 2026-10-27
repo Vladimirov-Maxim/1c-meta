@@ -158,10 +158,10 @@ def test_reading_a_form_gives_its_elements_attributes_and_commands(dump):
     выполнить(dump, "2-наполнение.json")
     view = DesignerDump(dump).read_form(("Документ", "мой_ПробаСДвижениями"), "мой_Круг")
     assert view.main == "Объект" and view.assignment == "Документа"
-    комментарий = view.elements["Комментарий"]
-    assert (комментарий.kind, комментарий.parent, комментарий.path) == (
+    comment = view.elements["Комментарий"]
+    assert (comment.kind, comment.parent, comment.path) == (
         "ПолеВвода", None, "Объект.Комментарий")
-    assert комментарий.events == (("ПриИзменении", "КомментарийПриИзменении"),)
+    assert comment.events == (("ПриИзменении", "КомментарийПриИзменении"),)
     assert view.elements["Номер"][:2] == ("ПолеВвода", "мой_ГруппаШапка")
     assert view.elements["мой_ТаблицаСтатья"][:2] == ("ПолеВвода", "мой_Таблица")
     assert view.elements["ФормаКоманднаяПанель"][:2] == ("КоманднаяПанель", None)
@@ -181,7 +181,7 @@ def правки(**kwargs):
     return fm.FormEdits(**kwargs)
 
 
-def вид(**kwargs):
+def kind(**kwargs):
     kwargs.setdefault("owner", ("Документ", "мой_Заявка"))
     kwargs.setdefault("name", "ФормаДокумента")
     kwargs.setdefault("main", "Объект")
@@ -199,7 +199,7 @@ def коды(findings):
 
 
 def test_missing_parent_and_misplaced_sibling_are_findings():
-    view = вид(elements={"Шапка": fm.ViewItem("ГруппаФормы"),
+    view = kind(elements={"Шапка": fm.ViewItem("ГруппаФормы"),
                          "Подвал": fm.ViewItem("ГруппаФормы"),
                          "Комментарий": fm.ViewItem("ПолеВвода", "Подвал")})
     edits = правки(elements=[fm.FormElement("ПолеВвода", "Поле", "Объект.Контрагент",
@@ -211,7 +211,7 @@ def test_missing_parent_and_misplaced_sibling_are_findings():
 
 
 def test_taken_names_unknown_properties_and_bad_values_are_findings():
-    view = вид(elements={"Комментарий": fm.ViewItem("ПолеВвода")}, attributes={"Объект": "x"})
+    view = kind(elements={"Комментарий": fm.ViewItem("ПолеВвода")}, attributes={"Объект": "x"})
     edits = правки(
         attributes=[fm.FormAttribute("Объект", None)],
         elements=[fm.FormElement("ПолеВвода", "Комментарий", "Объект.Контрагент",
@@ -225,14 +225,14 @@ def test_taken_names_unknown_properties_and_bad_values_are_findings():
 def test_a_binding_to_a_missing_owner_attribute_is_refused():
     edits = правки(elements=[fm.FormElement("ПолеВвода", "Склад", "Объект.Склад"),
                              fm.FormElement("ПолеВвода", "Цена", "Объект.Товары.Цена")])
-    assert коды(fm.check(edits, вид(), ХОЗЯИН)) == ["ФОРМА-ПРИВЯЗКА-НЕТ-РЕКВИЗИТА"]
+    assert коды(fm.check(edits, kind(), ХОЗЯИН)) == ["ФОРМА-ПРИВЯЗКА-НЕТ-РЕКВИЗИТА"]
     # без карточки хозяина — предупреждение, а не молчание
-    found = fm.check(edits, вид(), None)
+    found = fm.check(edits, kind(), None)
     assert [f.code for f in found] == ["ФОРМА-ПРИВЯЗКИ-НЕ-ПРОВЕРЕНЫ"] and not found[0].blocking
 
 
 def test_a_button_needs_a_command_and_a_page_needs_pages():
-    view = вид(elements={"Группа": fm.ViewItem("ГруппаФормы")}, commands={"Заполнить"})
+    view = kind(elements={"Группа": fm.ViewItem("ГруппаФормы")}, commands={"Заполнить"})
     edits = правки(elements=[
         fm.FormElement("Кнопка", "К1"),
         fm.FormElement("Кнопка", "К2", command="Нет"),
@@ -245,7 +245,7 @@ def test_a_button_needs_a_command_and_a_page_needs_pages():
 
 def test_removing_what_is_absent_and_the_main_attribute_is_refused():
     edits = правки(remove_elements=["Нет"], remove_attributes=["Объект"])
-    assert коды(fm.check(edits, вид(attributes={"Объект": "x"}), ХОЗЯИН)) == [
+    assert коды(fm.check(edits, kind(attributes={"Объект": "x"}), ХОЗЯИН)) == [
         "ФОРМА-УДАЛИТЬ-НЕТ", "ФОРМА-ГЛАВНЫЙ-НЕ-УДАЛЯЕТСЯ"]
 
 
@@ -259,7 +259,7 @@ def test_paths_are_bound_like_the_configurator_writes_them():
                   fm.FormElement("ПолеВвода", "Контрагент", "Контрагент"),
                   fm.FormElement("ТаблицаФормы", "Таблица", "Таблица", children=[
                       fm.FormElement("ПолеВвода", "ТаблицаСумма", column="Сумма")])])
-    fm.bind_paths(edits, вид())
+    fm.bind_paths(edits, kind())
     paths = {e.name: e.path for e in edits.all_elements()}
     assert paths == {"Номер": "Объект.Number", "Дата": "Объект.Date", "Период": "Период",
                      "Контрагент": "Объект.Контрагент", "Таблица": "Таблица",
@@ -373,21 +373,21 @@ def test_a_vendor_form_is_not_edited_as_xml():
     формы так же, как своей, — значит правило проверяет он, а не надежда на
     проверку глазами."""
     edits = типовая(elements=[fm.FormElement("ПолеВвода", "мой_П", "Объект.Комментарий")])
-    assert "ФОРМА-ТИПОВАЯ-ТОЛЬКО-КОДОМ" in коды(fm.check(edits, вид(), None, соглашения=ТЕСТ))
+    assert "ФОРМА-ТИПОВАЯ-ТОЛЬКО-КОДОМ" in коды(fm.check(edits, kind(), None, conventions=ТЕСТ))
     # с «кодом» — можно
     edits = типовая(as_code=True,
                     elements=[fm.FormElement("ПолеВвода", "мой_П", "Объект.Комментарий")])
-    assert "ФОРМА-ТИПОВАЯ-ТОЛЬКО-КОДОМ" not in коды(fm.check(edits, вид(), None, соглашения=ТЕСТ))
+    assert "ФОРМА-ТИПОВАЯ-ТОЛЬКО-КОДОМ" not in коды(fm.check(edits, kind(), None, conventions=ТЕСТ))
     # наша форма в вендорском объекте — своя, XML править можно
     своя = типовая(name="мой_РабочееМесто",
                    elements=[fm.FormElement("ПолеВвода", "мой_П", "Объект.Комментарий")])
-    assert "ФОРМА-ТИПОВАЯ-ТОЛЬКО-КОДОМ" not in коды(fm.check(своя, вид(), None, соглашения=ТЕСТ))
+    assert "ФОРМА-ТИПОВАЯ-ТОЛЬКО-КОДОМ" not in коды(fm.check(своя, kind(), None, conventions=ТЕСТ))
 
 
 def test_code_mode_refuses_what_form_code_cannot_do():
     edits = типовая(as_code=True, create=fm.Form("Ф", ("Документ", "их_Заявка")),
                     events={"ПриОткрытии": "ПриОткрытии"}, remove_elements=["Что-то"])
-    found = коды(fm.check(edits, вид(), None, соглашения=ТЕСТ))
+    found = коды(fm.check(edits, kind(), None, conventions=ТЕСТ))
     assert "ФОРМА-КОД-НЕ-СОЗДАЁТ" in found
     assert "ФОРМА-КОД-БЕЗ-СОБЫТИЙ" in found
     assert "ФОРМА-КОД-БЕЗ-УДАЛЕНИЯ" in found
@@ -395,14 +395,14 @@ def test_code_mode_refuses_what_form_code_cannot_do():
 
 def test_code_mode_refuses_what_it_cannot_express():
     from meta.acl import platform_code
-    после = типовая(as_code=True, elements=[
+    after = типовая(as_code=True, elements=[
         fm.FormElement("ПолеВвода", "П", "Объект.Комментарий", after="Дата")])
     with pytest.raises(Refuse):
-        platform_code.render(после, вид())
+        platform_code.render(after, kind())
     стандартная = типовая(as_code=True, elements=[
         fm.FormElement("Кнопка", "К", command="Стандартная.Write")])
     with pytest.raises(Refuse):
-        platform_code.render(стандартная, вид())
+        platform_code.render(стандартная, kind())
 
 
 def test_a_code_job_writes_no_files(dump):
@@ -456,7 +456,7 @@ def test_a_dynamic_list_column_shows_and_does_not_edit(dump):
 def test_an_unknown_list_field_is_a_warning_not_an_error(dump):
     """Поле списка приходит из его запроса: чего нет у хозяина — повод
     посмотреть, а не отказ. Платформа такую колонку примет и покажет пустой."""
-    view = вид(assignment="Списка", main="Список", dynamic_lists={"Список"},
+    view = kind(assignment="Списка", main="Список", dynamic_lists={"Список"},
                attributes={"Список": None})
     edits = правки(elements=[fm.FormElement("ТаблицаФормы", "Список", "Список", children=[
         fm.FormElement("ПолеНадписи", "СписокВыдумка", "Список.Выдумка")])])
@@ -484,8 +484,8 @@ def test_a_tree_table_is_born_without_a_row_filter(dump):
     # остальное рождается как у таблицы данных
     assert "<AutoInsertNewRow>true</AutoInsertNewRow>" in text
     assert text.count('<Column name=') == 4
-    карточка = файл(dump, "Documents/мой_ПробаСДвижениями.xml").decode("utf-8-sig")
-    assert "<Form>мой_КругДерево</Form>" in карточка
+    card = файл(dump, "Documents/мой_ПробаСДвижениями.xml").decode("utf-8-sig")
+    assert "<Form>мой_КругДерево</Form>" in card
 
 
 def test_a_column_added_into_a_tree_lands_where_asked(dump):
@@ -545,12 +545,12 @@ def test_pictures_radio_and_column_groups_come_back_from_the_platform_untouched(
     assert '<Value xsi:type="xs:decimal">1</Value>' in text
     assert "<v8:content>Второй</v8:content>" in text
     # группа колонок: спутник один, заголовок от имени, подсказки нет
-    группа = text[text.index('<ColumnGroup name="мой_ГруппаЧисел"'):]
-    группа = группа[:группа.index("</ColumnGroup>")]
-    своё, дети = группа.split("<ChildItems>", 1)   # спутники группы, а не полей
-    assert "<ExtendedTooltip" in своё and "<ContextMenu" not in своё
-    assert "<v8:content>Числа</v8:content>" in своё and "<ToolTip>" not in своё
-    assert "<Group>InCell</Group>" in своё
+    group = text[text.index('<ColumnGroup name="мой_ГруппаЧисел"'):]
+    group = group[:group.index("</ColumnGroup>")]
+    is_own, дети = group.split("<ChildItems>", 1)   # спутники группы, а не полей
+    assert "<ExtendedTooltip" in is_own and "<ContextMenu" not in is_own
+    assert "<v8:content>Числа</v8:content>" in is_own and "<ToolTip>" not in is_own
+    assert "<Group>InCell</Group>" in is_own
     # поле внутри группы колонок внутри таблицы — всё равно поле в таблице
     надпись = дети[дети.index('<LabelField name="мой_ТаблицаКомментарий"'):]
     assert "<EditMode>EnterOnInput</EditMode>" in надпись
@@ -566,10 +566,10 @@ def test_a_property_without_a_place_is_refused_not_dropped(dump):
                "элементы": [{"вид": "ПолеКартинки", "имя": "мой_Второе",
                              "путь": "мой_Флажок",
                              "свойства": {"АктивизироватьПоУмолчанию": True}}]}
-    with pytest.raises(Refuse) as отказ:
+    with pytest.raises(Refuse) as refusal:
         EditFormUseCase(DesignerDump(dump)).execute(
             [job_dialect.form_edits_from_json(задание)], apply_now=True)
-    assert "не знаю, где" in str(отказ.value) and "DefaultItem" in str(отказ.value)
+    assert "не знаю, где" in str(refusal.value) and "DefaultItem" in str(refusal.value)
 
 
 def test_a_picture_is_named_by_its_source():
@@ -591,14 +591,14 @@ def test_a_choice_list_keeps_value_kinds():
     свой `xsi:type` в файле; представление необязательно."""
     from meta.infra.forms.designer221.editor import Editor
 
-    значения = [{"значение": 1}, {"значение": "Текст"}, {"значение": True},
+    values = [{"значение": 1}, {"значение": "Текст"}, {"значение": True},
                 {"значение": "Перечисление.ОтражениеВУСН.Принимаются",
                  "представление": "Принимаются"}]
-    _, _, вид, приведённое = fm.check_property("ПолеПереключателя", "СписокВыбора", значения)
-    assert вид == "СписокЗначений" and len(приведённое) == 4
+    _, _, kind, приведённое = fm.check_property("ПолеПереключателя", "СписокВыбора", values)
+    assert kind == "СписокЗначений" and len(приведённое) == 4
     узел = Editor._choice_list_node("ChoiceList", приведённое)
-    типы = [item.children[2].children[1].attrs["xsi:type"] for item in узел.children]
-    assert типы == ["xs:decimal", "xs:string", "xs:boolean", "xr:DesignTimeRef"]
+    types = [item.children[2].children[1].attrs["xsi:type"] for item in узел.children]
+    assert types == ["xs:decimal", "xs:string", "xs:boolean", "xr:DesignTimeRef"]
     assert узел.children[3].children[2].children[1].text == (
         "Enum.ОтражениеВУСН.EnumValue.Принимаются")
     for плохое in ([], "не список", [{"представление": "без значения"}],
@@ -634,8 +634,8 @@ def test_conditional_appearance_is_not_an_attribute(dump):
     view = DesignerDump(dump).read_form(("Документ", "мой_ПробаСДвижениями"), "мой_КругДерево")
     assert None not in view.attributes
     assert list(view.attributes) == ["Объект", "мой_Дерево"]
-    _, текст = показать(dump, "Документ.мой_ПробаСДвижениями.мой_КругДерево")
-    assert "None" not in текст
+    _, text = показать(dump, "Документ.мой_ПробаСДвижениями.мой_КругДерево")
+    assert "None" not in text
 
 
 def test_a_new_attribute_goes_before_the_appearance_not_after_it(dump):
@@ -664,8 +664,8 @@ def test_kinds_the_tool_only_reads_are_named_from_the_property_dictionary():
 
     спутники = {"РасширеннаяПодсказка", "ДополнениеСтрокаПоиска",
                 "ДополнениеСостояниеПросмотра", "ДополнениеУправлениеПоиском"}
-    for тег, слово in voc.DOMAIN_KIND.items():
-        assert слово in PROPERTIES or слово in спутники, (тег, слово)
+    for тег, word in voc.DOMAIN_KIND.items():
+        assert word in PROPERTIES or word in спутники, (тег, word)
     # то, что инструмент читает, но не пишет, — не попало в умеющие виды
     assert voc.DOMAIN_KIND["SpreadSheetDocumentField"] == "ПолеТабличногоДокумента"
     assert "ПолеТабличногоДокумента" not in fm.ELEMENT_KINDS
@@ -675,7 +675,7 @@ def test_kinds_the_tool_only_reads_are_named_from_the_property_dictionary():
 
 # --- показ формы --------------------------------------------------------------
 
-def показать(dump, адрес, *flags):
+def показать(dump, address, *flags):
     """`--показать` как его зовёт человек — через точку сборки."""
     import io
     from contextlib import redirect_stdout
@@ -683,8 +683,8 @@ def показать(dump, адрес, *flags):
     import meta.add as add
     буфер = io.StringIO()
     with redirect_stdout(буфер):
-        код = add.main(["--показать", dump, адрес, *flags])
-    return код, буфер.getvalue()
+        code = add.main(["--показать", dump, address, *flags])
+    return code, буфер.getvalue()
 
 
 def test_showing_a_form_answers_where_to_insert(dump):
@@ -692,24 +692,24 @@ def test_showing_a_form_answers_where_to_insert(dump):
     привязка, обработчики — вместо чтения `Form.xml` глазами."""
     выполнить(dump, "1-пустая.json")
     выполнить(dump, "2-наполнение.json")
-    код, текст = показать(dump, "Документ.мой_ПробаСДвижениями.мой_Круг")
-    assert код == 0
-    assert "Форма Документ.мой_ПробаСДвижениями.мой_Круг   (назначение Документа)" in текст
-    assert "Объект: Документ.мой_ПробаСДвижениями (Объект)   (главный)" in текст
-    assert "мой_Таблица: ТаблицаЗначений" in текст
-    assert "ПриСозданииНаСервере -> ПриСозданииНаСервере" in текст
-    assert "Комментарий (ПолеВвода) [Объект.Комментарий] @ПриИзменении=КомментарийПриИзменении" in текст
-    assert "ФормаЗаполнить (Кнопка) -> мой_Заполнить" in текст
+    code, text = показать(dump, "Документ.мой_ПробаСДвижениями.мой_Круг")
+    assert code == 0
+    assert "Форма Документ.мой_ПробаСДвижениями.мой_Круг   (назначение Документа)" in text
+    assert "Объект: Документ.мой_ПробаСДвижениями (Объект)   (главный)" in text
+    assert "мой_Таблица: ТаблицаЗначений" in text
+    assert "ПриСозданииНаСервере -> ПриСозданииНаСервере" in text
+    assert "Комментарий (ПолеВвода) [Объект.Комментарий] @ПриИзменении=КомментарийПриИзменении" in text
+    assert "ФормаЗаполнить (Кнопка) -> мой_Заполнить" in text
     # дерево, а не список: поле шапки с отступом глубже своей группы
-    def отступ(кусок):
-        строка = next(строка for строка in текст.splitlines()
-                      if строка.strip().startswith(кусок))
-        return len(строка) - len(строка.lstrip())
+    def indent(кусок):
+        line = next(line for line in text.splitlines()
+                      if line.strip().startswith(кусок))
+        return len(line) - len(line.lstrip())
 
-    assert отступ("Номер (ПолеВвода)") > отступ("мой_ГруппаШапка (ГруппаФормы")
-    assert отступ("мой_ТаблицаСтатья") > отступ("мой_Таблица (ТаблицаФормы)")
+    assert indent("Номер (ПолеВвода)") > indent("мой_ГруппаШапка (ГруппаФормы")
+    assert indent("мой_ТаблицаСтатья") > indent("мой_Таблица (ТаблицаФормы)")
     # группировка видна в дереве: иначе её ищут поиском по тексту Form.xml
-    assert "мой_ГруппаШапка (ГруппаФормы, Горизонтальная)" in текст
+    assert "мой_ГруппаШапка (ГруппаФормы, Горизонтальная)" in text
 
 
 def test_satellites_are_hidden_but_counted(dump):
@@ -718,12 +718,12 @@ def test_satellites_are_hidden_but_counted(dump):
     выполнить(dump, "1-пустая.json")
     выполнить(dump, "2-наполнение.json")
     _, кратко = показать(dump, "Документ.мой_ПробаСДвижениями.мой_Круг")
-    _, подробно = показать(dump, "Документ.мой_ПробаСДвижениями.мой_Круг", "--подробно")
+    _, detailed = показать(dump, "Документ.мой_ПробаСДвижениями.мой_Круг", "--подробно")
     assert "РасширеннаяПодсказка" not in кратко and "Скрыто спутников" in кратко
     # вид спутника тоже назван по-русски: английский тег посреди русских слов
     # читается как ошибка вывода
-    assert "КомментарийРасширеннаяПодсказка (РасширеннаяПодсказка)" in подробно
-    assert len(подробно.split("\n")) > len(кратко.split("\n")) + 20
+    assert "КомментарийРасширеннаяПодсказка (РасширеннаяПодсказка)" in detailed
+    assert len(detailed.split("\n")) > len(кратко.split("\n")) + 20
 
 
 def test_showing_a_vendor_form_says_it_is_typical(dump):
@@ -731,12 +731,12 @@ def test_showing_a_vendor_form_says_it_is_typical(dump):
     _, своя = показать(dump, "Документ.мой_ПробаСДвижениями.мой_Круг")
     assert "ТИПОВАЯ" not in своя
     view = fm.FormView(("Документ", "их_Чужой"), "ФормаДокумента")
-    assert not fm.is_ours(view.owner_name, view.name, ТЕСТ.приставка)
+    assert not fm.is_ours(view.owner_name, view.name, ТЕСТ.prefix)
 
 
 def test_showing_a_missing_form_is_refused(dump):
-    код, текст = показать(dump, "Документ.мой_ПробаСДвижениями.НетТакой")
-    assert код == 1 and "в выгрузке нет" in текст
+    code, text = показать(dump, "Документ.мой_ПробаСДвижениями.НетТакой")
+    assert code == 1 and "в выгрузке нет" in text
     # адрес объекта по-прежнему показывает объект, а не форму
     assert job_dialect.looks_like_a_form("Документ.мой_Заявка.ФормаДокумента")
     assert job_dialect.looks_like_a_form("Общая.мой_Проба")
@@ -766,13 +766,13 @@ def test_every_form_event_of_the_corpus_has_a_russian_name():
 
 # --- код типовой формы: литералы и обработчики ---------------------------------------
 
-def _код_надписи(свойства=None, события=None):
+def _код_надписи(свойства=None, events=None):
     from meta.acl import platform_code
     from meta.domain import forms as fmd
 
     правки = fmd.FormEdits(("Документ", "АвансовыйОтчет"), "ФормаДокумента", elements=[
         fmd.FormElement("Надпись", "мой_Надпись", parent="ГруппаКомментарий",
-                        properties=свойства or {}, events=события or {})], as_code=True)
+                        properties=свойства or {}, events=events or {})], as_code=True)
     return platform_code.render(правки, None)
 
 
@@ -785,7 +785,7 @@ def test_a_multiline_title_is_valid_bsl():
 def test_a_programmatic_handler_has_the_handler_prefix():
     """Программно назначаемый обработчик — с приставкой «Подключаемый_» (#std492)."""
     assert ('Элемент.УстановитьДействие("Нажатие", "Подключаемый_мой_НадписьНажатие");'
-            in _код_надписи(события={"Нажатие": "мой_НадписьНажатие"}))
+            in _код_надписи(events={"Нажатие": "мой_НадписьНажатие"}))
 
 
 def test_every_tooltip_is_a_string():
@@ -814,15 +814,15 @@ def test_a_missing_region_says_where_to_put_it():
     строки — по модулю."""
     from meta.domain.modules import region_place
 
-    модуль = ["#Область ОбработчикиСобытийФормы", "Процедура ПриОткрытии(Отказ)",
+    module = ["#Область ОбработчикиСобытийФормы", "Процедура ПриОткрытии(Отказ)",
               "КонецПроцедуры", "#КонецОбласти", "",
               "#Область ОбработчикиКомандФормы", "#КонецОбласти"]
-    assert region_place(модуль, "ОбработчикиСобытийФормы") == \
+    assert region_place(module, "ОбработчикиСобытийФормы") == \
         "в область «ОбработчикиСобытийФормы» (строки 1-4)"
-    ответ = region_place(модуль, "ОбработчикиСобытийЭлементовШапкиФормы")
+    ответ = region_place(module, "ОбработчикиСобытийЭлементовШапкиФормы")
     assert ("заведите её после «ОбработчикиСобытийФормы» (её #КонецОбласти — строка 4), "
             "перед «ОбработчикиКомандФормы» (строка 6)") in ответ, ответ
-    таблица = region_place(модуль, "ОбработчикиСобытийЭлементовТаблицыФормыТовары")
-    assert "после «ОбработчикиСобытийФормы»" in таблица and "перед «ОбработчикиКомандФормы»" in таблица
+    table = region_place(module, "ОбработчикиСобытийЭлементовТаблицыФормыТовары")
+    assert "после «ОбработчикиСобытийФормы»" in table and "перед «ОбработчикиКомандФормы»" in table
     assert "место — по смыслу" in region_place(["Процедура А()", "КонецПроцедуры"],
                                                "ОбработчикиКомандФормы")

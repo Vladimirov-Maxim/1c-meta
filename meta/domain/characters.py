@@ -34,11 +34,11 @@ def invalid_characters(text):
 
 def described(found, where="строка", limit=5):
     """[(строка, символ)] -> «строка 2: длинное тире (U+2014) — замените на «-»; …»."""
-    части = [f"{where} {number}: {INVALID[char][0]} (U+{ord(char):04X}) — {INVALID[char][1]}"
+    parts = [f"{where} {number}: {INVALID[char][0]} (U+{ord(char):04X}) — {INVALID[char][1]}"
              for number, char in found[:limit]]
     if len(found) > limit:
-        части.append(f"и ещё мест: {len(found) - limit}")
-    return "; ".join(части)
+        parts.append(f"и ещё мест: {len(found) - limit}")
+    return "; ".join(parts)
 
 
 #: Кавычки-ёлочки. bsl-ls их пропускает, а в коде кавычки прямые везде — и в
@@ -56,6 +56,6 @@ def guillemet_lines(text):
 
 def line_numbers(found, limit=5):
     """[2, 5, 9] -> «строки 2, 5, 9»; длинный перечень — началом."""
-    слово = "строка" if len(found) == 1 else "строки"
-    хвост = f" и ещё {len(found) - limit}" if len(found) > limit else ""
-    return f"{слово} {', '.join(map(str, found[:limit]))}{хвост}"
+    word = "строка" if len(found) == 1 else "строки"
+    tail = f" и ещё {len(found) - limit}" if len(found) > limit else ""
+    return f"{word} {', '.join(map(str, found[:limit]))}{tail}"

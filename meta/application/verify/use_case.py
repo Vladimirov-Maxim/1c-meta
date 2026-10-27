@@ -16,7 +16,7 @@ from dataclasses import dataclass
 
 from ...domain import verification as rules
 from ...domain.changes import ADDED, AFTER, BEFORE, DELETED, MODIFIED, changed_lines
-from ...domain.conventions import НЕЙТРАЛЬНЫЕ, Соглашения
+from ...domain.conventions import NEUTRAL, Conventions
 from ...domain.model import Refuse
 from ..dto import VerifyResult
 from ..ports import ChangeSource
@@ -25,7 +25,7 @@ from ..ports import ChangeSource
 @dataclass
 class VerifyUseCase:
     source: ChangeSource
-    соглашения: Соглашения = НЕЙТРАЛЬНЫЕ
+    conventions: Conventions = NEUTRAL
 
     def execute(self, task=None, only=None, paths=None):
         """`task` — ИД задачи: без него правило о правке внутри чужой вставки
@@ -37,11 +37,11 @@ class VerifyUseCase:
         отбор, под который не подошёл ни один файл, — отказ. Иначе опечатка в
         фильтре давала бы «чисто» без единой проверки."""
         only = _коды(only)
-        paths = [_маска(п) for п in paths or () if _маска(п)]
+        paths = [_маска(pt) for pt in paths or () if _маска(pt)]
         src = self.source
         files = src.changes()
         if paths:
-            files = [c for c in files if any(_под(c.path, п) for п in paths)]
+            files = [c for c in files if any(_под(c.path, pt) for pt in paths)]
             if not files:
                 raise Refuse(f"ни один файл правок не подходит под paths: {', '.join(paths)} — пути от корня "
                              "исходников, каталог или маска («CommonModules/мой_*/Module.bsl»)")
@@ -49,30 +49,30 @@ class VerifyUseCase:
 
         новые_объекты = []
         for c in files:
-            объект = src.object_of(c.path) if c.status == ADDED else None
-            if объект is not None:
-                новые_объекты.append((c.path, *объект))
-        if self.соглашения.приставка:
-            findings += rules.prefix_findings(новые_объекты, self.соглашения)
+            obj = src.object_of(c.path) if c.status == ADDED else None
+            if obj is not None:
+                новые_объекты.append((c.path, *obj))
+        if self.conventions.prefix:
+            findings += rules.prefix_findings(новые_объекты, self.conventions)
         else:
-            skipped.append((rules.ПРИСТАВКА, "приставка команды не задана профилем"))
+            skipped.append((rules.PREFIX, "приставка команды не задана профилем"))
 
         for c in files:
             if c.status == DELETED or not src.is_module(c.path):
                 continue
-            после = src.lines(c.path, AFTER) or []
-            до = src.lines(c.path, BEFORE) if c.status == MODIFIED else None
+            after = src.lines(c.path, AFTER) or []
+            before_ = src.lines(c.path, BEFORE) if c.status == MODIFIED else None
             hunks = src.hunks(c.path)
-            if c.status == MODIFIED and до is not None:
+            if c.status == MODIFIED and before_ is not None:
                 # модуль, созданный задачей, меток не несёт: проверяется только изменённый
-                findings += rules.marker_findings(c.path, до, после, hunks, task)
-            добавлено, _ = changed_lines(hunks, до or [], после)
-            findings += rules.structure_findings(c.path, после, добавлено, task)
-            привязки = src.form_bindings(c.path)
-            if привязки is not None:
-                findings += rules.unbound_findings(c.path, до or [], после, привязки)
+                findings += rules.marker_findings(c.path, before_, after, hunks, task)
+            добавлено, _ = changed_lines(hunks, before_ or [], after)
+            findings += rules.structure_findings(c.path, after, добавлено, task)
+            bindings = src.form_bindings(c.path)
+            if bindings is not None:
+                findings += rules.unbound_findings(c.path, before_ or [], after, bindings)
         if not task:
-            skipped.append((rules.В_ЧУЖОЙ_ВСТАВКЕ, "не задан ИД задачи"))
+            skipped.append((rules.IN_FOREIGN_INSERTION, "не задан ИД задачи"))
 
         findings += rules.service_findings([c.path for c in files if src.is_service(c.path)])
         notes += src.format_notes()
@@ -86,34 +86,34 @@ class VerifyUseCase:
                 continue
             данные = src.data(c.path, AFTER)
             if данные is not None:
-                свои, почему_свои = src.expected_eol(c.path)
-                findings += rules.format_findings(c.path, данные, свои, bom, почему_свои)
+                own, почему_свои = src.expected_eol(c.path)
+                findings += rules.format_findings(c.path, данные, own, bom, почему_свои)
 
         for c in files:
             if c.status != MODIFIED or not src.is_text(c.path) or src.is_service(c.path):
                 continue
             if src.mode == ChangeSource.PAIR:
-                до, после = src.data(c.path, BEFORE), src.data(c.path, AFTER)
-                if до is not None and после is not None:
-                    findings += rules.trailing_findings(c.path, до, после)
+                before_, after = src.data(c.path, BEFORE), src.data(c.path, AFTER)
+                if before_ is not None and after is not None:
+                    findings += rules.trailing_findings(c.path, before_, after)
             else:
                 findings += rules.cosmetic_findings(c.path, src.lines(c.path, BEFORE) or [],
                                                     src.lines(c.path, AFTER) or [], src.hunks(c.path))
 
-        с_правами = [(вид, имя) for _, вид, имя in новые_объекты if вид in rules.KINDS_WITH_RIGHTS]
+        с_правами = [(kind, name) for _, kind, name in новые_объекты if kind in rules.KINDS_WITH_RIGHTS]
         if с_правами:
-            роли = src.roles_granting(с_правами)
-            if роли is None:
+            roles = src.roles_granting(с_правами)
+            if roles is None:
                 notes.append("права на новые объекты не проверялись: ролей в этом источнике нет")
             else:
-                findings += rules.rights_findings(с_правами, роли, self.соглашения)
+                findings += rules.rights_findings(с_правами, roles, self.conventions)
 
         findings += self._составы(files, skipped, notes)
 
-        findings = self.соглашения.применить(findings)
+        findings = self.conventions.apply(findings)
         if only:
             findings = [f for f in findings if f.code in only]
-            skipped = [(что, почему) for что, почему in skipped if что in only]
+            skipped = [(what, почему) for what, почему in skipped if what in only]
         return VerifyResult(src.describe(), files, _ordered(findings), skipped, notes,
                             only=only, paths=paths)
 
@@ -121,25 +121,25 @@ class VerifyUseCase:
         """Составные типы членов, появившихся в задаче, — по карточкам задачи."""
         src = self.source
         карточки = [(c, src.object_of(c.path)) for c in files if c.status != DELETED]
-        карточки = [(c, объект) for c, объект in карточки if объект is not None]
+        карточки = [(c, obj) for c, obj in карточки if obj is not None]
         if len(карточки) > ПРЕДЕЛ_КАРТОЧЕК:
-            skipped.append((rules.СОСТАВ_ТИПОВ_УЖЕ, f"карточек в правках {len(карточки)}, больше "
+            skipped.append((rules.TYPE_SET_NARROWER, f"карточек в правках {len(карточки)}, больше "
                                                    f"{ПРЕДЕЛ_КАРТОЧЕК}: похоже на перезалив выгрузки"))
             return []
-        члены = []
-        for c, (вид, имя) in карточки:
-            после = src.composition(вид, имя, AFTER)
-            if после is None or после.сломан:
-                if после is not None:
+        members = []
+        for c, (kind, name) in карточки:
+            after = src.composition(kind, name, AFTER)
+            if after is None or after.broken:
+                if after is not None:
                     notes.append(f"карточка {c.path} не читается — составы типов в ней не сверялись: "
-                                 f"{после.сломан}")
+                                 f"{after.broken}")
                 continue
-            до = src.composition(вид, имя, BEFORE) if c.status == MODIFIED else None
-            for группа, состав in после.члены.items():
-                было = {} if до is None or до.сломан else до.члены.get(группа, {})
-                члены += [(c.path, f"{вид}.{имя}.{член}", типы) for член, типы in состав.items()
-                          if член not in было]
-        return rules.type_set_findings(члены)
+            before_ = src.composition(kind, name, BEFORE) if c.status == MODIFIED else None
+            for group, composition in after.members.items():
+                before = {} if before_ is None or before_.broken else before_.members.get(group, {})
+                members += [(c.path, f"{kind}.{name}.{член}", types) for член, types in composition.items()
+                          if член not in before]
+        return rules.type_set_findings(members)
 
 
 #: Больше стольких карточек составы типов не сверяются: такой объём для правок
@@ -151,9 +151,9 @@ def _ordered(findings):
     """По файлу и строке; одна и та же находка дважды не называется."""
     seen, out = set(), []
     for f in sorted(findings, key=lambda f: (f.path or "", f.line or 0, f.code)):
-        ключ = (f.code, f.path, f.line, f.message)
-        if ключ not in seen:
-            seen.add(ключ)
+        key = (f.code, f.path, f.line, f.message)
+        if key not in seen:
+            seen.add(key)
             out.append(f)
     return out
 
@@ -165,19 +165,19 @@ def _ordered(findings):
 def _коды(only):
     """Коды правил фильтра; неизвестный — отказ с перечнем известных."""
     коды = [к.strip() for к in only or () if к and к.strip()]
-    неизвестные = [к for к in коды if к not in rules.ПРАВИЛА]
+    неизвестные = [к for к in коды if к not in rules.RULES]
     if неизвестные:
         подсказка = (" — это номера пунктов регламента, а фильтр принимает коды правил"
                      if any(НОМЕР_ПУНКТА.match(к) for к in неизвестные) else "")
         raise Refuse(f"неизвестные коды правил в only: {', '.join(неизвестные)}{подсказка}; "
-                     f"коды: {', '.join(rules.ПРАВИЛА)}")
+                     f"коды: {', '.join(rules.RULES)}")
     return коды
 
 
-def _маска(путь):
-    return путь.strip().replace("\\", "/").removeprefix("./").rstrip("/")
+def _маска(path):
+    return path.strip().replace("\\", "/").removeprefix("./").rstrip("/")
 
 
-def _под(путь, маска):
+def _под(path, маска):
     """Файл правок подходит под отбор: тот же путь, лежит в каталоге или под маской."""
-    return путь == маска or путь.startswith(маска + "/") or fnmatch.fnmatchcase(путь, маска)
+    return path == маска or path.startswith(маска + "/") or fnmatch.fnmatchcase(path, маска)

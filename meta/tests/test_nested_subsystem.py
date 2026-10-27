@@ -30,13 +30,13 @@ from meta.infra import layout  # noqa: E402
 
 
 def задание(tmp_path, данные):
-    путь = tmp_path / "задание.json"
-    путь.write_text(json.dumps(данные, ensure_ascii=False), encoding="utf-8")
-    return [str(путь), "--apply", "--профиль", ПРОФИЛЬ]
+    path = tmp_path / "задание.json"
+    path.write_text(json.dumps(данные, ensure_ascii=False), encoding="utf-8")
+    return [str(path), "--apply", "--профиль", ПРОФИЛЬ]
 
 
-def правка(root, состав):
-    return {"repo": str(root), "changes": [{"путь": АДРЕС, "поля": {"состав": состав}}]}
+def правка(root, composition):
+    return {"repo": str(root), "changes": [{"путь": АДРЕС, "поля": {"состав": composition}}]}
 
 
 @pytest.fixture
@@ -44,28 +44,28 @@ def проект(tmp_path):
     """Проект EDT из эталона и вложенная подсистема в «мой_Раздел»."""
     src = tmp_path / "src"
     shutil.copytree(os.path.join(ЭТАЛОНЫ, "edt", "ожидание"), src)
-    родитель = src / "Subsystems" / "мой_Раздел"
-    вложенная = родитель / "Subsystems" / "мой_Вложенный"
+    parent = src / "Subsystems" / "мой_Раздел"
+    вложенная = parent / "Subsystems" / "мой_Вложенный"
     вложенная.mkdir(parents=True)
-    текст = (родитель / "мой_Раздел.mdo").read_text(encoding="utf-8")
-    текст = (текст.replace("мой_Раздел", "мой_Вложенный")
+    text = (parent / "мой_Раздел.mdo").read_text(encoding="utf-8")
+    text = (text.replace("мой_Раздел", "мой_Вложенный")
              .replace("70e28184-043b-4405-b6af-f1fad2efa257", "70e28184-043b-4405-b6af-000000000001")
              .replace("  <content>Enum.мой_ВидыЗаявок</content>\n", ""))
-    (вложенная / "мой_Вложенный.mdo").write_text(текст, encoding="utf-8", newline="\n")
+    (вложенная / "мой_Вложенный.mdo").write_text(text, encoding="utf-8", newline="\n")
     return src
 
 
 @с_edt
 def test_a_nested_subsystem_of_an_edt_project_is_edited_in_its_own_card(проект, tmp_path):
-    родитель = (проект / "Subsystems" / "мой_Раздел" / "мой_Раздел.mdo").read_bytes()
+    parent = (проект / "Subsystems" / "мой_Раздел" / "мой_Раздел.mdo").read_bytes()
     assert main(задание(tmp_path, правка(проект, {"добавить": [
         "Документ.мой_Заявка", "Роль.мой_атом_Документ_мой_Заявка_Просмотр"]}))) == 0
-    текст = (проект / "Subsystems" / "мой_Раздел" / "Subsystems" / "мой_Вложенный"
+    text = (проект / "Subsystems" / "мой_Раздел" / "Subsystems" / "мой_Вложенный"
              / "мой_Вложенный.mdo").read_text(encoding="utf-8")
-    assert [s.strip() for s in текст.splitlines() if "<content>" in s] == [
+    assert [s.strip() for s in text.splitlines() if "<content>" in s] == [
         "<content>Catalog.мой_Пример</content>", "<content>Document.мой_Заявка</content>",
         "<content>Role.мой_атом_Документ_мой_Заявка_Просмотр</content>"]
-    assert (проект / "Subsystems" / "мой_Раздел" / "мой_Раздел.mdo").read_bytes() == родитель
+    assert (проект / "Subsystems" / "мой_Раздел" / "мой_Раздел.mdo").read_bytes() == parent
 
 
 @с_edt
@@ -111,5 +111,5 @@ def test_every_object_folder_has_its_word():
     """Слова обозначений сверены с раскладкой: у каждого каталога выгрузки,
     кроме языков, есть слово — иначе состав подсистемы с объектом этого вида
     не записать и не прочитать по-русски."""
-    for вид, слово in layout.RIGHTS_WORD.items():
-        assert vocabulary.OBJECT_WORDS.get(вид) == слово, вид
+    for kind, word in layout.RIGHTS_WORD.items():
+        assert vocabulary.OBJECT_WORDS.get(kind) == word, kind

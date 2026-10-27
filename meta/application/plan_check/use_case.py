@@ -8,40 +8,40 @@
 from dataclasses import dataclass
 
 from ...domain import plan as rules
-from ...domain.conventions import НЕЙТРАЛЬНЫЕ, Соглашения
-from ...domain.model import Собранные
+from ...domain.conventions import NEUTRAL, Conventions
+from ...domain.model import Collected
 from ..dto import PlanCheckResult
-from ..plan_facts import затронутые, факт_объекта
+from ..plan_facts import touched, факт_объекта
 from ..ports import ChangeSource
 
 
 @dataclass
 class PlanCheckUseCase:
     source: ChangeSource
-    соглашения: Соглашения = НЕЙТРАЛЬНЫЕ
+    conventions: Conventions = NEUTRAL
 
-    def execute(self, план, только_заявленные=False):
+    def execute(self, plan, declared_only=False):
         src = self.source
-        неизвестные = Собранные("в плане объекты, которых выгрузка не знает")
-        факты = {}
-        for объект in план.объекты:
-            if src.card_path(объект.вид, объект.имя) is None:
-                неизвестные.добавить(f"«{объект.вид}.{объект.имя}»: вид «{объект.вид}» выгрузке неизвестен")
+        неизвестные = Collected("в плане объекты, которых выгрузка не знает")
+        facts = {}
+        for obj in plan.objects:
+            if src.card_path(obj.kind, obj.name) is None:
+                неизвестные.add(f"«{obj.kind}.{obj.name}»: вид «{obj.kind}» выгрузке неизвестен")
                 continue
-            модули = {}
-            for модуль in объект.модули:
-                путь = src.module_path(объект.вид, объект.имя, модуль)
-                if путь is None:
-                    неизвестные.добавить(f"«{объект.вид}.{объект.имя}»: модуля «{модуль}» у вида не бывает")
-                модули[модуль] = путь
-            факты[(объект.вид, объект.имя)] = факт_объекта(
-                src, объект.вид, объект.имя, {м: п for м, п in модули.items() if п})
-        неизвестные.предъявить()
-        тронутые = затронутые(src)
-        findings = self.соглашения.применить(rules.сверить(план, факты, тронутые, только_заявленные))
+            modules = {}
+            for module in obj.modules:
+                path = src.module_path(obj.kind, obj.name, module)
+                if path is None:
+                    неизвестные.add(f"«{obj.kind}.{obj.name}»: модуля «{module}» у вида не бывает")
+                modules[module] = path
+            facts[(obj.kind, obj.name)] = факт_объекта(
+                src, obj.kind, obj.name, {м: pt for м, pt in modules.items() if pt})
+        неизвестные.raise_collected()
+        тронутые = touched(src)
+        findings = self.conventions.apply(rules.reconcile(plan, facts, тронутые, declared_only))
         notes = []
-        if только_заявленные:
-            вне = rules.незаявленные(план, тронутые)
+        if declared_only:
+            outside = rules.undeclared(plan, тронутые)
             notes.append("сверены только заявленные объекты"
-                         + (f"; к сведению — тронуто, но не заявлено: {', '.join(вне)}" if вне else ""))
-        return PlanCheckResult(src.describe(), план, sorted(тронутые), findings, notes)
+                         + (f"; к сведению — тронуто, но не заявлено: {', '.join(outside)}" if outside else ""))
+        return PlanCheckResult(src.describe(), plan, sorted(тронутые), findings, notes)

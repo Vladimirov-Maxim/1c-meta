@@ -173,10 +173,10 @@ def test_prefix_required_only_in_foreign_objects():
     attribute = kind_of("Реквизит", ТЕСТ)
     spec = attribute.fill(Spec("Реквизит", {"имя": "ТестЧисло", "синоним": "Тест",
                                             "тип": dm.NumberType(10)}))
-    свой = [f.code for f in attribute.check(spec, World(), ("Справочник", "мой_Наш"))]
+    own_one = [f.code for f in attribute.check(spec, World(), ("Справочник", "мой_Наш"))]
     чужой = [f.code for f in attribute.check(spec, World(), ("Справочник", "Контрагенты"))]
     создаётся = [f.code for f in attribute.check(spec, World(), ("Справочник", None))]
-    assert "МД-ПРЕФИКС" not in свой, свой
+    assert "МД-ПРЕФИКС" not in own_one, own_one
     assert "МД-ПРЕФИКС" in чужой, чужой
     assert "МД-ПРЕФИКС" not in создаётся, создаётся
 

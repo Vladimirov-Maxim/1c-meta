@@ -14,16 +14,16 @@ class PlanEmitUseCase:
 
     def execute(self):
         src = self.source
-        порядок, модули = [], {}
+        порядок, modules = [], {}
         for c in src.changes():
-            объект = src.owner_of(c.path)
-            if объект is None:
+            obj = src.owner_of(c.path)
+            if obj is None:
                 continue
-            if объект not in модули:
-                порядок.append(объект)
-                модули[объект] = {}
-            модуль = src.module_of(c.path)
-            if модуль is not None and модуль[:2] == объект:
-                модули[объект][модуль[2]] = c.path
-        факты = [факт_объекта(src, вид, имя, модули[(вид, имя)]) for вид, имя in порядок]
-        return PlanEmitResult(src.describe(), rules.план_по_факту(факты))
+            if obj not in modules:
+                порядок.append(obj)
+                modules[obj] = {}
+            module = src.module_of(c.path)
+            if module is not None and module[:2] == obj:
+                modules[obj][module[2]] = c.path
+        facts = [факт_объекта(src, kind, name, modules[(kind, name)]) for kind, name in порядок]
+        return PlanEmitResult(src.describe(), rules.plan_from_fact(facts))

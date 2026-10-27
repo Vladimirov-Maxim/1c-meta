@@ -1,11 +1,11 @@
 """Объект словами задания: что разобрано и что лежит на диске."""
 
 from ..domain.kinds import REGISTRY
-from ..domain.model import ValueType, запись_типа
+from ..domain.model import ValueType, type_record
 from . import БЕЗ_КАНАЛА
 
 
-def по_человечески(значение):
+def по_человечески(value):
     """Значение поля для человека, а не `repr` объекта Python.
 
     Иначе в просмотре у подписки печаталось бы
@@ -15,28 +15,28 @@ def по_человечески(значение):
     # `True`, `False` и `None` — питоновские написания, а задание пишется
     # в JSON, где это `true`, `false` и отсутствие поля. В остальном вывод
     # русский, и одно английское слово в нём заставляет спотыкаться.
-    if значение is True:
+    if value is True:
         return "true"
-    if значение is False:
+    if value is False:
         return "false"
-    if значение is None:
+    if value is None:
         return "не задано"
-    if значение and isinstance(значение, (list, tuple)) and all(
-            isinstance(x, ValueType) for x in значение):
+    if value and isinstance(value, (list, tuple)) and all(
+            isinstance(x, ValueType) for x in value):
         # Составной тип — краткой записью задания, через «|»: так его и
         # вставляют обратно в задание.
-        return запись_типа(значение)
-    if isinstance(значение, (list, tuple)):
-        return ", ".join(по_человечески(x) for x in значение) or "(пусто)"
-    if isinstance(значение, dict):
-        return ", ".join(f"{к}: {по_человечески(в)}"
-                         for к, в in значение.items()) or "(пусто)"
+        return type_record(value)
+    if isinstance(value, (list, tuple)):
+        return ", ".join(по_человечески(x) for x in value) or "(пусто)"
+    if isinstance(value, dict):
+        return ", ".join(f"{к}: {по_человечески(vv)}"
+                         for к, vv in value.items()) or "(пусто)"
     # Длины и разрядности записываются текстом, а голым числом печатались бы
     # ровно в том виде, в каком инструмент их и отвергает, если это число.
     # Кавычки снимают вопрос «а что он записал».
-    if isinstance(значение, str) and значение.isdigit():
-        return f'"{значение}"'
-    return str(значение)
+    if isinstance(value, str) and value.isdigit():
+        return f'"{value}"'
+    return str(value)
 
 
 #: Многострочное значение длиннее стольких строк печатается сводкой: текст
@@ -46,29 +46,29 @@ def по_человечески(значение):
 НАЧАЛО_СВОДКИ = 3
 
 
-def _сводка(значение, indent, подсказки):
+def _сводка(value, indent, подсказки):
     """Длинный многострочный текст — счётчиками, контрольной суммой и началом."""
     import hashlib
 
-    строки = значение.split("\n")
-    сумма = hashlib.sha1(значение.encode("utf-8")).hexdigest()[:12]
-    out = [f"{len(строки)} строк, {len(значение)} знаков, sha1 {сумма} — целиком: {подсказки.подробно}"]
-    out += [f"{indent}   │ {строка}" for строка in строки[:НАЧАЛО_СВОДКИ]]
+    lines = value.split("\n")
+    сумма = hashlib.sha1(value.encode("utf-8")).hexdigest()[:12]
+    out = [f"{len(lines)} строк, {len(value)} знаков, sha1 {сумма} — целиком: {подсказки.detailed}"]
+    out += [f"{indent}   │ {line}" for line in lines[:НАЧАЛО_СВОДКИ]]
     out.append(f"{indent}   │ …")
     return out
 
 
-def describe(spec, indent="   ", top=True, показать_всё=False, подробно=False,
-             подсказки=БЕЗ_КАНАЛА, строки=None, полностью=None):
+def describe(spec, indent="   ", top=True, показать_всё=False, detailed=False,
+             подсказки=БЕЗ_КАНАЛА, lines=None, полностью=None):
     """Что разобрано из задания: имена детей и их типы.
 
     Просмотр, который печатает только пути и размеры файлов, не отвечает
     на главный вопрос — то ли записано, что задумано. Ошибка в имени ключа
     типа может дать план, побайтно совпадающий с правильным.
     """
-    строки = [] if строки is None else строки
-    пиши = строки.append
-    полностью = подробно if полностью is None else полностью
+    lines = [] if lines is None else lines
+    пиши = lines.append
+    полностью = detailed if полностью is None else полностью
     kind = REGISTRY.get(spec.kind)
     прочих = 0
     if top:
@@ -89,55 +89,55 @@ def describe(spec, indent="   ", top=True, показать_всё=False, под
         # В чтении с диска пустые свойства не печатаются: их у карточки
         # три десятка, и за ними теряется то, ради чего смотрят. В просмотре
         # задания наоборот — там пустое значение человек написал сам.
-        def стоит_печатать(поле):
-            if поле in дети or поле == "имя":
+        def стоит_печатать(field_name):
+            if field_name in дети or field_name == "имя":
                 return False
-            if поле in getattr(kind, "derived", ()):
+            if field_name in getattr(kind, "derived", ()):
                 return False
-            if подробно:
+            if detailed:
                 # Кроме названного печатается и то, что решено за человека:
                 # за строкой «ещё N полей» прячутся как раз решения —
                 # периодичность регистра, режим записи, включённый
                 # полнотекстовый поиск.
-                return spec.get(поле) not in (None, "", [], {})
+                return spec.get(field_name) not in (None, "", [], {})
             if not показать_всё:
-                return поле in назвал
-            значение = spec.get(поле)
-            return значение not in (None, "", [], {})
+                return field_name in назвал
+            value = spec.get(field_name)
+            return value not in (None, "", [], {})
 
-        свои = [] if kind is None else [
-            (поле, spec.get(поле)) for поле in kind.fields
-            if стоит_печатать(поле)]
-        for поле, значение in свои:
-            if (isinstance(значение, list) and значение
-                    and all(isinstance(x, dict) and "объект" in x for x in значение)):
+        own = [] if kind is None else [
+            (field_name, spec.get(field_name)) for field_name in kind.fields
+            if стоит_печатать(field_name)]
+        for field_name, value in own:
+            if (isinstance(value, list) and value
+                    and all(isinstance(x, dict) and "объект" in x for x in value)):
                 # Права роли — по строке на объект: одной строкой через запятую
                 # границы между объектами не видно. Объекты, где не выдано
                 # ничего, — одной строкой счётом: файл прав роли называет их
                 # явным «false», у иной роли их сто тысяч, и показ вышел бы в
                 # миллионы знаков строками «(пусто)».
-                выданные = [в for в in значение if в.get("права")]
-                пиши(f"{indent}{поле}:")
+                выданные = [vv for vv in value if vv.get("права")]
+                пиши(f"{indent}{field_name}:")
                 for выдача in выданные:
                     пиши(f"{indent}   {выдача['объект']}: {по_человечески(выдача['права'])}")
-                пустых = len(значение) - len(выданные)
+                пустых = len(value) - len(выданные)
                 if пустых:
                     пиши(f"{indent}   (ещё объектов: {пустых} — названы в файле прав, но ни "
                          "одного права на них не выдано; не показаны)")
                 continue
-            if (not полностью and isinstance(значение, str)
-                    and значение.count("\n") >= СВОДКА_ОТ_СТРОК):
-                первая, *прочие = _сводка(значение, indent, подсказки)
-                пиши(f"{indent}{поле}: {первая}")
-                строки.extend(прочие)
+            if (not полностью and isinstance(value, str)
+                    and value.count("\n") >= СВОДКА_ОТ_СТРОК):
+                first, *прочие = _сводка(value, indent, подсказки)
+                пиши(f"{indent}{field_name}: {first}")
+                lines.extend(прочие)
                 continue
-            пиши(f"{indent}{поле}: {по_человечески(значение)}")
+            пиши(f"{indent}{field_name}: {по_человечески(value)}")
         # Про остальное сказано одной строкой — иначе молчание двусмысленно:
         # «поле не названо» и «поле проглочено» выглядят одинаково.
         прочих = 0 if kind is None else len(
-            [п for п in kind.fields if not стоит_печатать(п)
-             and п not in дети and п != "имя"
-             and п not in getattr(kind, "derived", ())])
+            [pt for pt in kind.fields if not стоит_печатать(pt)
+             and pt not in дети and pt != "имя"
+             and pt not in getattr(kind, "derived", ())])
     for field, child_kind in (getattr(kind, "child_fields", ()) or ()):
         children = spec.get(field) or []
         if not children:
@@ -145,7 +145,7 @@ def describe(spec, indent="   ", top=True, показать_всё=False, под
         parts = []
         for child in children:
             vtype = child.get("тип")
-            синоним = child.get("синоним")
+            synonym = child.get("синоним")
             # Синоним ребёнка — половина задания у перечисления и единственное,
             # что увидит пользователь в интерфейсе; без него в просмотре
             # опечатка в «На согласовании» прошла бы молча.
@@ -153,17 +153,17 @@ def describe(spec, indent="   ", top=True, показать_всё=False, под
             # Пряча совпадающий, вывод сделал бы «синоним задан» и «синоним
             # забыт» неотличимыми: строка вышла бы побайтно одинаковой у
             # карточек, различающихся на 401 байт.
-            куски = str(child.get("имя"))
-            if синоним:
-                куски += f" «{синоним}»"
+            chunks = str(child.get("имя"))
+            if synonym:
+                chunks += f" «{synonym}»"
             # Через `по_человечески`, а не `str`: у составного типа это список,
             # и `str(список)` печатает элементы через `repr` — адресами
             # в памяти: измерение с пятью `DocumentRef` вышло бы в просмотре
             # как `[<TypeRef object at 0x…>]`, и единственная точка сверки
             # состава до записи стала бы бесполезной.
             if vtype is not None:
-                куски += f" ({по_человечески(vtype)})"
-            parts.append(куски)
+                chunks += f" ({по_человечески(vtype)})"
+            parts.append(chunks)
         пиши("{}{}: {}".format(indent, field, ", ".join(parts)))
         for child in children:
             вложенные = (REGISTRY[child_kind].child_fields
@@ -173,7 +173,7 @@ def describe(spec, indent="   ", top=True, показать_всё=False, под
                 # не говорят, какой табличной части какие.
                 пиши(f"{indent}   {child.get('имя')}:")
                 describe(child, indent + "      ", top=False, показать_всё=показать_всё,
-                         подробно=подробно, подсказки=подсказки, строки=строки, полностью=полностью)
+                         detailed=detailed, подсказки=подсказки, lines=lines, полностью=полностью)
     # Про остальное сказано одной строкой и в самом низу: иначе она вклинивается
     # между свойствами объекта и его детьми. Молчание без неё двусмысленно —
     # «поле не названо» и «поле проглочено» выглядят одинаково. У объекта,
@@ -187,11 +187,11 @@ def describe(spec, indent="   ", top=True, показать_всё=False, под
         # подробностями они напечатаны выше: иначе «ещё 25 — по умолчанию» и
         # «ещё 11 пусты» об одном объекте читались бы как расхождение.
         не_названо = "не названо" if поле_слово == "поле" else "не названы"
-        хвост = (пусто if показать_всё or подробно
+        tail = (пусто if показать_всё or detailed
                  else f"{не_названо} в задании — значения по умолчанию; показать их — "
-                      f"{подсказки.подробно}, поля вида — " + подсказки.поля.format(вид=spec.kind))
-        пиши(f"{indent}(ещё {прочих} {поле_слово} {хвост})")
-    return строки
+                      f"{подсказки.detailed}, поля вида — " + подсказки.fields.format(вид=spec.kind))
+        пиши(f"{indent}(ещё {прочих} {поле_слово} {tail})")
+    return lines
 
 
 def shown_object(spec, файл, подсказки=БЕЗ_КАНАЛА, полностью=False):
@@ -202,18 +202,18 @@ def shown_object(spec, файл, подсказки=БЕЗ_КАНАЛА, пол�
     XML глазами — ровно тем знанием формата, ради избавления от которого
     инструмент и заведён.
     """
-    строки = [f"{spec.kind} {spec.get('имя')}   ({файл})"]
-    describe(spec, показать_всё=True, подсказки=подсказки, строки=строки, полностью=полностью)
+    lines = [f"{spec.kind} {spec.get('имя')}   ({файл})"]
+    describe(spec, показать_всё=True, подсказки=подсказки, lines=lines, полностью=полностью)
     # Формы — чтобы узнать их, не открывая каталог. Основные помечены.
     формы = spec.get("формы") or []
     if формы:
-        def роль(имя):
-            роли = [слово for поле, слово in ОСНОВНЫЕ_ФОРМЫ
-                    if str(spec.get(поле) or "").endswith((f".Form.{имя}", f".Форма.{имя}"))]
-            return f" ({', '.join(роли)})" if роли else ""
-        строки.append("   формы: " + ", ".join(имя + роль(имя) for имя in формы))
-        строки.append(f"   форма — show по адресу «{spec.kind}.{spec.get('имя')}.<Имя формы>»")
-    return строки
+        def role(name):
+            roles = [word for field, word in ОСНОВНЫЕ_ФОРМЫ
+                    if str(spec.get(field) or "").endswith((f".Form.{name}", f".Форма.{name}"))]
+            return f" ({', '.join(roles)})" if roles else ""
+        lines.append("   формы: " + ", ".join(name + role(name) for name in формы))
+        lines.append(f"   форма — show по адресу «{spec.kind}.{spec.get('имя')}.<Имя формы>»")
+    return lines
 
 
 #: Поле основной формы -> как её назвать в перечне форм.

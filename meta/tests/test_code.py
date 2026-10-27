@@ -39,26 +39,26 @@ def git(root, *args):
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
-def написать(root, rel, строки, eol="\r\n", bom=True, final=True):
+def написать(root, rel, lines, eol="\r\n", bom=True, final=True):
     """Байты явно: предмет проверки — BOM и переводы строк."""
-    путь = os.path.join(root, *rel.split("/"))
-    os.makedirs(os.path.dirname(путь), exist_ok=True)
-    текст = eol.join(строки) + (eol if final else "")
-    with open(путь, "wb") as файл:
-        файл.write((b"\xef\xbb\xbf" if bom else b"") + текст.encode("utf-8"))
+    path = os.path.join(root, *rel.split("/"))
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    text = eol.join(lines) + (eol if final else "")
+    with open(path, "wb") as файл:
+        файл.write((b"\xef\xbb\xbf" if bom else b"") + text.encode("utf-8"))
 
 
 def прочитать(root, rel):
     сырое = open(os.path.join(root, *rel.split("/")), "rb").read()
     bom = сырое.startswith(b"\xef\xbb\xbf")
-    текст = сырое[3:].decode("utf-8") if bom else сырое.decode("utf-8")
-    crlf = текст.count("\r\n")
-    bare_lf = текст.count("\n") - crlf
-    тело = текст[:-1].rstrip("\r") if текст.endswith("\n") else текст
-    return (re.split(r"\r\n|\n|\r", тело) if тело else []), bom, crlf, bare_lf
+    text = сырое[3:].decode("utf-8") if bom else сырое.decode("utf-8")
+    crlf = text.count("\r\n")
+    bare_lf = text.count("\n") - crlf
+    body = text[:-1].rstrip("\r") if text.endswith("\n") else text
+    return (re.split(r"\r\n|\n|\r", body) if body else []), bom, crlf, bare_lf
 
 
-def тело(root, rel=ВЕНДОРСКИЙ):
+def body(root, rel=ВЕНДОРСКИЙ):
     return "\n".join(прочитать(root, rel)[0])
 
 
@@ -70,49 +70,49 @@ def зафиксировать(root, сообщение="базлайн"):
 @pytest.fixture
 def репо(tmp_path):
     """Выгрузка-репозиторий с вендорским модулем из данных строк."""
-    def завести(строки, имя="выгрузка"):
-        root = str(tmp_path / имя)
+    def завести(lines, name="выгрузка"):
+        root = str(tmp_path / name)
         os.makedirs(root)
         git(root, "init", "-q")
         git(root, "config", "user.email", "test@example.local")
         git(root, "config", "user.name", "Фикстуры")
         git(root, "config", "core.autocrlf", "false")
-        написать(root, ВЕНДОРСКИЙ, строки)
+        написать(root, ВЕНДОРСКИЙ, lines)
         зафиксировать(root)
         return root
     return завести
 
 
-def запустить(root, apply=True, **поля):
+def запустить(root, apply=True, **fields):
     """Задание в файл -> терминал. (код возврата, текст) — отказ тоже текстом."""
-    job = {"repo": root, "task": поля.pop("task", "TASK-1"),
-           "date": поля.pop("date", "31.08.2026"), "author": поля.pop("author", АВТОР)}
-    job.update(поля)
+    job = {"repo": root, "task": fields.pop("task", "TASK-1"),
+           "date": fields.pop("date", "31.08.2026"), "author": fields.pop("author", АВТОР)}
+    job.update(fields)
     файл = os.path.join(os.path.dirname(root), f"задание-{abs(hash(json.dumps(job, ensure_ascii=False)))}.json")
     with open(файл, "w", encoding="utf-8") as f:
         json.dump(job, f, ensure_ascii=False)
     буфер = io.StringIO()
     with redirect_stdout(буфер):
         try:
-            код = add.main([файл] + (["--apply"] if apply else []))
-        except Refuse as отказ:
-            print(f"ОТКАЗ: {отказ}")
-            код = 1
-    return код, буфер.getvalue()
+            code = add.main([файл] + (["--apply"] if apply else []))
+        except Refuse as refusal:
+            print(f"ОТКАЗ: {refusal}")
+            code = 1
+    return code, буфер.getvalue()
 
 
 def правка(line, lines=0, first=None, last=None, code=""):
-    п = {"line": line, "lines": lines, "code": code}
+    pt = {"line": line, "lines": lines, "code": code}
     if first is not None:
-        п["first_line"] = first
+        pt["first_line"] = first
     if last is not None:
-        п["last_line"] = last
-    return п
+        pt["last_line"] = last
+    return pt
 
 
-def одна(строка, код):
+def одна(line, code):
     """Замена одной строки — самый частый вид правки в фикстурах."""
-    return правка(0, 1, строка, строка, код)
+    return правка(0, 1, line, line, code)
 
 
 ТЕСТ = ["Процедура Тест()", "\tЗначение = 1;", "\tВозврат;", "КонецПроцедуры"]
@@ -123,60 +123,60 @@ def одна(строка, код):
 def test_added_code_goes_between_markers(репо):
     """Самый частый случай: почти все вставки — фрагмент внутри тела метода."""
     root = репо(ТЕСТ)
-    код, текст = запустить(root, path=ВЕНДОРСКИЙ, edits=[правка(3, code="\tПроверка();")])
-    строки = прочитать(root, ВЕНДОРСКИЙ)[0]
-    открывающая = next(i for i, s in enumerate(строки) if "фрагмент ДОБАВЛЕН" in s)
-    assert код == 0 and "ДОБАВЛЕН" in текст
+    code, text = запустить(root, path=ВЕНДОРСКИЙ, edits=[правка(3, code="\tПроверка();")])
+    lines = прочитать(root, ВЕНДОРСКИЙ)[0]
+    открывающая = next(i for i, s in enumerate(lines) if "фрагмент ДОБАВЛЕН" in s)
+    assert code == 0 and "ДОБАВЛЕН" in text
     assert re.search(r"// \{\[\+\]\(фрагмент ДОБАВЛЕН\), 31\.08\.2026, #TEAM Петров Петр #TASK-1",
-                     строки[открывающая])
-    assert строки[открывающая + 1] == "\tПроверка();"
-    assert re.match(r"^\s*// \} Петров Петр, 31\.08\.2026$", строки[открывающая + 2])
-    assert строки[открывающая].startswith("\t")               # отступ строки-якоря
-    assert строки[открывающая - 1].strip() == ""              # пустая строка снаружи вставки
-    assert строки[открывающая + 3].strip() == ""
+                     lines[открывающая])
+    assert lines[открывающая + 1] == "\tПроверка();"
+    assert re.match(r"^\s*// \} Петров Петр, 31\.08\.2026$", lines[открывающая + 2])
+    assert lines[открывающая].startswith("\t")               # отступ строки-якоря
+    assert lines[открывающая - 1].strip() == ""              # пустая строка снаружи вставки
+    assert lines[открывающая + 3].strip() == ""
 
 
 def test_changed_code_keeps_the_old_one_commented(репо):
     """ИЗМЕНЕН: старый код закомментирован и оставлен, новый следом."""
     root = репо(ТЕСТ)
-    п = одна("\tЗначение = 1;", "\tЗначение = 99;")
-    п["line"] = 2
-    _, текст = запустить(root, path=ВЕНДОРСКИЙ, edits=[п])
-    т = тело(root)
-    assert "ИЗМЕНЕН" in текст
-    assert "\t//Значение = 1;" in т and "\tЗначение = 99;" in т
-    assert not re.search(r"(?m)^\tЗначение = 1;$", т)
+    pt = одна("\tЗначение = 1;", "\tЗначение = 99;")
+    pt["line"] = 2
+    _, text = запустить(root, path=ВЕНДОРСКИЙ, edits=[pt])
+    tk = body(root)
+    assert "ИЗМЕНЕН" in text
+    assert "\t//Значение = 1;" in tk and "\tЗначение = 99;" in tk
+    assert not re.search(r"(?m)^\tЗначение = 1;$", tk)
 
 
 def test_removed_code_is_commented_not_erased(репо):
     root = репо(["Процедура Тест()", "\tЛишнее();", "\tВозврат;", "КонецПроцедуры"])
     запустить(root, path=ВЕНДОРСКИЙ, edits=[правка(2, 1, "\tЛишнее();", "\tЛишнее();", "")])
-    т = тело(root)
-    assert "фрагмент УДАЛЕН" in т and "\t//Лишнее();" in т
+    tk = body(root)
+    assert "фрагмент УДАЛЕН" in tk and "\t//Лишнее();" in tk
 
 
 def test_a_stale_anchor_refuses_the_whole_batch(репо):
     """Якорь по строке без проверки границ промахнётся молча — главный риск замысла."""
     root = репо(ТЕСТ)
-    код, текст = запустить(root, path=ВЕНДОРСКИЙ, edits=[
+    code, text = запустить(root, path=ВЕНДОРСКИЙ, edits=[
         правка(2, 1, "\tЗначение = 777;", "\tЗначение = 777;", "\tЗначение = 99;")])
-    assert код == 1 and re.search("ожидалось.*фактически", текст)
-    assert "ИЗМЕНЕН" not in тело(root)
+    assert code == 1 and re.search("ожидалось.*фактически", text)
+    assert "ИЗМЕНЕН" not in body(root)
 
 
 def test_a_missing_anchor_names_the_field(репо):
     """Отказ называет незаданное поле по имени, а не номером строки правки."""
     root = репо(ТЕСТ)
-    код, текст = запустить(root, path=ВЕНДОРСКИЙ, edits=[правка(2, 1, None, None, "\tХ();")])
-    assert код == 1 and "не задано поле «first_line»" in текст
+    code, text = запустить(root, path=ВЕНДОРСКИЙ, edits=[правка(2, 1, None, None, "\tХ();")])
+    assert code == 1 and "не задано поле «first_line»" in text
 
 
 def test_overlapping_edits_are_refused(репо):
     """Правило LSP: диапазоны правок не пересекаются."""
     root = репо(["Процедура Тест()", "\tА = 1;", "\tБ = 2;", "\tВ = 3;", "КонецПроцедуры"])
-    код, текст = запустить(root, path=ВЕНДОРСКИЙ, edits=[
+    code, text = запустить(root, path=ВЕНДОРСКИЙ, edits=[
         правка(2, 2, "\tА = 1;", "\tБ = 2;", "\tХ();"), правка(3, 2, "\tБ = 2;", "\tВ = 3;", "\tУ();")])
-    assert код == 1 and "пересекаются" in текст
+    assert code == 1 and "пересекаются" in text
 
 
 def test_a_batch_keeps_its_line_numbers(репо):
@@ -184,63 +184,63 @@ def test_a_batch_keeps_its_line_numbers(репо):
     root = репо(["Процедура Тест()", "\tА = 1;", "\tБ = 2;", "\tВ = 3;", "КонецПроцедуры"])
     запустить(root, path=ВЕНДОРСКИЙ, edits=[
         правка(2, 1, "\tА = 1;", "\tА = 1;", "\tА = 11;"), правка(4, 1, "\tВ = 3;", "\tВ = 3;", "\tВ = 33;")])
-    т = тело(root)
-    assert "\t//А = 1;" in т and "\tА = 11;" in т
-    assert "\t//В = 3;" in т and "\tВ = 33;" in т
-    assert re.search(r"(?m)^\tБ = 2;$", т)
+    tk = body(root)
+    assert "\t//А = 1;" in tk and "\tА = 11;" in tk
+    assert "\t//В = 3;" in tk and "\tВ = 33;" in tk
+    assert re.search(r"(?m)^\tБ = 2;$", tk)
 
 
 def test_a_module_created_by_the_task_gets_no_markers(репо):
     """Исключение из правила меток: модуль создан текущей задачей — внутри разметки нет."""
     root = репо(["// шапка"])
-    новый = "CommonModules/мой_Новый/Ext/Module.bsl"
-    написать(root, новый, ["Процедура Новая() Экспорт", "\tЗначение = 1;", "КонецПроцедуры"])
-    _, текст = запустить(root, path=новый, edits=[
+    new = "CommonModules/мой_Новый/Ext/Module.bsl"
+    написать(root, new, ["Процедура Новая() Экспорт", "\tЗначение = 1;", "КонецПроцедуры"])
+    _, text = запустить(root, path=new, edits=[
         правка(2, 1, "\tЗначение = 1;", "\tЗначение = 1;", "\tЗначение = 2;")])
-    т = тело(root, новый)
-    assert "создан текущей задачей" in текст
-    assert "фрагмент" not in т and "\tЗначение = 2;" in т
+    tk = body(root, new)
+    assert "создан текущей задачей" in text
+    assert "фрагмент" not in tk and "\tЗначение = 2;" in tk
 
 
 def test_a_module_already_in_the_index_is_still_created_by_the_task(репо):
     """Модуль задачи, уже добавленный в индекс, но не закоммиченный, — всё ещё
     её модуль: в `HEAD` его нет, меток не нужно."""
     root = репо(["// шапка"])
-    новый = "CommonModules/мой_Новый/Ext/Module.bsl"
-    написать(root, новый, ["Процедура Новая() Экспорт", "	Значение = 1;", "КонецПроцедуры"])
+    new = "CommonModules/мой_Новый/Ext/Module.bsl"
+    написать(root, new, ["Процедура Новая() Экспорт", "	Значение = 1;", "КонецПроцедуры"])
     git(root, "add", "-A")
-    _, текст = запустить(root, path=новый, edits=[
+    _, text = запустить(root, path=new, edits=[
         правка(2, 1, "	Значение = 1;", "	Значение = 1;", "	Значение = 2;")])
-    assert "создан текущей задачей" in текст
-    assert "фрагмент" not in тело(root, новый)
+    assert "создан текущей задачей" in text
+    assert "фрагмент" not in body(root, new)
 
 
 def test_a_module_committed_in_the_task_branch_is_new_against_the_base(репо):
     """Закоммиченный в ветке задачи модуль — новый против базы сверки (`base`),
     а без неё — существующий: в `HEAD` он уже есть."""
     root = репо(["// шапка"])
-    база = subprocess.check_output(["git", "-C", root, "rev-parse", "HEAD"], text=True).strip()
-    новый = "CommonModules/мой_Новый/Ext/Module.bsl"
-    написать(root, новый, ["Процедура Новая() Экспорт", "	Значение = 1;", "КонецПроцедуры"])
+    base = subprocess.check_output(["git", "-C", root, "rev-parse", "HEAD"], text=True).strip()
+    new = "CommonModules/мой_Новый/Ext/Module.bsl"
+    написать(root, new, ["Процедура Новая() Экспорт", "	Значение = 1;", "КонецПроцедуры"])
     зафиксировать(root, "модуль задачи")
-    _, без_базы = запустить(root, apply=False, path=новый, edits=[
+    _, без_базы = запустить(root, apply=False, path=new, edits=[
         правка(2, 1, "	Значение = 1;", "	Значение = 1;", "	Значение = 2;")])
     assert "создан текущей задачей" not in без_базы
-    _, с_базой = запустить(root, path=новый, base=база, edits=[
+    _, с_базой = запустить(root, path=new, base=base, edits=[
         правка(2, 1, "	Значение = 1;", "	Значение = 1;", "	Значение = 2;")])
     assert "создан текущей задачей" in с_базой
-    assert "фрагмент" not in тело(root, новый)
+    assert "фрагмент" not in body(root, new)
 
 
 def test_a_vendor_module_stays_foreign_with_a_base(репо):
     """База сверки не делает новым то, что в ней было: вендорский модуль —
     с меткой."""
     root = репо(["Процедура Тест()", "	А = 1;", "КонецПроцедуры"])
-    база = subprocess.check_output(["git", "-C", root, "rev-parse", "HEAD"], text=True).strip()
-    _, текст = запустить(root, path=ВЕНДОРСКИЙ, base=база, edits=[
+    base = subprocess.check_output(["git", "-C", root, "rev-parse", "HEAD"], text=True).strip()
+    _, text = запустить(root, path=ВЕНДОРСКИЙ, base=base, edits=[
         правка(2, 1, "	А = 1;", "	А = 1;", "	А = 2;")])
-    assert "создан текущей задачей" not in текст
-    assert "фрагмент ИЗМЕНЕН" in тело(root)
+    assert "создан текущей задачей" not in text
+    assert "фрагмент ИЗМЕНЕН" in body(root)
 
 
 def test_an_ignored_module_is_not_new(репо):
@@ -252,16 +252,16 @@ def test_an_ignored_module_is_not_new(репо):
     зафиксировать(root, "игнор")
     чужой = "work/Реализация/мой_Обработка/Ext/ObjectModule.bsl"
     написать(root, чужой, ["Процедура Тест()", "\tА = 1;", "КонецПроцедуры"])
-    _, текст = запустить(root, path=чужой, edits=[правка(2, 1, "\tА = 1;", "\tА = 1;", "\tА = 2;")])
-    assert "создан текущей задачей" not in текст
-    assert "фрагмент ИЗМЕНЕН" in тело(root, чужой)
+    _, text = запустить(root, path=чужой, edits=[правка(2, 1, "\tА = 1;", "\tА = 1;", "\tА = 2;")])
+    assert "создан текущей задачей" not in text
+    assert "фрагмент ИЗМЕНЕН" in body(root, чужой)
 
 
 def test_an_unknown_base_is_refused(репо):
     root = репо(["// шапка"])
-    код, текст = запустить(root, path=ВЕНДОРСКИЙ, base="нет-такой-ветки", edits=[
+    code, text = запустить(root, path=ВЕНДОРСКИЙ, base="нет-такой-ветки", edits=[
         правка(1, 1, "// шапка", "// шапка", "// шапка 2")])
-    assert код == 1 and "база сверки «нет-такой-ветки» в репозитории не найдена" in текст
+    assert code == 1 and "база сверки «нет-такой-ветки» в репозитории не найдена" in text
 
 
 def test_inside_own_insertion_there_is_no_new_wrapper(репо):
@@ -270,11 +270,11 @@ def test_inside_own_insertion_there_is_no_new_wrapper(репо):
     root = репо(["Процедура Тест()",
                  "\t// {[+](фрагмент ДОБАВЛЕН), 01.08.2026, #TEAM Петров Петр #TASK-1",
                  "\tЗначение = 1;", "\t// } Петров Петр, 01.08.2026", "КонецПроцедуры"])
-    _, текст = запустить(root, path=ВЕНДОРСКИЙ, edits=[
+    _, text = запустить(root, path=ВЕНДОРСКИЙ, edits=[
         правка(3, 1, "\tЗначение = 1;", "\tЗначение = 1;", "\tЗначение = 2;")])
-    т = тело(root)
-    assert "внутри своей вставки" in текст
-    assert т.count("фрагмент") == 1 and "01.08.2026" in т
+    tk = body(root)
+    assert "внутри своей вставки" in text
+    assert tk.count("фрагмент") == 1 and "01.08.2026" in tk
 
 
 def test_three_lines_inside_a_foreign_insertion_wrap_it_outside(репо):
@@ -284,13 +284,13 @@ def test_three_lines_inside_a_foreign_insertion_wrap_it_outside(репо):
                  "\t// {[*](фрагмент ИЗМЕНЕН), 21.07.2026, #TEAM Петров Петр #TASK-0",
                  "\tЗначение = 1;", "\tДругое = 2;", "\tТретье = 3;",
                  "\t// } Петров Петр, 21.07.2026", "КонецПроцедуры"])
-    _, текст = запустить(root, path=ВЕНДОРСКИЙ, edits=[
+    _, text = запустить(root, path=ВЕНДОРСКИЙ, edits=[
         правка(3, 3, "\tЗначение = 1;", "\tТретье = 3;", "\tЗначение = 99;")])
-    т = тело(root)
-    assert "обёртка снаружи" in текст and "#TASK-1" in т
-    assert re.search(r"//\s*// \{\[\*\]", т)
-    assert re.search(r"//\s*// \} Петров Петр, 21\.07\.2026", т)
-    assert re.search(r"(?m)^\tЗначение = 99;$", т)
+    tk = body(root)
+    assert "обёртка снаружи" in text and "#TASK-1" in tk
+    assert re.search(r"//\s*// \{\[\*\]", tk)
+    assert re.search(r"//\s*// \} Петров Петр, 21\.07\.2026", tk)
+    assert re.search(r"(?m)^\tЗначение = 99;$", tk)
 
 
 def test_one_line_inside_a_foreign_insertion_nests(репо):
@@ -301,18 +301,18 @@ def test_one_line_inside_a_foreign_insertion_nests(репо):
                  "\tЕсли ЗначениеЗаполнено(Договор) Тогда", "\t\tЛимит = 1000;",
                  "\t\tПроверитьЛимит(Договор, Лимит);", "\tКонецЕсли;",
                  "\t// } Сидоров С.С., 12.03.2026", "КонецПроцедуры"])
-    _, текст = запустить(root, path=ВЕНДОРСКИЙ, edits=[
+    _, text = запустить(root, path=ВЕНДОРСКИЙ, edits=[
         правка(4, 1, "\t\tЛимит = 1000;", "\t\tЛимит = 1000;", "\t\tЛимит = 5000;")])
-    строки = прочитать(root, ВЕНДОРСКИЙ)[0]
-    т = "\n".join(строки)
-    assert "вложенная метка" in текст
-    assert re.search(r"(?m)^\t// \{\[\+\].*#ЗАДАЧА-101$", т)
-    assert re.search(r"(?m)^\t// \} Сидоров С\.С\., 12\.03\.2026$", т)
-    assert re.search(r"(?m)^\t\tПроверитьЛимит\(Договор, Лимит\);$", т)
-    assert re.search(r"(?m)^\t\t// \{\[\*\]\(фрагмент ИЗМЕНЕН\).*#TASK-1$", т)
-    assert re.search(r"(?m)^\t\t//Лимит = 1000;$", т)
-    наша = next(i for i, s in enumerate(строки) if "#TASK-1" in s)
-    чужая = next(i for i, s in enumerate(строки) if "#ЗАДАЧА-101" in s)
+    lines = прочитать(root, ВЕНДОРСКИЙ)[0]
+    tk = "\n".join(lines)
+    assert "вложенная метка" in text
+    assert re.search(r"(?m)^\t// \{\[\+\].*#ЗАДАЧА-101$", tk)
+    assert re.search(r"(?m)^\t// \} Сидоров С\.С\., 12\.03\.2026$", tk)
+    assert re.search(r"(?m)^\t\tПроверитьЛимит\(Договор, Лимит\);$", tk)
+    assert re.search(r"(?m)^\t\t// \{\[\*\]\(фрагмент ИЗМЕНЕН\).*#TASK-1$", tk)
+    assert re.search(r"(?m)^\t\t//Лимит = 1000;$", tk)
+    наша = next(i for i, s in enumerate(lines) if "#TASK-1" in s)
+    чужая = next(i for i, s in enumerate(lines) if "#ЗАДАЧА-101" in s)
     assert наша > чужая
     # чистая вставка любого объёма тоже вкладывается — она ничего не деактивирует
     _, текст2 = запустить(root, apply=False, task="TASK-2", path=ВЕНДОРСКИЙ, edits=[
@@ -327,16 +327,16 @@ def test_revert_of_a_nested_marker_leaves_the_foreign_block(репо):
                  "\t// {[+](фрагмент ДОБАВЛЕН), 12.03.2026, #TEAM Сидоров С.С. #ЗАДАЧА-101",
                  "\tЕсли ЗначениеЗаполнено(Договор) Тогда", "\t\tЛимит = 1000;", "\tКонецЕсли;",
                  "\t// } Сидоров С.С., 12.03.2026", "КонецПроцедуры"])
-    до = тело(root)
+    before_ = body(root)
     запустить(root, path=ВЕНДОРСКИЙ, edits=[
         правка(4, 1, "\t\tЛимит = 1000;", "\t\tЛимит = 1000;", "\t\tЛимит = 5000;")])
     запустить(root, path=ВЕНДОРСКИЙ, revert=True)
-    после = тело(root)
+    after = body(root)
 
-    def значимое(т):
-        return "\n".join(s for s in т.split("\n") if s.strip())
+    def значимое(tk):
+        return "\n".join(s for s in tk.split("\n") if s.strip())
 
-    assert значимое(после) == значимое(до) and "#TASK-1" not in после
+    assert значимое(after) == значимое(before_) and "#TASK-1" not in after
 
 
 def test_a_pair_with_different_dates_stays_a_pair(репо):
@@ -346,9 +346,9 @@ def test_a_pair_with_different_dates_stays_a_pair(репо):
                  "\t// {[+](фрагмент ДОБАВЛЕН), 26.02.2024, #TEAM Кузнецов К.К. #ЗАДАЧА-102",
                  "\tЗначение = 1;", "\tДругое = 2;", "\tТретье = 3;",
                  "\t// } Кузнецов К.К., 27.02.2024", "КонецПроцедуры"])
-    _, текст = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[
+    _, text = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[
         правка(3, 3, "\tЗначение = 1;", "\tТретье = 3;", "\tХ();")])
-    assert "попала во вставку ЗАДАЧА-102" in текст and "разметка модуля" not in текст
+    assert "попала во вставку ЗАДАЧА-102" in text and "разметка модуля" not in text
 
 
 def test_an_insertion_before_a_foreign_opening_marker_stays_outside(репо):
@@ -356,11 +356,11 @@ def test_an_insertion_before_a_foreign_opening_marker_stays_outside(репо):
     root = репо(["Процедура Тест()",
                  "\t// {[+](фрагмент ДОБАВЛЕН), 12.03.2026, #TEAM Сидоров С.С. #ЗАДАЧА-101",
                  "\tЗначение = 1;", "\t// } Сидоров С.С., 12.03.2026", "КонецПроцедуры"])
-    _, текст = запустить(root, path=ВЕНДОРСКИЙ, edits=[правка(2, code="\tПодготовка();")])
-    т = тело(root)
-    assert "обычная разметка" in текст
-    assert re.search(r"(?m)^\t// \{\[\+\].*#ЗАДАЧА-101$", т)
-    assert т.index("Подготовка();") < т.index("#ЗАДАЧА-101")
+    _, text = запустить(root, path=ВЕНДОРСКИЙ, edits=[правка(2, code="\tПодготовка();")])
+    tk = body(root)
+    assert "обычная разметка" in text
+    assert re.search(r"(?m)^\t// \{\[\+\].*#ЗАДАЧА-101$", tk)
+    assert tk.index("Подготовка();") < tk.index("#ЗАДАЧА-101")
 
 
 def test_deeper_old_code_is_commented_at_the_marker_indent(репо):
@@ -369,10 +369,10 @@ def test_deeper_old_code_is_commented_at_the_marker_indent(репо):
                  "КонецПроцедуры"])
     запустить(root, path=ВЕНДОРСКИЙ, edits=[
         правка(2, 3, "\tЕсли Условие Тогда", "\tКонецЕсли;", "\tЗначение = 99;")])
-    т = тело(root)
-    assert re.search(r"(?m)^\t//Если Условие Тогда$", т)
-    assert re.search(r"(?m)^\t//\tЗначение = 1;$", т)
-    assert not re.search(r"(?m)^\t\t//Значение", т)
+    tk = body(root)
+    assert re.search(r"(?m)^\t//Если Условие Тогда$", tk)
+    assert re.search(r"(?m)^\t//\tЗначение = 1;$", tk)
+    assert not re.search(r"(?m)^\t\t//Значение", tk)
 
 
 def test_revert_restores_the_original_indent(репо):
@@ -381,8 +381,8 @@ def test_revert_restores_the_original_indent(репо):
     запустить(root, path=ВЕНДОРСКИЙ, edits=[
         правка(2, 3, "\tЕсли Условие Тогда", "\tКонецЕсли;", "\tЗначение = 99;")])
     запустить(root, path=ВЕНДОРСКИЙ, revert=True)
-    т = тело(root)
-    assert re.search(r"(?m)^\t\tЗначение = 1;$", т) and "{[" not in т
+    tk = body(root)
+    assert re.search(r"(?m)^\t\tЗначение = 1;$", tk) and "{[" not in tk
 
 
 def test_a_described_method_is_a_whole_method(репо):
@@ -391,20 +391,20 @@ def test_a_described_method_is_a_whole_method(репо):
     запустить(root, path=ВЕНДОРСКИЙ, edits=[правка(4, code=(
         "// Считает сумму по строкам.\n//\n// Параметры:\n//  Строки - Массив\n//\n"
         "Функция Сумма(Строки) Экспорт\n\tВозврат 0;\nКонецФункции"))])
-    т = тело(root)
-    assert re.search(r"(?m)^КонецФункции // \} Петров Петр, 31\.08\.2026$", т)
-    assert not re.search(r"(?m)^// \} Петров Петр", т)
-    assert re.search(r"(?s)\{\[\+\].*?// Считает сумму", т)
+    tk = body(root)
+    assert re.search(r"(?m)^КонецФункции // \} Петров Петр, 31\.08\.2026$", tk)
+    assert not re.search(r"(?m)^// \} Петров Петр", tk)
+    assert re.search(r"(?s)\{\[\+\].*?// Считает сумму", tk)
 
 
 def test_two_described_methods_become_two_insertions(репо):
     root = репо(["Процедура Тест()", "\tВозврат;", "КонецПроцедуры", ""])
     запустить(root, path=ВЕНДОРСКИЙ, edits=[правка(4, code=(
         "// Первый.\nПроцедура Первый()\nКонецПроцедуры\n\n// Второй.\nПроцедура Второй()\nКонецПроцедуры"))])
-    т = тело(root)
-    assert len(re.findall(r"\{\[\+\]", т)) == 2
-    assert len(re.findall(r"(?m)^КонецПроцедуры // \}", т)) == 2
-    assert т.index("// Второй.") > т.index("КонецПроцедуры // }")
+    tk = body(root)
+    assert len(re.findall(r"\{\[\+\]", tk)) == 2
+    assert len(re.findall(r"(?m)^КонецПроцедуры // \}", tk)) == 2
+    assert tk.index("// Второй.") > tk.index("КонецПроцедуры // }")
 
 
 def test_an_unclosed_foreign_marker_does_not_pair_by_date(репо):
@@ -416,32 +416,32 @@ def test_an_unclosed_foreign_marker_does_not_pair_by_date(репо):
                  "\t// {[+](фрагмент ДОБАВЛЕН), 08.08.2024, #TEAM Тестов Тест #ЗАДАЧА-1",
                  "\tСтарая();", "\t// } Тестов Тест, 08.08.2024", "\tЗначение = 1;",
                  "КонецПроцедуры"])
-    _, текст = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[правка(7, code="\tПроверка();")])
-    assert "обычная разметка" in текст and "обёртка снаружи" not in текст
+    _, text = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[правка(7, code="\tПроверка();")])
+    assert "обычная разметка" in text and "обёртка снаружи" not in text
     assert ("разметка модуля: строка 2: открывающая метка ЗАДАЧА-103 (20.03.2026) не закрыта"
-            in текст)
-    assert "ЗАДАЧА-1 (" not in текст
+            in text)
+    assert "ЗАДАЧА-1 (" not in text
 
 
 def test_undated_markers_pair_in_order(репо):
     root = репо(["Процедура Тест()", "\t// {[+] Петров Павел", "\tЗначение = 1;",
                  "\t//}Петров Павел", "КонецПроцедуры"])
-    _, текст = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[
+    _, text = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[
         правка(3, 1, "\tЗначение = 1;", "\tЗначение = 1;", "\tА = 1;\n\tБ = 2;\n\tВ = 3;")])
-    assert ("внутри чужой вставки" in текст or "попала во вставку" in текст)
-    assert "разметка модуля" not in текст
+    assert ("внутри чужой вставки" in text or "попала во вставку" in text)
+    assert "разметка модуля" not in text
 
 
 def test_wrapping_a_too_long_foreign_insertion_is_refused(репо):
     """Вторая защита: длиннее порога — стоп, а не деактивация."""
-    строки = ["Процедура Тест()",
+    lines = ["Процедура Тест()",
               "\t// {[+](фрагмент ДОБАВЛЕН), 20.03.2026, #TEAM Сидоров С.С. #ЗАДАЧА-103"]
-    строки += [f"\tСтрока{i}();" for i in range(320)]
-    строки += ["\t// } Сидоров С.С., 20.03.2026", "КонецПроцедуры"]
-    root = репо(строки)
-    код, текст = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[
+    lines += [f"\tСтрока{i}();" for i in range(320)]
+    lines += ["\t// } Сидоров С.С., 20.03.2026", "КонецПроцедуры"]
+    root = репо(lines)
+    code, text = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[
         правка(3, 170, "\tСтрока0();", "\tСтрока169();", "\tА = 1;")])
-    assert код == 1 and "длина 322 строк при пороге 300" in текст and "строки 2-323" in текст
+    assert code == 1 and "длина 322 строк при пороге 300" in text and "строки 2-323" in text
 
 
 def test_wrapping_a_foreign_insertion_with_nested_markers_is_refused(репо):
@@ -451,19 +451,19 @@ def test_wrapping_a_foreign_insertion_with_nested_markers_is_refused(репо):
                  "\t// {[+](фрагмент ДОБАВЛЕН), 01.08.2026, #TEAM Петров Петр #TASK-9",
                  "\tБ = 2;", "\t// } Петров Петр, 01.08.2026", "\tВ = 3;",
                  "\t// } Петров Петр, 21.07.2026", "КонецПроцедуры"])
-    код, текст = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[
+    code, text = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[
         правка(3, 5, "\tА = 1;", "\tВ = 3;", "\tХ();")])
-    assert код == 1 and "открывающие метки на строках 4" in текст
+    assert code == 1 and "открывающие метки на строках 4" in text
 
 
 def test_a_lost_tab_is_a_warning(репо):
     """Потерянный таб — предупреждение в решении, не молчание и не отказ."""
     root = репо(["Процедура Тест()", "\tЕсли Условие Тогда", "\t\tЗначение = 1;", "\t\tДругое = 2;",
                  "\tКонецЕсли;", "КонецПроцедуры"])
-    код, текст = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[
+    code, text = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[
         правка(3, 2, "\t\tЗначение = 1;", "\t\tДругое = 2;", "\t\tЗначение = 99;\n\tДругое = 2;")])
-    assert код == 0
-    assert "ВНИМАНИЕ: первая и последняя строки нового кода на разных отступах (2 и 1)" in текст
+    assert code == 0
+    assert "ВНИМАНИЕ: первая и последняя строки нового кода на разных отступах (2 и 1)" in text
     _, текст2 = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[
         правка(3, 2, "\t\tЗначение = 1;", "\t\tДругое = 2;", "\t\tЗначение = 99;\n\t\tДругое = 2;")])
     assert "ВНИМАНИЕ" not in текст2
@@ -478,10 +478,10 @@ def test_blank_lines_and_several_methods(репо):
     запустить(root, path=ВЕНДОРСКИЙ, edits=[правка(4, code=(
         "Процедура Первая() Экспорт\n\n\tВозврат;\n\nКонецПроцедуры\n\n"
         "Процедура Вторая() Экспорт\n\tВозврат;\nКонецПроцедуры"))])
-    строки = прочитать(root, ВЕНДОРСКИЙ)[0]
-    assert len([s for s in строки if "фрагмент ДОБАВЛЕН" in s]) == 2
-    assert len([s for s in строки if s == "\t"]) >= 2
-    assert len([s for s in строки if re.match(r"^КонецПроцедуры // \} Петров Петр", s)]) == 2
+    lines = прочитать(root, ВЕНДОРСКИЙ)[0]
+    assert len([s for s in lines if "фрагмент ДОБАВЛЕН" in s]) == 2
+    assert len([s for s in lines if s == "\t"]) >= 2
+    assert len([s for s in lines if re.match(r"^КонецПроцедуры // \} Петров Петр", s)]) == 2
 
 
 def test_bom_and_line_endings_survive(репо):
@@ -498,12 +498,12 @@ def test_revert_restores_the_replaced_code(репо):
     root = репо(ТЕСТ)
     запустить(root, task="TASK-7", path=ВЕНДОРСКИЙ, edits=[
         правка(2, 1, "\tЗначение = 1;", "\tЗначение = 1;", "\tЗначение = 99;")])
-    середина = тело(root)
+    середина = body(root)
     assert "ИЗМЕНЕН" in середина and "Значение = 99;" in середина
     запустить(root, task="TASK-7", path=ВЕНДОРСКИЙ, revert=True)
-    т = тело(root)
-    assert "фрагмент" not in т and "Значение = 99;" not in т
-    assert re.search(r"(?m)^\tЗначение = 1;$", т)
+    tk = body(root)
+    assert "фрагмент" not in tk and "Значение = 99;" not in tk
+    assert re.search(r"(?m)^\tЗначение = 1;$", tk)
 
 
 def test_revert_restores_a_wrapped_foreign_insertion(репо):
@@ -514,10 +514,10 @@ def test_revert_restores_a_wrapped_foreign_insertion(репо):
     запустить(root, task="TASK-7", path=ВЕНДОРСКИЙ, edits=[
         правка(3, 3, "\tЗначение = 1;", "\tТретье = 3;", "\tЗначение = 99;")])
     запустить(root, task="TASK-7", path=ВЕНДОРСКИЙ, revert=True)
-    т = тело(root)
-    assert "TASK-7" not in т
-    assert re.search(r"(?m)^\t// \{\[\*\]\(фрагмент ИЗМЕНЕН\), 21\.07\.2026.*#TASK-0$", т)
-    assert re.search(r"(?m)^\tЗначение = 1;$", т)
+    tk = body(root)
+    assert "TASK-7" not in tk
+    assert re.search(r"(?m)^\t// \{\[\*\]\(фрагмент ИЗМЕНЕН\), 21\.07\.2026.*#TASK-0$", tk)
+    assert re.search(r"(?m)^\tЗначение = 1;$", tk)
 
 
 def test_rename_marks_every_line_separately(репо):
@@ -525,11 +525,11 @@ def test_rename_marks_every_line_separately(репо):
     root = репо(["Процедура СтароеИмя()", "\tВозврат;", "КонецПроцедуры", "",
                  "Процедура Вызов()", "\tСтароеИмя();", "КонецПроцедуры"])
     запустить(root, task="TASK-7", path=ВЕНДОРСКИЙ, rename={"from": "СтароеИмя", "to": "НовоеИмя"})
-    строки = прочитать(root, ВЕНДОРСКИЙ)[0]
-    т = "\n".join(строки)
-    assert "Процедура НовоеИмя()" in т and "\tНовоеИмя();" in т
-    assert "//Процедура СтароеИмя()" in т
-    assert len([s for s in строки if "фрагмент ИЗМЕНЕН" in s]) == 2
+    lines = прочитать(root, ВЕНДОРСКИЙ)[0]
+    tk = "\n".join(lines)
+    assert "Процедура НовоеИмя()" in tk and "\tНовоеИмя();" in tk
+    assert "//Процедура СтароеИмя()" in tk
+    assert len([s for s in lines if "фрагмент ИЗМЕНЕН" in s]) == 2
 
 
 def test_move_method_removes_and_adds_in_one_act(репо):
@@ -539,9 +539,9 @@ def test_move_method_removes_and_adds_in_one_act(репо):
     зафиксировать(root, "приёмник")
     запустить(root, task="TASK-7", move_method={
         "from_path": ВЕНДОРСКИЙ, "method": "Переезжает", "to_path": приёмник, "to_line": 4})
-    источник, куда = тело(root), тело(root, приёмник)
-    assert "фрагмент УДАЛЕН" in источник and "//Процедура Переезжает()" in источник
-    assert "фрагмент ДОБАВЛЕН" in куда and re.search(r"(?m)^Процедура Переезжает\(\)$", куда)
+    source, destination = body(root), body(root, приёмник)
+    assert "фрагмент УДАЛЕН" in source and "//Процедура Переезжает()" in source
+    assert "фрагмент ДОБАВЛЕН" in destination and re.search(r"(?m)^Процедура Переезжает\(\)$", destination)
 
 
 def test_a_refusal_in_the_second_module_leaves_the_first(репо):
@@ -550,49 +550,49 @@ def test_a_refusal_in_the_second_module_leaves_the_first(репо):
     второй = "CommonModules/их_Второй/Ext/Module.bsl"
     написать(root, второй, ["Процедура Другая()", "\tЗначение = 2;", "КонецПроцедуры"])
     зафиксировать(root, "второй")
-    код, текст = запустить(root, task="TASK-7", modules=[
+    code, text = запустить(root, task="TASK-7", modules=[
         {"path": ВЕНДОРСКИЙ, "edits": [
             правка(2, 1, "\tЗначение = 1;", "\tЗначение = 1;", "\tЗначение = 11;")]},
         {"path": второй, "edits": [
             правка(2, 1, "\tЗаведомоНеТо;", "\tЗаведомоНеТо;", "\tЗначение = 22;")]}])
-    assert код == 1 and "их_Второй" in текст       # сказано, в каком модуле отказ
-    assert "Значение = 11;" not in тело(root)
+    assert code == 1 and "их_Второй" in text       # сказано, в каком модуле отказ
+    assert "Значение = 11;" not in body(root)
 
 
 def test_a_pure_insertion_never_eats_its_anchor(репо):
     """Чистая вставка не заменяет строку-якорь и на пути «без маркера»: иначе в
     новом модуле пропал бы `#КонецОбласти`."""
     root = репо(["// шапка"])
-    новый = "CommonModules/мой_Новый/Ext/Module.bsl"
-    написать(root, новый, ["#Область ПрограммныйИнтерфейс", "", "#КонецОбласти"])
-    запустить(root, path=новый, edits=[
+    new = "CommonModules/мой_Новый/Ext/Module.bsl"
+    написать(root, new, ["#Область ПрограммныйИнтерфейс", "", "#КонецОбласти"])
+    запустить(root, path=new, edits=[
         правка(3, code="Процедура мой_Проверить() Экспорт\n\tВозврат;\nКонецПроцедуры")])
-    т = тело(root, новый)
-    assert re.search(r"(?m)^#КонецОбласти$", т) and "Процедура мой_Проверить" in т
+    tk = body(root, new)
+    assert re.search(r"(?m)^#КонецОбласти$", tk) and "Процедура мой_Проверить" in tk
 
     root2 = репо(["Процедура Тест()",
                   "\t// {[+](фрагмент ДОБАВЛЕН), 01.08.2026, #TEAM Петров Петр #TASK-1",
                   "\tПервая();", "\tВторая();", "\t// } Петров Петр, 01.08.2026",
-                  "КонецПроцедуры"], имя="выгрузка2")
+                  "КонецПроцедуры"], name="выгрузка2")
     запустить(root2, path=ВЕНДОРСКИЙ, edits=[правка(4, code="\tТретья();")])
-    т2 = тело(root2)
+    т2 = body(root2)
     assert re.search(r"(?m)^\tВторая\(\);$", т2) and re.search(r"(?m)^\tТретья\(\);$", т2)
 
 
 def test_bulk_edits_start_query_and_block_removal(репо):
     root = репо(["Процедура Тест()", "\tВозврат;", "КонецПроцедуры"])
     запустить(root, path=ВЕНДОРСКИЙ, edits=[правка(1, code="// Шапка модуля")])
-    assert тело(root).startswith("// {[+](фрагмент ДОБАВЛЕН)")
+    assert body(root).startswith("// {[+](фрагмент ДОБАВЛЕН)")
 
     root2 = репо(["Процедура Тест()", "\tЗапрос.Текст =", '\t"ВЫБРАТЬ', "\t|\tПоле1,",
-                  "\t|\tПоле2", '\t|ИЗ Таблица";', "КонецПроцедуры"], имя="выгрузка2")
-    _, текст = запустить(root2, path=ВЕНДОРСКИЙ, edits=[правка(5, code="\t|\tПолеНовое,")])
-    assert "текст запроса" in текст and re.search(r"(?m)^\t// \{\[\+\]", тело(root2))
+                  "\t|\tПоле2", '\t|ИЗ Таблица";', "КонецПроцедуры"], name="выгрузка2")
+    _, text = запустить(root2, path=ВЕНДОРСКИЙ, edits=[правка(5, code="\t|\tПолеНовое,")])
+    assert "текст запроса" in text and re.search(r"(?m)^\t// \{\[\+\]", body(root2))
 
     root3 = репо(["Процедура Тест()", "\tА = 1;", "\tБ = 2;", "\tВ = 3;", "\tВозврат;",
-                  "КонецПроцедуры"], имя="выгрузка3")
+                  "КонецПроцедуры"], name="выгрузка3")
     запустить(root3, path=ВЕНДОРСКИЙ, edits=[правка(2, 3, "\tА = 1;", "\tВ = 3;", "")])
-    т3 = тело(root3)
+    т3 = body(root3)
     assert all(s in т3 for s in ("//А = 1;", "//Б = 2;", "//В = 3;"))
     assert re.search(r"(?m)^\tВозврат;$", т3)
 
@@ -602,27 +602,27 @@ def test_bulk_reverts(репо):
     запустить(root, task="TASK-7", path=ВЕНДОРСКИЙ, edits=[
         правка(4, code="Процедура Новая() Экспорт\n\tВозврат;\nКонецПроцедуры")])
     запустить(root, task="TASK-7", path=ВЕНДОРСКИЙ, revert=True)
-    т = тело(root)
-    assert "Новая" not in т and "фрагмент" not in т
-    assert re.search(r"(?m)^Процедура Старая\(\)$", т)
+    tk = body(root)
+    assert "Новая" not in tk and "фрагмент" not in tk
+    assert re.search(r"(?m)^Процедура Старая\(\)$", tk)
     # считаем, каким файл стал: висячий КонецПроцедуры не скомпилировался бы
-    assert len(re.findall(r"(?m)^Процедура ", т)) == 1 == len(re.findall(r"(?m)^КонецПроцедуры", т))
+    assert len(re.findall(r"(?m)^Процедура ", tk)) == 1 == len(re.findall(r"(?m)^КонецПроцедуры", tk))
 
-    root2 = репо(["Процедура Тест()", "\tЛишнее();", "\tВозврат;", "КонецПроцедуры"], имя="выгрузка2")
+    root2 = репо(["Процедура Тест()", "\tЛишнее();", "\tВозврат;", "КонецПроцедуры"], name="выгрузка2")
     запустить(root2, task="TASK-7", path=ВЕНДОРСКИЙ, edits=[правка(2, 1, "\tЛишнее();", "\tЛишнее();", "")])
     запустить(root2, task="TASK-7", path=ВЕНДОРСКИЙ, revert=True)
-    т2 = тело(root2)
+    т2 = body(root2)
     assert re.search(r"(?m)^\tЛишнее\(\);$", т2) and "фрагмент" not in т2
 
     root3 = репо(["Процедура Тест()",
                   "\t// {[*](фрагмент ИЗМЕНЕН), 01.01.2026, #TEAM Петров Петр #TASK-0",
                   "\tЧужое = 1;", "\t// } Петров Петр, 01.01.2026", "\tА = 1;", "\tБ = 2;",
-                  "КонецПроцедуры"], имя="выгрузка3")
+                  "КонецПроцедуры"], name="выгрузка3")
     запустить(root3, task="TASK-7", path=ВЕНДОРСКИЙ, edits=[
         правка(5, 1, "\tА = 1;", "\tА = 1;", "\tА = 11;"),
         правка(6, 1, "\tБ = 2;", "\tБ = 2;", "\tБ = 22;")])
     запустить(root3, task="TASK-7", path=ВЕНДОРСКИЙ, revert=True)
-    т3 = тело(root3)
+    т3 = body(root3)
     assert "TASK-7" not in т3
     assert re.search(r"(?m)^\tА = 1;$", т3) and re.search(r"(?m)^\tБ = 2;$", т3)
     assert "#TASK-0" in т3 and re.search(r"(?m)^\tЧужое = 1;$", т3)
@@ -632,22 +632,22 @@ def test_bulk_renames(репо):
     root = репо(["Процедура Старое()", "\tВозврат;", "КонецПроцедуры", "", "Процедура Вызов()",
                  "\tСтарое();", "\tСтароеДругое();", "КонецПроцедуры"])
     запустить(root, task="TASK-7", path=ВЕНДОРСКИЙ, rename={"from": "Старое", "to": "Новое"})
-    т = тело(root)
-    assert "\tНовое();" in т and "СтароеДругое();" in т
+    tk = body(root)
+    assert "\tНовое();" in tk and "СтароеДругое();" in tk
 
     root2 = репо(["Процедура Старое()", "\tВозврат;", "КонецПроцедуры", "", "Процедура Вызов()",
                   "\t// {[+](фрагмент ДОБАВЛЕН), 01.01.2026, #TEAM Петров Петр #TASK-0",
-                  "\tСтарое();", "\t// } Петров Петр, 01.01.2026", "КонецПроцедуры"], имя="выгрузка2")
-    _, текст = запустить(root2, task="TASK-7", path=ВЕНДОРСКИЙ, rename={"from": "Старое", "to": "Новое"})
-    т2 = тело(root2)
+                  "\tСтарое();", "\t// } Петров Петр, 01.01.2026", "КонецПроцедуры"], name="выгрузка2")
+    _, text = запустить(root2, task="TASK-7", path=ВЕНДОРСКИЙ, rename={"from": "Старое", "to": "Новое"})
+    т2 = body(root2)
     # Вставка из одной строки кода заменена целиком — больше половины: снаружи.
-    assert "обёртка снаружи" in текст
+    assert "обёртка снаружи" in text
     assert re.search(r"//\s*// \{\[\+\]", т2) and re.search(r"(?m)^\tНовое\(\);$", т2)
 
-    root3 = репо(["Процедура Тест()", "\tВозврат;", "КонецПроцедуры"], имя="выгрузка3")
-    код, текст3 = запустить(root3, task="TASK-7", path=ВЕНДОРСКИЙ,
+    root3 = репо(["Процедура Тест()", "\tВозврат;", "КонецПроцедуры"], name="выгрузка3")
+    code, текст3 = запустить(root3, task="TASK-7", path=ВЕНДОРСКИЙ,
                             rename={"from": "НетТакого", "to": "Новое"})
-    assert код == 1 and "не объявлен" in текст3 and "фрагмент" not in тело(root3)
+    assert code == 1 and "не объявлен" in текст3 and "фрагмент" not in body(root3)
 
 
 def test_bulk_moves(репо):
@@ -659,20 +659,20 @@ def test_bulk_moves(репо):
     зафиксировать(root, "приёмник")
     запустить(root, task="TASK-7", move_method={
         "from_path": ВЕНДОРСКИЙ, "method": "Переезжает", "to_path": приём, "to_line": 2})
-    assert not re.search(r"(?m)^// \{\[\+\]\(фрагмент ДОБАВЛЕН\), 01\.01\.2026", тело(root))
-    assert "Процедура Переезжает()" in тело(root, приём)
+    assert not re.search(r"(?m)^// \{\[\+\]\(фрагмент ДОБАВЛЕН\), 01\.01\.2026", body(root))
+    assert "Процедура Переезжает()" in body(root, приём)
 
-    root2 = репо(["Процедура Переезжает()", "\tВозврат;", "КонецПроцедуры"], имя="выгрузка2")
-    новый = "CommonModules/мой_Новый/Ext/Module.bsl"
-    написать(root2, новый, ["// новый модуль задачи"])
+    root2 = репо(["Процедура Переезжает()", "\tВозврат;", "КонецПроцедуры"], name="выгрузка2")
+    new = "CommonModules/мой_Новый/Ext/Module.bsl"
+    написать(root2, new, ["// новый модуль задачи"])
     запустить(root2, task="TASK-7", move_method={
-        "from_path": ВЕНДОРСКИЙ, "method": "Переезжает", "to_path": новый, "to_line": 2})
-    assert "фрагмент" not in тело(root2, новый)
+        "from_path": ВЕНДОРСКИЙ, "method": "Переезжает", "to_path": new, "to_line": 2})
+    assert "фрагмент" not in body(root2, new)
 
-    root3 = репо(["Процедура Тест()", "\tВозврат;", "КонецПроцедуры"], имя="выгрузка3")
-    код, текст = запустить(root3, task="TASK-7", move_method={
+    root3 = репо(["Процедура Тест()", "\tВозврат;", "КонецПроцедуры"], name="выгрузка3")
+    code, text = запустить(root3, task="TASK-7", move_method={
         "from_path": ВЕНДОРСКИЙ, "method": "НетТакого", "to_path": ВЕНДОРСКИЙ, "to_line": 1})
-    assert код == 1 and "не найден" in текст
+    assert code == 1 and "не найден" in text
 
 
 # --- адрес модуля, подсказка, автор, MCP --------------------------------------------
@@ -680,17 +680,17 @@ def test_bulk_moves(репо):
 def test_a_module_is_named_by_its_address(репо):
     """Адрес — тот же, что у bsl-ls; путь из него выводит площадка."""
     root = репо(ТЕСТ)
-    код, текст = запустить(root, модуль="ОбщийМодуль.их_Вендорский",
+    code, text = запустить(root, модуль="ОбщийМодуль.их_Вендорский",
                            edits=[правка(3, code="\tПроверка();")])
-    assert код == 0 and "ОбщийМодуль.их_Вендорский (правок: 1;" in текст
-    assert "фрагмент ДОБАВЛЕН" in тело(root)
+    assert code == 0 and "ОбщийМодуль.их_Вендорский (правок: 1;" in text
+    assert "фрагмент ДОБАВЛЕН" in body(root)
 
 
 def test_addresses_resolve_as_in_bsl_ls():
     from meta.acl.modules import module_file
     from meta.domain.modules import ModuleAddress
 
-    ждём = {
+    expected = {
         "ОбщийМодуль.мой_X": "CommonModules/мой_X/Ext/Module.bsl",
         "Документ.мой_Заявка.МодульОбъекта": "Documents/мой_Заявка/Ext/ObjectModule.bsl",
         "Справочник.X.МодульМенеджера": "Catalogs/X/Ext/ManagerModule.bsl",
@@ -704,8 +704,8 @@ def test_addresses_resolve_as_in_bsl_ls():
         "HTTPСервис.X": "HTTPServices/X/Ext/Module.bsl",
         "Конфигурация.МодульСеанса": "Ext/SessionModule.bsl",
     }
-    for адрес, путь in ждём.items():
-        assert "/".join(module_file(ModuleAddress.parse(адрес))) == путь, адрес
+    for address, path in expected.items():
+        assert "/".join(module_file(ModuleAddress.parse(address))) == path, address
 
 
 def test_an_ambiguous_or_broken_address_is_refused():
@@ -724,11 +724,11 @@ def test_a_missing_module_lists_what_the_object_has(репо):
     root = репо(ТЕСТ)
     написать(root, "Documents/мой_Заявка/Ext/ManagerModule.bsl", ["// менеджер"])
     написать(root, "Documents/мой_Заявка/Forms/ФормаДокумента/Ext/Form/Module.bsl", ["// форма"])
-    код, текст = запустить(root, модуль="Документ.мой_Заявка.МодульОбъекта",
+    code, text = запустить(root, модуль="Документ.мой_Заявка.МодульОбъекта",
                            edits=[правка(1, code="// х")])
-    assert код == 1
-    assert "Документ.мой_Заявка.МодульМенеджера" in текст
-    assert "Документ.мой_Заявка.Форма.ФормаДокумента" in текст
+    assert code == 1
+    assert "Документ.мой_Заявка.МодульМенеджера" in text
+    assert "Документ.мой_Заявка.Форма.ФормаДокумента" in text
 
 
 def test_the_author_comes_from_the_job():
@@ -749,8 +749,8 @@ def test_code_through_mcp(репо):
     root = репо(ТЕСТ)
     сервер = mcp_server(roots=[root])
 
-    def вызвать(имя, **аргументы):
-        ответ = asyncio.run(сервер.call_tool(имя, аргументы))
+    def вызвать(name, **аргументы):
+        ответ = asyncio.run(сервер.call_tool(name, аргументы))
         if isinstance(ответ, tuple):
             ответ = ответ[0]
         return "\n".join(блок.text for блок in ответ)
@@ -767,9 +767,9 @@ def test_code_through_mcp(репо):
     assert вызвать("code_check", **по_русски) == просмотр
     дважды = dict(задание, modules=[dict(задание["modules"][0], модуль="ОбщийМодуль.Х")])
     assert "назван дважды" in вызвать("code_check", **дважды)
-    assert "фрагмент" not in тело(root)
+    assert "фрагмент" not in body(root)
     вызвать("code_apply", **задание)
-    assert "фрагмент ДОБАВЛЕН" in тело(root)
+    assert "фрагмент ДОБАВЛЕН" in body(root)
     # код — не через инструмент метаданных: у него свой, с описанной моделью
     assert "code_check" in вызвать("metadata_check", **задание)
 
@@ -780,8 +780,8 @@ def test_a_dump_outside_git_gets_markers(tmp_path, monkeypatch):
     monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path))
     root = str(tmp_path / "выгрузка")
     написать(root, ВЕНДОРСКИЙ, ТЕСТ)
-    код, _ = запустить(root, path=ВЕНДОРСКИЙ, edits=[правка(3, code="\tПроверка();")])
-    assert код == 0 and "фрагмент ДОБАВЛЕН" in тело(root)
+    code, _ = запустить(root, path=ВЕНДОРСКИЙ, edits=[правка(3, code="\tПроверка();")])
+    assert code == 0 and "фрагмент ДОБАВЛЕН" in body(root)
 
 
 def test_a_silent_git_is_a_refusal_not_a_new_module(репо, monkeypatch):
@@ -791,8 +791,8 @@ def test_a_silent_git_is_a_refusal_not_a_new_module(репо, monkeypatch):
 
     root = репо(ТЕСТ)
     monkeypatch.setattr(гит, "TIMEOUT", 0.0001)
-    код, текст = запустить(root, path=ВЕНДОРСКИЙ, edits=[правка(3, code="\tПроверка();")])
-    assert код == 1 and "git не ответил" in текст and "фрагмент" not in тело(root)
+    code, text = запустить(root, path=ВЕНДОРСКИЙ, edits=[правка(3, code="\tПроверка();")])
+    assert code == 1 and "git не ответил" in text and "фрагмент" not in body(root)
 
 
 def test_the_server_answers_through_a_real_channel(репо):
@@ -808,7 +808,7 @@ def test_the_server_answers_through_a_real_channel(репо):
     from mcp.client.stdio import stdio_client
 
     root = репо(ТЕСТ)
-    параметры = StdioServerParameters(
+    parameters = StdioServerParameters(
         command=sys.executable, args=[os.path.join(ROOT, "meta", "mcp_server.py")],
         env=dict(os.environ, META_ROOTS=root, PYTHONIOENCODING="utf-8"))
     задание = {"repo": root, "task": "TASK-1", "date": "31.08.2026", "author": АВТОР,
@@ -816,7 +816,7 @@ def test_the_server_answers_through_a_real_channel(репо):
                             "edits": [{"line": 3, "lines": 0, "code": "\tПроверка();"}]}]}
 
     async def через_канал():
-        async with stdio_client(параметры) as (чтение, запись):
+        async with stdio_client(parameters) as (чтение, запись):
             async with ClientSession(чтение, запись) as сеанс:
                 await сеанс.initialize()
                 ответ = await asyncio.wait_for(сеанс.call_tool("code_check", задание), СРОК)
@@ -826,13 +826,13 @@ def test_the_server_answers_through_a_real_channel(репо):
                 return "\n".join(блок.text for блок in ответ.content)
 
     СРОК = 30
-    начало = time.monotonic()
+    start = time.monotonic()
     try:
         ответ = asyncio.run(через_канал())
     except BaseException:
         # таймаут транспорт оборачивает в группу исключений своих задач;
         # всё, что упало раньше срока, — другая поломка, и её видно как есть
-        if time.monotonic() - начало >= СРОК:
+        if time.monotonic() - start >= СРОК:
             pytest.fail(f"сервер не ответил за {СРОК} с — висит на дочернем процессе")
         raise
     assert "вызовите code_apply с тем же заданием" in ответ
@@ -852,9 +852,9 @@ def test_an_outer_wrapper_repeats_the_whole_live_insertion(репо):
     но целиком. Иначе следом вернулась бы одна правка, а остальное молча ушло
     бы в комментарий, и модуль при этом компилировался бы. Откат — побайтно."""
     root = репо(ЧУЖАЯ)
-    _, текст = запустить(root, path=ВЕНДОРСКИЙ, edits=[
+    _, text = запустить(root, path=ВЕНДОРСКИЙ, edits=[
         правка(5, 4, "\tЕсли А Тогда", "\t\tГ = 4;", "\tЕсли А Тогда\n\t\tНовое();")])
-    assert "заменяют 4 строк кода из 6" in текст and "повторён следом" in текст
+    assert "заменяют 4 строк кода из 6" in text and "повторён следом" in text
     assert прочитать(root, ВЕНДОРСКИЙ)[0] == [
         "Процедура Тест()", "\tПеред = 0;",
         "\t",
@@ -869,9 +869,9 @@ def test_an_outer_wrapper_repeats_the_whole_live_insertion(репо):
         "\t// } Петров Петр, 31.08.2026",
         "\t",
         "\tПосле = 0;", "КонецПроцедуры"]
-    _, текст = запустить(root, path=ВЕНДОРСКИЙ, revert=True)
+    _, text = запустить(root, path=ВЕНДОРСКИЙ, revert=True)
     assert прочитать(root, ВЕНДОРСКИЙ)[0] == ЧУЖАЯ
-    assert "как в базовой версии" in текст
+    assert "как в базовой версии" in text
 
 
 def test_several_fragments_of_one_insertion_get_their_own_nested_markers(репо):
@@ -879,17 +879,17 @@ def test_several_fragments_of_one_insertion_get_their_own_nested_markers(реп�
     вместе меньше половины: каждая — своей вложенной меткой, чужая вставка живёт
     и разбирается с прежними границами. Откат — побайтно."""
     root = репо(ЧУЖАЯ)
-    _, текст = запустить(root, path=ВЕНДОРСКИЙ, edits=[
+    _, text = запустить(root, path=ВЕНДОРСКИЙ, edits=[
         одна("\tА = 1;", "\tА = 10;") | {"line": 4},
         одна("\t\tГ = 4;", "\t\tГ = 40;") | {"line": 8}])
-    т = тело(root)
-    assert "обёртка снаружи" not in текст and т.count("фрагмент ИЗМЕНЕН") == 2
-    assert "//// {" not in т
+    tk = body(root)
+    assert "обёртка снаружи" not in text and tk.count("фрагмент ИЗМЕНЕН") == 2
+    assert "//// {" not in tk
     for живая in ("\tА = 10;", "\t\tБ = 2;", "\t\tВ = 3;", "\t\tГ = 40;", "\tКонецЕсли;"):
-        assert re.search(rf"(?m)^{re.escape(живая)}$", т), живая
-    строки = прочитать(root, ВЕНДОРСКИЙ)[0]
-    (чужая,) = [r for r in marker_ranges(строки) if r["task"] == "ЗАДАЧА-104"]
-    assert строки[чужая["start"] - 1] == ЧУЖАЯ[2] and строки[чужая["end"] - 1] == ЧУЖАЯ[9]
+        assert re.search(rf"(?m)^{re.escape(живая)}$", tk), живая
+    lines = прочитать(root, ВЕНДОРСКИЙ)[0]
+    (чужая,) = [r for r in marker_ranges(lines) if r["task"] == "ЗАДАЧА-104"]
+    assert lines[чужая["start"] - 1] == ЧУЖАЯ[2] and lines[чужая["end"] - 1] == ЧУЖАЯ[9]
     запустить(root, path=ВЕНДОРСКИЙ, revert=True)
     assert прочитать(root, ВЕНДОРСКИЙ)[0] == ЧУЖАЯ
 
@@ -898,11 +898,11 @@ def test_exactly_half_of_an_insertion_is_still_edited_in_place(репо):
     """Ровно половина строк кода чужой вставки (3 из 6) — ещё на месте: снаружи
     только больше половины."""
     root = репо(ЧУЖАЯ)
-    _, текст = запустить(root, path=ВЕНДОРСКИЙ, edits=[
+    _, text = запустить(root, path=ВЕНДОРСКИЙ, edits=[
         правка(6, 3, "\t\tБ = 2;", "\t\tГ = 4;", "\t\tНовое();")])
-    т = тело(root)
-    assert "обёртка снаружи" not in текст and "//// {" not in т
-    assert re.search(r"(?m)^\tА = 1;$", т) and re.search(r"(?m)^\tКонецЕсли;$", т)
+    tk = body(root)
+    assert "обёртка снаружи" not in text and "//// {" not in tk
+    assert re.search(r"(?m)^\tА = 1;$", tk) and re.search(r"(?m)^\tКонецЕсли;$", tk)
 
 
 #: Метод целиком — чужая вставка: метка отдельной строкой над объявлением,
@@ -937,9 +937,9 @@ def test_exactly_half_of_an_insertion_is_still_edited_in_place(репо):
           "КонецФункции // } Васильев, 19.06.2026"]
 
 
-def границы(строки, задача):
+def границы(lines, задача):
     """Чужие вставки задачи текстом своих граничных строк."""
-    return [(строки[r["start"] - 1], строки[r["end"] - 1]) for r in marker_ranges(строки)
+    return [(lines[r["start"] - 1], lines[r["end"] - 1]) for r in marker_ranges(lines)
             if r["task"] == задача]
 
 
@@ -948,16 +948,16 @@ def test_a_declaration_inside_a_method_insertion_is_marked_in_place(репо):
     ним: наша метка встаёт между чужой открывающей и объявлением, разбор после
     записи находит ту же чужую вставку с теми же границами. Откат — побайтно."""
     root = репо(МЕТОДЫ)
-    _, текст = запустить(root, path=ВЕНДОРСКИЙ, edits=[
+    _, text = запустить(root, path=ВЕНДОРСКИЙ, edits=[
         одна("Функция Свернуть(Исходные, Параметры)", "Функция Свернуть(Исходные, Данные)") | {"line": 2}])
-    строки = прочитать(root, ВЕНДОРСКИЙ)[0]
-    assert "обёртка снаружи" not in текст
+    lines = прочитать(root, ВЕНДОРСКИЙ)[0]
+    assert "обёртка снаружи" not in text
     # смена сигнатуры: без пустых строк внутри и под меткой
-    assert строки[:5] == [МЕТОДЫ[0], "// {[*](фрагмент ИЗМЕНЕН), 31.08.2026, #TEAM Петров Петр #TASK-1",
+    assert lines[:5] == [МЕТОДЫ[0], "// {[*](фрагмент ИЗМЕНЕН), 31.08.2026, #TEAM Петров Петр #TASK-1",
                           "//Функция Свернуть(Исходные, Параметры)", "Функция Свернуть(Исходные, Данные)",
                           "// } Петров Петр, 31.08.2026"]
-    assert строки[5] == МЕТОДЫ[2]
-    assert границы(строки, "ЗАДАЧА-200") == границы(МЕТОДЫ, "ЗАДАЧА-200")
+    assert lines[5] == МЕТОДЫ[2]
+    assert границы(lines, "ЗАДАЧА-200") == границы(МЕТОДЫ, "ЗАДАЧА-200")
     запустить(root, path=ВЕНДОРСКИЙ, revert=True)
     assert прочитать(root, ВЕНДОРСКИЙ)[0] == МЕТОДЫ
 
@@ -967,19 +967,19 @@ def test_declarations_and_bodies_of_method_insertions_get_point_markers(репо
     удаление трёх строк (с пустой), замена строки: по вложенной метке на каждую,
     ни одной обёртки метода целиком; чужие вставки — с прежними границами."""
     root = репо(МЕТОДЫ)
-    _, текст = запустить(root, path=ВЕНДОРСКИЙ, edits=[
+    _, text = запустить(root, path=ВЕНДОРСКИЙ, edits=[
         одна("Функция Свернуть(Исходные, Параметры)", "Функция Свернуть(Исходные, Данные)") | {"line": 2},
         правка(6, 3, "\tДанные = Справочники.Договоры.Данные(", "\t", ""),
         одна("Функция Удержание(Таблица)", "Функция Удержание(Таблица, Данные)") | {"line": 17},
         одна("\tПроцент = 0.025;", "\tПроцент = Данные.Процент / 100;") | {"line": 20}])
-    строки = прочитать(root, ВЕНДОРСКИЙ)[0]
-    т = "\n".join(строки)
-    assert "обёртка снаружи" not in текст and "//// {" not in т
-    assert т.count("фрагмент ИЗМЕНЕН") == 3 and т.count("фрагмент УДАЛЕН") == 1
-    assert границы(строки, "ЗАДАЧА-200") == границы(МЕТОДЫ, "ЗАДАЧА-200")
+    lines = прочитать(root, ВЕНДОРСКИЙ)[0]
+    tk = "\n".join(lines)
+    assert "обёртка снаружи" not in text and "//// {" not in tk
+    assert tk.count("фрагмент ИЗМЕНЕН") == 3 and tk.count("фрагмент УДАЛЕН") == 1
+    assert границы(lines, "ЗАДАЧА-200") == границы(МЕТОДЫ, "ЗАДАЧА-200")
     for живая in ("\tЗапрос = Новый Запрос;", "\tВозврат Распределение;",
                   "\tПроцент = Данные.Процент / 100;", "Функция Удержание(Таблица, Данные)"):
-        assert живая in строки, живая
+        assert живая in lines, живая
 
 
 def test_an_edit_of_a_line_with_a_foreign_tail_marker_wraps_outside(репо):
@@ -987,20 +987,20 @@ def test_an_edit_of_a_line_with_a_foreign_tail_marker_wraps_outside(репо):
     вложить нельзя, обёртка снаружи с этой причиной."""
     root = репо(["Функция Ф(А) // {[+](фрагмент ДОБАВЛЕН), 19.06.2026, #TEAM Васильев #ЗАДАЧА-201",
                  "\tВозврат А;", "\tБ = 1;", "\tВ = 2;", "КонецФункции // } Васильев, 19.06.2026"])
-    _, текст = запустить(root, path=ВЕНДОРСКИЙ, edits=[
+    _, text = запустить(root, path=ВЕНДОРСКИЙ, edits=[
         одна("Функция Ф(А) // {[+](фрагмент ДОБАВЛЕН), 19.06.2026, #TEAM Васильев #ЗАДАЧА-201",
              "Функция Ф(А, Б)") | {"line": 1}])
-    assert "задевает строку с меткой этой вставки" in текст and "обёртка снаружи" in текст
+    assert "задевает строку с меткой этой вставки" in text and "обёртка снаружи" in text
 
 
 def test_an_edit_across_an_insertion_border_is_refused(репо):
     """Начало правки снаружи вставки, конец внутри: обёртка закомментировала бы
     одну её метку и оставила другую."""
     root = репо(ЧУЖАЯ)
-    код, текст = запустить(root, path=ВЕНДОРСКИЙ, edits=[
+    code, text = запустить(root, path=ВЕНДОРСКИЙ, edits=[
         правка(2, 3, "\tПеред = 0;", "\tА = 1;", "\tНовое();")])
-    assert код == 1 and "пересекает границу вставки ЗАДАЧА-104" in текст
-    assert "ИЗМЕНЕН" not in тело(root)
+    assert code == 1 and "пересекает границу вставки ЗАДАЧА-104" in text
+    assert "ИЗМЕНЕН" not in body(root)
 
 
 def test_markers_of_the_team_tag_hash_form_are_recognized(репо):
@@ -1011,16 +1011,16 @@ def test_markers_of_the_team_tag_hash_form_are_recognized(репо):
                  "\t// {#TEAM [+](фрагмент ДОБАВЛЕН), 13.12.2023, Николаев Николай #ЗАДАЧА-105",
                  "\tЗначение = 1;", "\tДругое = 2;",
                  "\t// } Николаев Николай, 13.12.2023", "КонецПроцедуры"])
-    _, текст = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[
+    _, text = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[
         одна("\tЗначение = 1;", "\tЗначение = 99;") | {"line": 3}])
-    assert "внутри чужой вставки ЗАДАЧА-105" in текст and "без открывающей" not in текст
+    assert "внутри чужой вставки ЗАДАЧА-105" in text and "без открывающей" not in text
 
 
 def test_an_orphan_closing_marker_is_reported(репо):
     root = репо(["Процедура Тест()", "\tЗначение = 1;", "\t// } Кто-то, 01.01.2020",
                  "КонецПроцедуры"])
-    _, текст = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[правка(2, code="\tХ();")])
-    assert "строка 3: закрывающая метка без открывающей — в разборе не учтена" in текст
+    _, text = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[правка(2, code="\tХ();")])
+    assert "строка 3: закрывающая метка без открывающей — в разборе не учтена" in text
 
 
 ПЕРЕИМЕНОВАНИЕ = [
@@ -1038,16 +1038,16 @@ def test_rename_reaches_a_declaration_under_a_tail_marker(репо):
     снаружи, метод возвращается следом с новым именем, закрывающая метка —
     хвостом."""
     root = репо(ПЕРЕИМЕНОВАНИЕ)
-    _, текст = запустить(root, path=ВЕНДОРСКИЙ, rename={"from": "Старая", "to": "Новая"})
-    строки = прочитать(root, ВЕНДОРСКИЙ)[0]
-    начало = строки.index("// {[*](фрагмент ИЗМЕНЕН), 31.08.2026, #TEAM Петров Петр #TASK-1")
-    assert строки[начало:] == [
+    _, text = запустить(root, path=ВЕНДОРСКИЙ, rename={"from": "Старая", "to": "Новая"})
+    lines = прочитать(root, ВЕНДОРСКИЙ)[0]
+    start = lines.index("// {[*](фрагмент ИЗМЕНЕН), 31.08.2026, #TEAM Петров Петр #TASK-1")
+    assert lines[start:] == [
         "// {[*](фрагмент ИЗМЕНЕН), 31.08.2026, #TEAM Петров Петр #TASK-1", "",
         "//Функция Старая(Параметр) Экспорт // {[+](фрагмент ДОБАВЛЕН), 31.05.2022, #TEAM IvanovII #ЗАДАЧА-106",
         "//\tВозврат Параметр;", "//КонецФункции // } IvanovII, 31.05.2022", "",
         "Функция Новая(Параметр) Экспорт", "\tВозврат Параметр;",
         "КонецФункции // } Петров Петр, 31.08.2026"]
-    assert "правка задевает строку с меткой этой вставки" in текст
+    assert "правка задевает строку с меткой этой вставки" in text
 
 
 def test_rename_leaves_other_modules_methods_alone(репо):
@@ -1055,21 +1055,21 @@ def test_rename_leaves_other_modules_methods_alone(репо):
     `их_Вендорский.Старая()` внутри модуля `их_Вендорский` — свой. Чужие вызовы
     вместе со своими не переименовываются."""
     root = репо(ПЕРЕИМЕНОВАНИЕ)
-    _, текст = запустить(root, path=ВЕНДОРСКИЙ, rename={"from": "Старая", "to": "Новая"})
-    т = тело(root)
-    assert re.search(r"(?m)^\tХ = Новая\(1\);$", т)
-    assert re.search(r"(?m)^\tУ = их_Вендорский\.Новая\(2\);$", т)
-    assert re.search(r"(?m)^\tЗ = БухгалтерскийУчетПовтИсп\.Старая\(3\);$", т)
-    assert "//З = " not in т
-    assert "строка 4 «БухгалтерскийУчетПовтИсп.Старая»" in текст
-    assert "экспортный" in текст
+    _, text = запустить(root, path=ВЕНДОРСКИЙ, rename={"from": "Старая", "to": "Новая"})
+    tk = body(root)
+    assert re.search(r"(?m)^\tХ = Новая\(1\);$", tk)
+    assert re.search(r"(?m)^\tУ = их_Вендорский\.Новая\(2\);$", tk)
+    assert re.search(r"(?m)^\tЗ = БухгалтерскийУчетПовтИсп\.Старая\(3\);$", tk)
+    assert "//З = " not in tk
+    assert "строка 4 «БухгалтерскийУчетПовтИсп.Старая»" in text
+    assert "экспортный" in text
 
 
 def test_rename_by_address_knows_its_own_module(репо):
     """Модуль назван адресом, а не путём: своё имя он знает так же."""
     root = репо(ПЕРЕИМЕНОВАНИЕ)
     запустить(root, модуль="ОбщийМодуль.их_Вендорский", rename={"from": "Старая", "to": "Новая"})
-    assert re.search(r"(?m)^\tУ = их_Вендорский\.Новая\(2\);$", тело(root))
+    assert re.search(r"(?m)^\tУ = их_Вендорский\.Новая\(2\);$", body(root))
 
 
 def test_a_changed_whole_method_closes_on_its_end_line(репо):
@@ -1090,10 +1090,10 @@ def test_an_insertion_anchor_text_is_checked_too(репо):
     """При `lines` = 0 переданный `first_line` тоже сверяется с якорем, а не
     пропускается молча."""
     root = репо(ТЕСТ)
-    код, текст = запустить(root, path=ВЕНДОРСКИЙ, edits=[правка(3, 0, "\tНеТо;", None, "\tХ();")])
-    assert код == 1 and "сверяется со строкой-якорем" in текст
-    код, _ = запустить(root, path=ВЕНДОРСКИЙ, edits=[правка(3, 0, "\tВозврат;", None, "\tХ();")])
-    assert код == 0
+    code, text = запустить(root, path=ВЕНДОРСКИЙ, edits=[правка(3, 0, "\tНеТо;", None, "\tХ();")])
+    assert code == 1 and "сверяется со строкой-якорем" in text
+    code, _ = запустить(root, path=ВЕНДОРСКИЙ, edits=[правка(3, 0, "\tВозврат;", None, "\tХ();")])
+    assert code == 0
 
 
 def test_code_before_an_end_word_lives_inside_the_construct(репо):
@@ -1101,7 +1101,7 @@ def test_code_before_an_end_word_lives_inside_the_construct(репо):
     пустые строки ушли бы в нулевую колонку. Место правки — внутри процедуры,
     на шаг глубже якоря; код сдвигается туда целиком, и решение это называет."""
     root = репо(ТЕСТ)
-    _, текст = запустить(root, path=ВЕНДОРСКИЙ, edits=[
+    _, text = запустить(root, path=ВЕНДОРСКИЙ, edits=[
         правка(4, code="Если Значение = 1 Тогда\n\tПроверка();\nКонецЕсли;")])
     assert прочитать(root, ВЕНДОРСКИЙ)[0] == [
         "Процедура Тест()", "\tЗначение = 1;", "\tВозврат;",
@@ -1111,7 +1111,7 @@ def test_code_before_an_end_word_lives_inside_the_construct(репо):
         "\t// } Петров Петр, 31.08.2026",
         "\t",
         "КонецПроцедуры"]
-    assert "сдвинут вправо" in текст and "табуляций: 1" in текст
+    assert "сдвинут вправо" in text and "табуляций: 1" in text
 
 
 def test_code_is_shifted_to_its_place_not_beyond(репо):
@@ -1121,14 +1121,14 @@ def test_code_is_shifted_to_its_place_not_beyond(репо):
                  "КонецПроцедуры"])
     запустить(root, path=ВЕНДОРСКИЙ, edits=[
         правка(4, code="\tВ = 2;"), правка(3, 1, "\t\tБ = 1;", "\t\tБ = 1;", "Б = 10;")])
-    т = тело(root)
-    assert re.search(r"(?m)^\t\tВ = 2;$", т) and re.search(r"(?m)^\t\tБ = 10;$", т)
-    assert re.search(r"(?m)^\t\t// \{\[\+\]", т) and re.search(r"(?m)^\t\t// \{\[\*\]", т)
+    tk = body(root)
+    assert re.search(r"(?m)^\t\tВ = 2;$", tk) and re.search(r"(?m)^\t\tБ = 10;$", tk)
+    assert re.search(r"(?m)^\t\t// \{\[\+\]", tk) and re.search(r"(?m)^\t\t// \{\[\*\]", tk)
 
     root2 = репо(["Процедура Тест()", "\tЗапрос.Текст = \"ВЫБРАТЬ", "\t|\tПоле\";",
-                  "КонецПроцедуры"], имя="выгрузка2")
-    _, текст = запустить(root2, path=ВЕНДОРСКИЙ, edits=[правка(3, code="\t\t\t|\tДругое,")])
-    assert re.search(r"(?m)^\t\t\t\|\tДругое,$", тело(root2)) and "сдвинут" not in текст
+                  "КонецПроцедуры"], name="выгрузка2")
+    _, text = запустить(root2, path=ВЕНДОРСКИЙ, edits=[правка(3, code="\t\t\t|\tДругое,")])
+    assert re.search(r"(?m)^\t\t\t\|\tДругое,$", body(root2)) and "сдвинут" not in text
 
 
 def test_a_form_method_with_a_directive_is_a_whole_method(репо):
@@ -1148,7 +1148,7 @@ def test_region_directives_stay_outside_markers(репо):
     """`#Область`/`#КонецОбласти` вставками не оборачиваются, методы внутри
     новой области — каждый своей вставкой."""
     root = репо(["Процедура Тест()", "\tВозврат;", "КонецПроцедуры"])
-    _, текст = запустить(root, path=ВЕНДОРСКИЙ, edits=[правка(4, code=(
+    _, text = запустить(root, path=ВЕНДОРСКИЙ, edits=[правка(4, code=(
         "#Область мой_Проверки\n\n&НаКлиенте\nПроцедура Первая()\n\tА = 1;\nКонецПроцедуры\n\n"
         "// Описание второй.\nФункция Вторая()\n\tВозврат 2;\nКонецФункции\n\n#КонецОбласти"))])
     assert прочитать(root, ВЕНДОРСКИЙ)[0][3:] == [
@@ -1164,7 +1164,7 @@ def test_region_directives_stay_outside_markers(репо):
         "КонецФункции // } Петров Петр, 31.08.2026",
         "",
         "#КонецОбласти"]
-    assert "директивы областей без меток" in текст
+    assert "директивы областей без меток" in text
 
 
 def test_revert_returns_the_module_byte_for_byte(репо):
@@ -1182,15 +1182,15 @@ def test_revert_returns_the_module_byte_for_byte(репо):
         "у пустой строки": (["Процедура Тест()", "\tА = 1;", "\t", "\tБ = 2;", "КонецПроцедуры"],
                             [правка(4, code="\tВ = 3;")]),
     }
-    for имя, (строки, правки) in случаи.items():
-        root = репо(строки, имя=имя)
+    for name, (lines, правки) in случаи.items():
+        root = репо(lines, name=name)
         запустить(root, path=ВЕНДОРСКИЙ, edits=правки)
-        assert прочитать(root, ВЕНДОРСКИЙ)[0] != строки, имя
-        _, текст = запустить(root, path=ВЕНДОРСКИЙ, revert=True)
-        assert прочитать(root, ВЕНДОРСКИЙ)[0] == строки, имя
-        assert "как в базовой версии" in текст, имя
+        assert прочитать(root, ВЕНДОРСКИЙ)[0] != lines, name
+        _, text = запустить(root, path=ВЕНДОРСКИЙ, revert=True)
+        assert прочитать(root, ВЕНДОРСКИЙ)[0] == lines, name
+        assert "как в базовой версии" in text, name
 
-    root = репо(ПЕРЕИМЕНОВАНИЕ, имя="переименование")
+    root = репо(ПЕРЕИМЕНОВАНИЕ, name="переименование")
     запустить(root, path=ВЕНДОРСКИЙ, rename={"from": "Старая", "to": "Новая"})
     запустить(root, path=ВЕНДОРСКИЙ, revert=True)
     assert прочитать(root, ВЕНДОРСКИЙ)[0] == ПЕРЕИМЕНОВАНИЕ
@@ -1202,20 +1202,20 @@ def test_revert_says_when_it_could_not_check_the_edges(репо):
     root = репо(ТЕСТ)
     запустить(root, path=ВЕНДОРСКИЙ, edits=[правка(3, code="\tПроверка();")])
     зафиксировать(root, "задача закоммичена")
-    _, текст = запустить(root, path=ВЕНДОРСКИЙ, revert=True)
-    assert "не сверены" in текст and "фрагмент" not in тело(root)
+    _, text = запустить(root, path=ВЕНДОРСКИЙ, revert=True)
+    assert "не сверены" in text and "фрагмент" not in body(root)
 
 
 def test_a_file_path_names_the_same_module_as_an_address():
     from meta.acl.modules import address_of_file, module_file
     from meta.domain.modules import ModuleAddress
 
-    for адрес in ("ОбщийМодуль.мой_X", "Документ.мой_Заявка.МодульОбъекта",
+    for address in ("ОбщийМодуль.мой_X", "Документ.мой_Заявка.МодульОбъекта",
                   "Документ.мой_Заявка.МодульМенеджера", "Обработка.X.Форма.Форма",
                   "Документ.X.Команда.Печать", "ОбщаяФорма.Ф", "Конфигурация.МодульСеанса",
                   "РегистрСведений.Р.МодульНабораЗаписей", "ОбщаяКоманда.К"):
-        разобран = ModuleAddress.parse(адрес)
-        assert address_of_file(module_file(разобран)) == разобран, адрес
+        разобран = ModuleAddress.parse(address)
+        assert address_of_file(module_file(разобран)) == разобран, address
     assert address_of_file(("Documents", "X", "Ext", "Нечто.bsl")) is None
 
 
@@ -1228,9 +1228,9 @@ def test_a_form_is_named_the_same_way_in_every_tool():
 
     assert ModuleAddress.parse("Документ.X.ФормаДокумента") == ModuleAddress.parse(
         "Документ.X.Форма.ФормаДокумента")
-    for адрес in ("Документ.X.ФормаДокумента", "Документ.X.Форма.ФормаДокумента",
+    for address in ("Документ.X.ФормаДокумента", "Документ.X.Форма.ФормаДокумента",
                   "Документ.X.Форма.ФормаДокумента.Форма"):
-        assert form_address(адрес) == (("Документ", "X"), "ФормаДокумента"), адрес
+        assert form_address(address) == (("Документ", "X"), "ФормаДокумента"), address
     assert form_address("ОбщаяФорма.Ф") == form_address("Общая.Ф") == (None, "Ф")
 
 
@@ -1262,12 +1262,12 @@ def test_the_repeated_code_is_live_code_only(репо):
     root = репо(С_ВЛОЖЕННОЙ)
     запустить(root, path=ВЕНДОРСКИЙ, edits=[
         правка(14, 3, "	В = 3;		", "	Д = 5;", "	ВГД = 345;")])
-    строки = прочитать(root, ВЕНДОРСКИЙ)[0]
-    копия_кончилась = строки.index("//КонецПроцедуры // } IvanovII, 31.05.2022")
-    assert строки[копия_кончилась + 1:] == [
+    lines = прочитать(root, ВЕНДОРСКИЙ)[0]
+    копия_кончилась = lines.index("//КонецПроцедуры // } IvanovII, 31.05.2022")
+    assert lines[копия_кончилась + 1:] == [
         "", "Процедура Тест()", "	А = 1;", "	Б = 20;", "	ВГД = 345;",
         "КонецПроцедуры // } Петров Петр, 31.08.2026"]
-    assert "//	// {[*](фрагмент ИЗМЕНЕН), 11.08.2022, #TEAM IvanovII #ЗАДАЧА-107" in строки
+    assert "//	// {[*](фрагмент ИЗМЕНЕН), 11.08.2022, #TEAM IvanovII #ЗАДАЧА-107" in lines
     запустить(root, path=ВЕНДОРСКИЙ, revert=True)
     assert прочитать(root, ВЕНДОРСКИЙ)[0] == С_ВЛОЖЕННОЙ
 
@@ -1278,19 +1278,19 @@ def test_a_repeated_job_is_refused_not_doubled(репо):
     root = репо(ТЕСТ)
     вставка = [правка(4, code="Проверка();")]
     assert запустить(root, path=ВЕНДОРСКИЙ, edits=вставка)[0] == 0
-    код, текст = запустить(root, path=ВЕНДОРСКИЙ, edits=вставка)
-    assert код == 1 and "уже внесена" in текст
+    code, text = запустить(root, path=ВЕНДОРСКИЙ, edits=вставка)
+    assert code == 1 and "уже внесена" in text
 
-    root2 = репо(ТЕСТ, имя="выгрузка2")
-    метод = [правка(5, code="Процедура Новая()\n\tА = 1;\nКонецПроцедуры")]
-    assert запустить(root2, path=ВЕНДОРСКИЙ, edits=метод)[0] == 0
+    root2 = репо(ТЕСТ, name="выгрузка2")
+    method = [правка(5, code="Процедура Новая()\n\tА = 1;\nКонецПроцедуры")]
+    assert запустить(root2, path=ВЕНДОРСКИЙ, edits=method)[0] == 0
     строк = len(прочитать(root2, ВЕНДОРСКИЙ)[0])
-    код, текст = запустить(root2, path=ВЕНДОРСКИЙ, edits=[правка(строк + 1, code=метод[0]["code"])])
-    assert код == 1 and "метод «Новая» в модуле уже объявлен" in текст
+    code, text = запустить(root2, path=ВЕНДОРСКИЙ, edits=[правка(строк + 1, code=method[0]["code"])])
+    assert code == 1 and "метод «Новая» в модуле уже объявлен" in text
 
-    root3 = репо(ПЕРЕИМЕНОВАНИЕ, имя="выгрузка3")
-    код, текст = запустить(root3, path=ВЕНДОРСКИЙ, rename={"from": "Старая", "to": "Вызов"})
-    assert код == 1 and "метод «Вызов» в модуле уже есть" in текст
+    root3 = репо(ПЕРЕИМЕНОВАНИЕ, name="выгрузка3")
+    code, text = запустить(root3, path=ВЕНДОРСКИЙ, rename={"from": "Старая", "to": "Вызов"})
+    assert code == 1 and "метод «Вызов» в модуле уже есть" in text
 
 
 def test_far_unpaired_markers_are_listed_by_line(репо):
@@ -1298,14 +1298,14 @@ def test_far_unpaired_markers_are_listed_by_line(репо):
     без номеров пришлось бы проверять поиском по тексту."""
     # Пустая строка после метки: иначе метка с комментариями до метода — это
     # «метка над методом», и она закрывается неявно на конце метода.
-    строки = ["// {[+](фрагмент ДОБАВЛЕН), 01.01.2020, #TEAM Кто-то #X-1", ""] + ["//"] * 79 + ТЕСТ
-    root = репо(строки)
-    _, текст = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[правка(83, code="\tХ();")])
+    lines = ["// {[+](фрагмент ДОБАВЛЕН), 01.01.2020, #TEAM Кто-то #X-1", ""] + ["//"] * 79 + ТЕСТ
+    root = репо(lines)
+    _, text = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[правка(83, code="\tХ();")])
     # и сама сводка говорит, что значит «не учтены» и почему далёкие не важны:
     # без этого её пришлось бы разбирать поиском по тексту
     assert ("ещё меток без пары: 1 (строка 1) — на решения не влияют: дальше 60 строк от "
-            "правок или по другую сторону от них") in текст, текст
-    assert "в разборе не учтены" in текст
+            "правок или по другую сторону от них") in text, text
+    assert "в разборе не учтены" in text
 
 
 def test_a_revert_preview_shows_what_comes_back(репо):
@@ -1313,23 +1313,23 @@ def test_a_revert_preview_shows_what_comes_back(репо):
     счётчики."""
     root = репо(ТЕСТ)
     запустить(root, path=ВЕНДОРСКИЙ, edits=[одна("\tЗначение = 1;", "\tЗначение = 2;") | {"line": 2}])
-    _, текст = запустить(root, apply=False, path=ВЕНДОРСКИЙ, revert=True)
+    _, text = запустить(root, apply=False, path=ВЕНДОРСКИЙ, revert=True)
     # Разделители — в счёте своей вставки и с номерами: итоговой строкой
     # отдельно счёт по вставкам не сходился бы.
     assert ("снимаются строки 3-9 (7) и пустые строки-разделители 2, 10; "
-            "на их место вернётся строк: 1 — строка 2 нового текста:") in текст, текст
+            "на их место вернётся строк: 1 — строка 2 нового текста:") in text, text
     # с номером нового текста, как у показа правки
-    assert "     2 │\tЗначение = 1;" in текст and "на стыках снято" not in текст
+    assert "     2 │\tЗначение = 1;" in text and "на стыках снято" not in text
 
 
 def test_a_pure_revert_needs_no_date_or_author(репо):
     """Откату нужна только задача — дату и автора у него не спрашивают."""
     root = репо(ТЕСТ)
     запустить(root, path=ВЕНДОРСКИЙ, edits=[правка(3, code="\tХ();")])
-    код, _ = запустить(root, path=ВЕНДОРСКИЙ, revert=True, date="", author="")
-    assert код == 0 and прочитать(root, ВЕНДОРСКИЙ)[0] == ТЕСТ
-    код, текст = запустить(root, path=ВЕНДОРСКИЙ, edits=[правка(3, code="\tХ();")], author="")
-    assert код == 1 and "нужно поле «author»" in текст
+    code, _ = запустить(root, path=ВЕНДОРСКИЙ, revert=True, date="", author="")
+    assert code == 0 and прочитать(root, ВЕНДОРСКИЙ)[0] == ТЕСТ
+    code, text = запустить(root, path=ВЕНДОРСКИЙ, edits=[правка(3, code="\tХ();")], author="")
+    assert code == 1 and "нужно поле «author»" in text
 
 
 # --- дословная копия, разделитель у метки, подпись, заглушка, отказы ----------------
@@ -1339,15 +1339,15 @@ def test_the_repeated_method_is_an_exact_copy(репо):
     метки стоят хвостом на коде — эти строки тело, а не рамка), как и хвостовые
     пробелы повторённых строк: иначе в diff это «косметические правки» чужого
     кода, и проверка правок их не пропустит. Копия — дословная."""
-    метод = ["Процедура Вызов()", "\tХ = Старая();", "КонецПроцедуры", "",
+    method = ["Процедура Вызов()", "\tХ = Старая();", "КонецПроцедуры", "",
              "Функция Старая() // {[+](фрагмент ДОБАВЛЕН), 31.05.2022, #TEAM IvanovII #ЗАДАЧА-106",
              "\t", "\tЕсли А Тогда ", "\t\tБ = 1;\t", "\tКонецЕсли;", "", "\tВозврат 1;", "\t",
              "КонецФункции // } IvanovII, 31.05.2022"]
-    root = репо(метод)
+    root = репо(method)
     запустить(root, path=ВЕНДОРСКИЙ, rename={"from": "Старая", "to": "Новая"})
-    строки = прочитать(root, ВЕНДОРСКИЙ)[0]
-    начало = строки.index("Функция Новая()")
-    assert строки[начало:] == [
+    lines = прочитать(root, ВЕНДОРСКИЙ)[0]
+    start = lines.index("Функция Новая()")
+    assert lines[start:] == [
         "Функция Новая()", "\t", "\tЕсли А Тогда ", "\t\tБ = 1;\t", "\tКонецЕсли;", "",
         "\tВозврат 1;", "\t", "КонецФункции // } Петров Петр, 31.08.2026"]
 
@@ -1385,26 +1385,26 @@ def test_the_signature_is_checked(репо):
     """Подпись проверяется: «#TEAM Автор» не даёт «#TEAM #TEAM Автор», а дата
     «2026-09-30» не уходит в метки, которые поиск по шаблону меток не находит."""
     root = репо(ТЕСТ)
-    _, текст = запустить(root, apply=False, author="#TEAM Автор", path=ВЕНДОРСКИЙ,
+    _, text = запустить(root, apply=False, author="#TEAM Автор", path=ВЕНДОРСКИЙ,
                          edits=[правка(3, code="\tХ();")])
-    assert "#TEAM Автор #TASK-1" in текст and "#TEAM #TEAM" not in текст
-    код, текст = запустить(root, apply=False, author="Автор #X-1", path=ВЕНДОРСКИЙ,
+    assert "#TEAM Автор #TASK-1" in text and "#TEAM #TEAM" not in text
+    code, text = запустить(root, apply=False, author="Автор #X-1", path=ВЕНДОРСКИЙ,
                            edits=[правка(3, code="\tХ();")])
-    assert код == 1 and "только имя" in текст
-    код, текст = запустить(root, apply=False, date="2026-09-30", path=ВЕНДОРСКИЙ,
+    assert code == 1 and "только имя" in text
+    code, text = запустить(root, apply=False, date="2026-09-30", path=ВЕНДОРСКИЙ,
                            edits=[правка(3, code="\tХ();")])
-    assert код == 1 and "дд.мм.гггг" in текст
+    assert code == 1 and "дд.мм.гггг" in text
 
 
 def test_a_placeholder_in_code_is_refused(репо):
     """Заглушка из подсказки инструмента в коде — отказ уже на просмотре."""
     root = репо(ТЕСТ)
-    код, текст = запустить(root, apply=False, path=ВЕНДОРСКИЙ,
+    code, text = запустить(root, apply=False, path=ВЕНДОРСКИЙ,
                            edits=[правка(3, code="\tмой_<Модуль>.Сделать(ЭтотОбъект);")])
-    assert код == 1 and "заглушка «<Модуль>»" in текст
-    код, _ = запустить(root, apply=False, path=ВЕНДОРСКИЙ,
+    assert code == 1 and "заглушка «<Модуль>»" in text
+    code, _ = запустить(root, apply=False, path=ВЕНДОРСКИЙ,
                        edits=[правка(3, code='\tТекст = "признак <Согласовать> во внешней системе";')])
-    assert код == 0
+    assert code == 0
 
 
 def test_refusals_of_all_modules_come_at_once(репо):
@@ -1414,23 +1414,23 @@ def test_refusals_of_all_modules_come_at_once(репо):
     второй = "CommonModules/их_Второй/Ext/Module.bsl"
     написать(root, второй, ТЕСТ)
     зафиксировать(root, "второй")
-    код, текст = запустить(root, apply=False, modules=[
+    code, text = запустить(root, apply=False, modules=[
         {"path": ВЕНДОРСКИЙ, "edits": [правка(2, 1, "\tНеТо;", "\tНеТо;", "\tХ();")]},
         {"path": второй, "edits": [правка(2, 1, "\tИНеЭто;", "\tИНеЭто;", "\tУ();")]}])
-    assert код == 1 and "отказов по модулям: 2" in текст
-    assert "их_Вендорский" in текст and "их_Второй" in текст
+    assert code == 1 and "отказов по модулям: 2" in text
+    assert "их_Вендорский" in text and "их_Второй" in text
 
 
 def test_a_move_refusal_comes_together_with_the_module_refusals(репо):
     """Отказ переноса метода — в общем списке, а не вместо него: иначе отказы
     по остальным модулям всплыли бы только после исправления переноса."""
     root = репо(ТЕСТ)
-    код, текст = запустить(root, apply=False, modules=[
+    code, text = запустить(root, apply=False, modules=[
         {"path": ВЕНДОРСКИЙ, "edits": [правка(2, 1, "\tНеТо;", "\tНеТо;", "\tХ();")]}],
         move_method={"from_path": "CommonModules/их_НетТакого/Ext/Module.bsl",
                      "method": "Переезжает", "to_path": ВЕНДОРСКИЙ, "to_line": 4})
-    assert код == 1 and "отказов по модулям: 2" in текст, текст
-    assert "их_НетТакого" in текст and "их_Вендорский" in текст
+    assert code == 1 and "отказов по модулям: 2" in text, text
+    assert "их_НетТакого" in text and "их_Вендорский" in text
 
 
 def test_a_folded_preview_keeps_the_declaration_visible(репо):
@@ -1438,13 +1438,13 @@ def test_a_folded_preview_keeps_the_declaration_visible(репо):
     тело_метода = [f"\tА{n} = {n};" for n in range(45)]
     # Метка вставки хвостом на объявлении: переименование задевает её — обёртка
     # снаружи всего длинного метода, и блок показа сворачивается.
-    строки = (["Процедура Вызов()", "\tСтарая();", "КонецПроцедуры", ""]
+    lines = (["Процедура Вызов()", "\tСтарая();", "КонецПроцедуры", ""]
               + ["Процедура Старая() // {[+](фрагмент ДОБАВЛЕН), 01.01.2022, #TEAM Кто #B-1"]
               + тело_метода + ["КонецПроцедуры // } Кто, 01.01.2022"])
-    root = репо(строки)
-    _, текст = запустить(root, apply=False, path=ВЕНДОРСКИЙ,
+    root = репо(lines)
+    _, text = запустить(root, apply=False, path=ВЕНДОРСКИЙ,
                          rename={"from": "Старая", "to": "Новая"})
-    assert "│Процедура Новая()" in текст and "… ещё строк:" in текст
+    assert "│Процедура Новая()" in text and "… ещё строк:" in text
 
 
 # --- символы, которые отвергает bsl-ls ----------------------------------------------
@@ -1457,15 +1457,15 @@ def test_a_character_bsl_ls_rejects_is_refused_in_new_code(репо):
 
     assert set(INVALID) == set("­‒–—―− ")
     root = репо(ТЕСТ)
-    код, текст = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[правка(
+    code, text = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[правка(
         3, code="\t// Проверка — до возврата\n\tТекст = \"А Б\";")])
-    assert код == 1, текст
-    assert "строка кода 1: длинное тире (U+2014) — замените на «-»" in текст, текст
-    assert "строка кода 2: неразрывный пробел (U+00A0)" in текст, текст
-    assert "InvalidCharacterInFile" in текст
-    код, текст = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[правка(
+    assert code == 1, text
+    assert "строка кода 1: длинное тире (U+2014) — замените на «-»" in text, text
+    assert "строка кода 2: неразрывный пробел (U+00A0)" in text, text
+    assert "InvalidCharacterInFile" in text
+    code, text = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[правка(
         3, code="\t// Проверка - до возврата")])
-    assert код == 0, текст
+    assert code == 0, text
 
 
 def test_a_carried_line_with_such_a_character_is_not_refused(репо):
@@ -1473,9 +1473,9 @@ def test_a_carried_line_with_such_a_character_is_not_refused(репо):
     комментарии — не повод отказать."""
     root = репо(["Процедура Старая() // устарело — см. ниже", "\tВозврат;",
                  "КонецПроцедуры", "", "Процедура Вызов()", "\tСтарая();", "КонецПроцедуры"])
-    код, текст = запустить(root, apply=False, path=ВЕНДОРСКИЙ,
+    code, text = запустить(root, apply=False, path=ВЕНДОРСКИЙ,
                            rename={"from": "Старая", "to": "Новая"})
-    assert код == 0, текст
+    assert code == 0, text
 
 
 # --- метка на объявлении без закрывающей ------------------------------------------
@@ -1491,12 +1491,12 @@ def test_a_method_marked_only_on_its_declaration_is_one_insertion(репо):
     метода: правка от трёх строк оборачивает метод целиком, примечание
     называет допущение. Код такого метода — не код вне вставок."""
     root = репо(МЕТОД_БЕЗ_ПАРЫ)
-    код, текст = запустить(root, path=ВЕНДОРСКИЙ, edits=[
+    code, text = запустить(root, path=ВЕНДОРСКИЙ, edits=[
         правка(3, 3, "\tА = 1;", "\tВ = 3;", "\tА = 10;")])
-    assert код == 0, текст
-    assert "вставкой считается весь метод, строки 1-8" in текст, текст
-    assert "обёртка снаружи" in текст
-    тело_файла = тело(root)
+    assert code == 0, text
+    assert "вставкой считается весь метод, строки 1-8" in text, text
+    assert "обёртка снаружи" in text
+    тело_файла = body(root)
     assert "//Процедура Провести() Экспорт // {[+](фрагмент ДОБАВЛЕН)" in тело_файла
     assert "\nПроцедура Провести() Экспорт\n" in тело_файла
     assert "КонецПроцедуры // } " + АВТОР in тело_файла
@@ -1505,11 +1505,11 @@ def test_a_method_marked_only_on_its_declaration_is_one_insertion(репо):
 
 def test_one_line_inside_such_a_method_nests(репо):
     root = репо(МЕТОД_БЕЗ_ПАРЫ)
-    код, текст = запустить(root, path=ВЕНДОРСКИЙ, edits=[
+    code, text = запустить(root, path=ВЕНДОРСКИЙ, edits=[
         правка(4, 1, "\tБ = 2;", "\tБ = 2;", "\tБ = 20;")])
-    assert код == 0, текст
-    assert "вставкой считается весь метод" in текст and "обёртка снаружи" not in текст
-    assert "//Процедура" not in тело(root)
+    assert code == 0, text
+    assert "вставкой считается весь метод" in text and "обёртка снаружи" not in text
+    assert "//Процедура" not in body(root)
 
 
 def test_an_unclosed_declaration_marker_does_not_steal_a_far_close():
@@ -1518,12 +1518,12 @@ def test_an_unclosed_declaration_marker_does_not_steal_a_far_close():
     забрала бы её, и вставка растянулась бы далеко за конец метода."""
     from meta.domain.edits import marker_ranges
 
-    строки = (["Процедура А() // {[+](фрагмент ДОБАВЛЕН), 16.09.2022, Кто #B-1", "\tА();",
+    lines = (["Процедура А() // {[+](фрагмент ДОБАВЛЕН), 16.09.2022, Кто #B-1", "\tА();",
                "КонецПроцедуры", "", "Процедура Б()", "\tБ();", "КонецПроцедуры",
                "//}}MRG[ <-> ]", "// } Другой, 24.12.2021"])
     проблемы = []
-    диапазоны = marker_ranges(строки, проблемы)
-    assert [(r["start"], r["end"], r.get("implicit", False)) for r in диапазоны] == [(1, 3, True)]
+    ranges = marker_ranges(lines, проблемы)
+    assert [(r["start"], r["end"], r.get("implicit", False)) for r in ranges] == [(1, 3, True)]
     # MRG — не метка; чужая закрывающая — без пары, и об этом сказано
     assert проблемы == ["строка 9: закрывающая метка без открывающей — в разборе не учтена"]
 
@@ -1533,22 +1533,22 @@ def test_an_insertion_of_several_methods_keeps_its_close():
     последнего — вставка из нескольких методов, она не рвётся."""
     from meta.domain.edits import marker_ranges
 
-    строки = ["Процедура А() // {[+](фрагмент ДОБАВЛЕН), 01.01.2022, #TEAM Кто #B-1", "\tА();",
+    lines = ["Процедура А() // {[+](фрагмент ДОБАВЛЕН), 01.01.2022, #TEAM Кто #B-1", "\tА();",
               "КонецПроцедуры", "", "Процедура Б()", "\tБ();", "КонецПроцедуры",
               "// } Кто, 01.01.2022"]
-    assert [(r["start"], r["end"]) for r in marker_ranges(строки)] == [(1, 8)]
+    assert [(r["start"], r["end"]) for r in marker_ranges(lines)] == [(1, 8)]
 
 
 def test_the_preview_shows_the_neighbours_of_the_block(репо):
     """Соседи блока — в показе отдельным знаком: решение о разделителе рядом
     с чужой меткой видно до записи, а не только в файле после неё."""
     root = репо(ТЕСТ)
-    _, текст = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[правка(3, code="\tХ();")])
-    строки = текст.splitlines()
-    показ = [i for i, с in enumerate(строки) if re.match(r"^ {8}[ \d]{6} │", с)]
-    assert строки[показ[0] - 1].endswith("·\tЗначение = 1;"), строки[показ[0] - 1]
-    assert строки[показ[-1] + 1].endswith("·\tВозврат;"), строки[показ[-1] + 1]
-    assert "«·» — соседние строки" in текст
+    _, text = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[правка(3, code="\tХ();")])
+    lines = text.splitlines()
+    shown = [i for i, с in enumerate(lines) if re.match(r"^ {8}[ \d]{6} │", с)]
+    assert lines[shown[0] - 1].endswith("·\tЗначение = 1;"), lines[shown[0] - 1]
+    assert lines[shown[-1] + 1].endswith("·\tВозврат;"), lines[shown[-1] + 1]
+    assert "«·» — соседние строки" in text
 
 
 # --- метка над методом и четвёртая форма метки -------------------------------------
@@ -1560,12 +1560,12 @@ def test_a_marker_above_a_method_without_close_is_the_whole_method():
     правило не идёт."""
     from meta.domain.edits import marker_ranges
 
-    строки = ["// {[+](фрагмент ДОБАВЛЕН), 22.01.2024, #TEAM Кто #B-1", "// Описание.",
+    lines = ["// {[+](фрагмент ДОБАВЛЕН), 22.01.2024, #TEAM Кто #B-1", "// Описание.",
               "&НаСервере", "Процедура А()", "\tА();", "КонецПроцедуры", "",
               "Процедура Б()", "\tБ();", "КонецПроцедуры"]
-    диапазоны = marker_ranges(строки)
-    assert [(r["start"], r["end"], r.get("implicit", False)) for r in диапазоны] == [(1, 6, True)]
-    удалён = ["// {[-](фрагмент УДАЛЕН), 22.01.2024, #TEAM Кто #B-1"] + строки[1:]
+    ranges = marker_ranges(lines)
+    assert [(r["start"], r["end"], r.get("implicit", False)) for r in ranges] == [(1, 6, True)]
+    удалён = ["// {[-](фрагмент УДАЛЕН), 22.01.2024, #TEAM Кто #B-1"] + lines[1:]
     проблемы = []
     assert marker_ranges(удалён, проблемы) == []
     assert "не закрыта" in проблемы[0]
@@ -1578,9 +1578,9 @@ def test_the_team_tag_brace_form_is_a_marker():
 
     assert marker_kind("\t// #TEAM{[+](фрагмент ДОБАВЛЕН), 24.12.2021, Кто #ЗАДАЧА-109") == "open"
     assert marker_kind("\t//// #TEAM{[+](фрагмент ДОБАВЛЕН), 24.12.2021") is None   # закомментирована
-    строки = ["\t// #TEAM{[+](фрагмент ДОБАВЛЕН), 24.12.2021, Кто #ЗАДАЧА-109", "\tА();",
+    lines = ["\t// #TEAM{[+](фрагмент ДОБАВЛЕН), 24.12.2021, Кто #ЗАДАЧА-109", "\tА();",
               "\t// }  Кто, 24.12.2021"]
-    assert [(r["start"], r["end"], r["task"]) for r in marker_ranges(строки)] == [(1, 3, "ЗАДАЧА-109")]
+    assert [(r["start"], r["end"], r["task"]) for r in marker_ranges(lines)] == [(1, 3, "ЗАДАЧА-109")]
 
 
 def test_a_method_insertion_closed_later_keeps_its_close():
@@ -1602,9 +1602,9 @@ def test_a_method_insertion_closed_later_keeps_its_close():
 def test_a_stale_anchor_says_where_the_line_is_now(репо):
     """Отказ по устаревшему якорю называет, где ожидаемая строка сейчас."""
     root = репо(ТЕСТ)
-    код, текст = запустить(root, apply=False, path=ВЕНДОРСКИЙ,
+    code, text = запустить(root, apply=False, path=ВЕНДОРСКИЙ,
                            edits=[правка(2, 1, "\tВозврат;", "\tВозврат;", "\tХ();")])
-    assert код == 1 and "такая строка сейчас на 3 — номер устарел?" in текст, текст
+    assert code == 1 and "такая строка сейчас на 3 — номер устарел?" in text, text
 
 
 def test_revert_decisions_go_in_line_order(репо):
@@ -1612,9 +1612,9 @@ def test_revert_decisions_go_in_line_order(репо):
     снимаются."""
     root = репо(ТЕСТ)
     запустить(root, path=ВЕНДОРСКИЙ, edits=[правка(2, code="\tА();"), правка(4, code="\tБ();")])
-    _, текст = запустить(root, apply=False, path=ВЕНДОРСКИЙ, revert=True)
-    первые = [int(m.group(1)) for m in re.finditer(r"(?m)^    строки (\d+)-\d+: откат", текст)]
-    assert первые == sorted(первые) and len(первые) == 2, текст
+    _, text = запустить(root, apply=False, path=ВЕНДОРСКИЙ, revert=True)
+    первые = [int(m.group(1)) for m in re.finditer(r"(?m)^    строки (\d+)-\d+: откат", text)]
+    assert первые == sorted(первые) and len(первые) == 2, text
 
 
 # --- ёлочки, отступы, место правки, области и стыки отката ---------------------------
@@ -1623,78 +1623,78 @@ def test_guillemets_in_new_code_are_refused_but_carried_text_passes(репо):
     """В коде кавычки прямые: добавленная строка с ёлочками — отказ, иначе её не
     пропустит проверка кода. Перенесённый текст — как был."""
     root = репо(ТЕСТ)
-    код, текст = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[
+    code, text = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[
         правка(3, code='\t// Проверка «чеков»\n\tСообщить("Готово");')])
-    assert код == 1 and "кавычки-ёлочки (строка 1 кода)" in текст and "кавычки прямые" in текст, текст
-    строки = ["Процедура Старая()", "\tВозврат;", "КонецПроцедуры", "",
+    assert code == 1 and "кавычки-ёлочки (строка 1 кода)" in text and "кавычки прямые" in text, text
+    lines = ["Процедура Старая()", "\tВозврат;", "КонецПроцедуры", "",
               "Процедура Вызов()", "\tСтарая(); // «вызов»", "КонецПроцедуры"]
-    root = репо(строки, имя="перенос")
-    код, текст = запустить(root, apply=False, path=ВЕНДОРСКИЙ,
+    root = репо(lines, name="перенос")
+    code, text = запустить(root, apply=False, path=ВЕНДОРСКИЙ,
                            rename={"from": "Старая", "to": "Новая"})
-    assert код == 0, текст
+    assert code == 0, text
 
 
 def test_an_indent_only_mismatch_is_named_as_such(репо):
     """Расхождение одними табуляциями называется так, а не «такой строки в
     модуле нет»; строка из одной табуляции не печатается пустыми кавычками."""
     root = репо(ТЕСТ)
-    код, текст = запустить(root, apply=False, path=ВЕНДОРСКИЙ,
+    code, text = запустить(root, apply=False, path=ВЕНДОРСКИЙ,
                            edits=[правка(2, 1, "Значение = 1;", "Значение = 1;", "\tХ();")])
-    assert код == 1 and ("текст совпал, отступ — нет: ожидалось без отступа, в файле "
-                         "1 табуляция") in текст, текст
-    root = репо(["Процедура Тест()", "\tА = 1;", "\t", "\tБ = 2;", "КонецПроцедуры"], имя="пустая")
-    код, текст = запустить(root, apply=False, path=ВЕНДОРСКИЙ,
+    assert code == 1 and ("текст совпал, отступ — нет: ожидалось без отступа, в файле "
+                         "1 табуляция") in text, text
+    root = репо(["Процедура Тест()", "\tА = 1;", "\t", "\tБ = 2;", "КонецПроцедуры"], name="пустая")
+    code, text = запустить(root, apply=False, path=ВЕНДОРСКИЙ,
                            edits=[правка(3, 1, "\tБ = 2;", "\tБ = 2;", "\tХ();")])
-    assert код == 1 and "фактически пустая строка (1 табуляция)" in текст, текст
-    код, текст = запустить(root, apply=False, path=ВЕНДОРСКИЙ,
+    assert code == 1 and "фактически пустая строка (1 табуляция)" in text, text
+    code, text = запустить(root, apply=False, path=ВЕНДОРСКИЙ,
                            edits=[правка(2, 1, "Б = 2;", "Б = 2;", "\tХ();")])
-    assert код == 1 and "с другим — на 4 (1 табуляция, а ожидалось без отступа)" in текст, текст
+    assert code == 1 and "с другим — на 4 (1 табуляция, а ожидалось без отступа)" in text, text
 
 
 def test_each_decision_names_its_method_or_region(репо):
     """«#КонецОбласти» и «КонецПроцедуры» в модуле не одни: без имени метода или
     области вставка в конец чужой области прошла бы без слова о том, куда ляжет."""
-    строки = ["#Область ОбработчикиКомандФормы", "", "&НаКлиенте", "Процедура Команда(Команда)",
+    lines = ["#Область ОбработчикиКомандФормы", "", "&НаКлиенте", "Процедура Команда(Команда)",
               "\tА();", "КонецПроцедуры", "", "#КонецОбласти", "",
               "#Область СлужебныеПроцедурыИФункции", "", "Процедура Служебная()", "\tБ();",
               "КонецПроцедуры", "", "#КонецОбласти"]
-    root = репо(строки)
-    _, текст = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[
+    root = репо(lines)
+    _, text = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[
         правка(8, first="#КонецОбласти", code="Процедура Новая()\nКонецПроцедуры"),
         правка(13, 1, "\tБ();", "\tБ();", "\tВ();"),
         правка(3, first="&НаКлиенте", code="Процедура Перед()\nКонецПроцедуры")])
-    assert "перед строкой 8 (в конце области «ОбработчикиКомандФормы»)" in текст, текст
-    assert "строка 13 (в методе «Служебная»)" in текст
-    assert "перед строкой 3 (перед методом «Команда»)" in текст
+    assert "перед строкой 8 (в конце области «ОбработчикиКомандФормы»)" in text, text
+    assert "строка 13 (в методе «Служебная»)" in text
+    assert "перед строкой 3 (перед методом «Команда»)" in text
 
 
 def test_an_insertion_between_a_directive_and_its_method_is_refused(репо):
     """Код встал бы между «&НаКлиенте» и объявлением: директива досталась бы
     вставленному коду, метод остался бы без неё."""
     root = репо(["// Описание.", "&НаКлиенте", "Процедура Команда()", "КонецПроцедуры"])
-    код, текст = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[
+    code, text = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[
         правка(3, first="Процедура Команда()", code="Процедура Новая()\nКонецПроцедуры")])
-    assert код == 1 and "между директивой «&НаКлиенте» (строка 2)" in текст, текст
-    assert "строка 1 «// Описание.»" in текст
+    assert code == 1 and "между директивой «&НаКлиенте» (строка 2)" in text, text
+    assert "строка 1 «// Описание.»" in text
 
 
 def test_revert_removes_the_region_the_task_made(репо):
     """Директивы областей меток не несут, но область, заведённую задачей, откат
     снимает вместе со вставками, а не оставляет пустой; стыки при этом сверены."""
-    строки = ["#Область ОбработчикиСобытийФормы", "", "Процедура ПриОткрытии()", "\tА();",
+    lines = ["#Область ОбработчикиСобытийФормы", "", "Процедура ПриОткрытии()", "\tА();",
               "КонецПроцедуры", "", "#КонецОбласти", "", "#Область СлужебныеПроцедурыИФункции",
               "", "Процедура Служебная()", "\tБ();", "КонецПроцедуры", "#КонецОбласти"]
-    root = репо(строки)
+    root = репо(lines)
     запустить(root, path=ВЕНДОРСКИЙ, edits=[
         правка(8, code="#Область ОбработчикиСобытийЭлементовШапкиФормы\n\n"
                        "Процедура ПолеПриИзменении(Элемент)\n\tВ();\nКонецПроцедуры\n\n#КонецОбласти\n"),
         правка(14, first="#КонецОбласти", code="Функция Дата()\n\tВозврат 1;\nКонецФункции")])
-    assert "#Область ОбработчикиСобытийЭлементовШапкиФормы" in тело(root)
-    _, текст = запустить(root, apply=False, path=ВЕНДОРСКИЙ, revert=True)
-    assert "снята область «ОбработчикиСобытийЭлементовШапкиФормы» со вставками" in текст, текст
-    assert "не сверены" not in текст, текст
+    assert "#Область ОбработчикиСобытийЭлементовШапкиФормы" in body(root)
+    _, text = запустить(root, apply=False, path=ВЕНДОРСКИЙ, revert=True)
+    assert "снята область «ОбработчикиСобытийЭлементовШапкиФормы» со вставками" in text, text
+    assert "не сверены" not in text, text
     запустить(root, path=ВЕНДОРСКИЙ, revert=True)
-    assert прочитать(root, ВЕНДОРСКИЙ)[0] == строки
+    assert прочитать(root, ВЕНДОРСКИЙ)[0] == lines
 
 
 def test_a_region_that_was_there_stays_and_without_base_is_only_named():
@@ -1702,14 +1702,14 @@ def test_a_region_that_was_there_stays_and_without_base_is_only_named():
     не сказать — остаётся с примечанием."""
     from meta.domain.edits import revert
 
-    до = ["#Область Пустая", "", "#КонецОбласти"]
-    после = ["#Область Пустая", "", "// {[+](фрагмент ДОБАВЛЕН), 31.08.2026, #TEAM Кто #TASK-1",
+    before_ = ["#Область Пустая", "", "#КонецОбласти"]
+    after = ["#Область Пустая", "", "// {[+](фрагмент ДОБАВЛЕН), 31.08.2026, #TEAM Кто #TASK-1",
              "Процедура А()", "КонецПроцедуры // } Кто, 31.08.2026", "", "#КонецОбласти"]
-    строки, решения = revert(после, "TASK-1", до)
-    assert строки == до and not any("снята область" in d.reason for d in решения)
-    строки, решения = revert(после, "TASK-1", None)
-    assert "#Область Пустая" in строки
-    assert any(d.note and "после отката останется пустой" in d.reason for d in решения)
+    lines, decisions = revert(after, "TASK-1", before_)
+    assert lines == before_ and not any("снята область" in d.reason for d in decisions)
+    lines, decisions = revert(after, "TASK-1", None)
+    assert "#Область Пустая" in lines
+    assert any(d.note and "после отката останется пустой" in d.reason for d in decisions)
 
 
 def test_one_unsettled_junction_does_not_taint_the_others():
@@ -1718,14 +1718,14 @@ def test_one_unsettled_junction_does_not_taint_the_others():
     с HEAD побайтно."""
     from meta.domain.edits import revert
 
-    метка = "// {[+](фрагмент ДОБАВЛЕН), 31.08.2026, #TEAM Кто #TASK-1"
-    конец = "// } Кто, 31.08.2026"
+    marker = "// {[+](фрагмент ДОБАВЛЕН), 31.08.2026, #TEAM Кто #TASK-1"
+    end = "// } Кто, 31.08.2026"
     тело_б = [f"\tБ{n}();" for n in range(1, 11)]      # окна сверки не сливаются
-    после = (["Процедура А()", "\tЧужое();", "", метка, "\tХ();", конец, "", "КонецПроцедуры",
-              "", "Процедура Б()"] + тело_б + ["", метка, "\tУ();", конец, "", "КонецПроцедуры"])
-    база = ["Процедура А()", "КонецПроцедуры", "", "Процедура Б()"] + тело_б + ["КонецПроцедуры"]
-    _, решения = revert(после, "TASK-1", база)
-    откаты = [d for d in решения if d.kind == "откат"]
+    after = (["Процедура А()", "\tЧужое();", "", marker, "\tХ();", end, "", "КонецПроцедуры",
+              "", "Процедура Б()"] + тело_б + ["", marker, "\tУ();", end, "", "КонецПроцедуры"])
+    base = ["Процедура А()", "КонецПроцедуры", "", "Процедура Б()"] + тело_б + ["КонецПроцедуры"]
+    _, decisions = revert(after, "TASK-1", base)
+    откаты = [d for d in decisions if d.kind == "откат"]
     assert "не сверены" in откаты[0].reason and "как в базовой версии" in откаты[1].reason
 
 
@@ -1734,9 +1734,9 @@ def test_a_repeated_rename_says_it_is_done(репо):
     новое имя в модуле уже есть."""
     root = репо(["Процедура Старая()", "КонецПроцедуры"])
     запустить(root, path=ВЕНДОРСКИЙ, rename={"from": "Старая", "to": "Новая"})
-    код, текст = запустить(root, apply=False, path=ВЕНДОРСКИЙ,
+    code, text = запустить(root, apply=False, path=ВЕНДОРСКИЙ,
                            rename={"from": "Старая", "to": "Новая"})
-    assert код == 1 and "переименование уже внесено?" in текст, текст
+    assert code == 1 and "переименование уже внесено?" in text, text
 
 
 def test_a_date_other_than_today_is_noted_not_refused(репо):
@@ -1746,19 +1746,19 @@ def test_a_date_other_than_today_is_noted_not_refused(репо):
 
     assert date_note("31.08.2026", "31.08.2026") is None and date_note("31.08.2026", None) is None
     root = репо(ТЕСТ)
-    код, текст = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[правка(3, code="\tХ();")],
+    code, text = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[правка(3, code="\tХ();")],
                            date="01.01.2000")
-    assert код == 0 and "Примечание: дата меток 01.01.2000 — не сегодняшняя" in текст, текст
+    assert code == 0 and "Примечание: дата меток 01.01.2000 — не сегодняшняя" in text, text
 
 
 def test_the_header_names_module_markup_only_when_there_is_some(репо):
     """Шапка зовёт искать «разметку модуля», только когда она в ответе есть."""
     root = репо(ТЕСТ)
-    _, текст = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[правка(3, code="\tХ();")])
-    assert "разметке модуля" not in текст and "Номера строк в решениях — по тексту" in текст
-    root = репо(ТЕСТ + ["", "Процедура Б()", "КонецПроцедуры // } Кто, 01.01.2020"], имя="разметка")
-    _, текст = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[правка(3, code="\tХ();")])
-    assert "в «разметке модуля»" in текст and "разметка модуля:" in текст, текст
+    _, text = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[правка(3, code="\tХ();")])
+    assert "разметке модуля" not in text and "Номера строк в решениях — по тексту" in text
+    root = репо(ТЕСТ + ["", "Процедура Б()", "КонецПроцедуры // } Кто, 01.01.2020"], name="разметка")
+    _, text = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[правка(3, code="\tХ();")])
+    assert "в «разметке модуля»" in text and "разметка модуля:" in text, text
 
 
 # --- тело без отступа, повтор области, показ, метки в блоке «[-]» --------------------
@@ -1769,32 +1769,32 @@ def test_a_method_with_a_flat_body_is_refused(репо):
     раз. Нулевая колонка законна у препроцессора, комментария и продолжения
     литерала."""
     root = репо(ТЕСТ)
-    плоский = "Процедура Новая()\n\nЕсли А Тогда\nВозврат;\nКонецЕсли;\n\nКонецПроцедуры"
-    код, текст = запустить(root, apply=False, path=ВЕНДОРСКИЙ,
-                           edits=[правка(5, code=плоский)])
-    assert код == 1 and "тело метода «Новая» без отступа (строка 3 кода)" in текст, текст
+    flat = "Процедура Новая()\n\nЕсли А Тогда\nВозврат;\nКонецЕсли;\n\nКонецПроцедуры"
+    code, text = запустить(root, apply=False, path=ВЕНДОРСКИЙ,
+                           edits=[правка(5, code=flat)])
+    assert code == 1 and "тело метода «Новая» без отступа (строка 3 кода)" in text, text
     законный = ("Процедура Новая()\n#Если Сервер Тогда\n//старое\n\tА = \"\n|текст\";\n"
                 "#КонецЕсли\nКонецПроцедуры")
-    код, текст = запустить(root, apply=False, path=ВЕНДОРСКИЙ,
+    code, text = запустить(root, apply=False, path=ВЕНДОРСКИЙ,
                            edits=[правка(5, code=законный)])
-    assert код == 0, текст
+    assert code == 0, text
 
 
 def test_a_repeated_region_is_refused(репо):
     """Повтор области — отказ, как и повтор метода: иначе вторая область с тем
     же именем легла бы рядом с первой (bsl-ls: DuplicateRegion). Одноимённая
     область внутри другой — не повтор."""
-    строки = ["#Область Обработчики", "", "Процедура А()", "\tА();", "КонецПроцедуры", "",
+    lines = ["#Область Обработчики", "", "Процедура А()", "\tА();", "КонецПроцедуры", "",
               "#КонецОбласти", "", "#Область Служебные", "", "#КонецОбласти"]
-    root = репо(строки)
+    root = репо(lines)
     новая = "#Область Обработчики\n\nПроцедура Б()\n\tБ();\nКонецПроцедуры\n\n#КонецОбласти"
-    код, текст = запустить(root, apply=False, path=ВЕНДОРСКИЙ,
+    code, text = запустить(root, apply=False, path=ВЕНДОРСКИЙ,
                            edits=[правка(9, first="#Область Служебные", code=новая)])
-    assert код == 1 and "область «Обработчики» здесь уже есть (строки 1-7)" in текст, текст
-    assert "якорем её #КонецОбласти (строка 7)" in текст
-    код, текст = запустить(root, apply=False, path=ВЕНДОРСКИЙ,
+    assert code == 1 and "область «Обработчики» здесь уже есть (строки 1-7)" in text, text
+    assert "якорем её #КонецОбласти (строка 7)" in text
+    code, text = запустить(root, apply=False, path=ВЕНДОРСКИЙ,
                            edits=[правка(11, first="#КонецОбласти", code=новая)])
-    assert код == 0, текст
+    assert code == 0, text
 
 
 def test_the_revert_preview_shows_neighbours_and_apply_shows_text_on_request(репо):
@@ -1802,11 +1802,11 @@ def test_the_revert_preview_shows_neighbours_and_apply_shows_text_on_request(р�
     номера строк, а с подробным показом — и текст, и сверять записанное чтением
     файла не нужно."""
     root = репо(ТЕСТ)
-    код, текст = запустить(root, path=ВЕНДОРСКИЙ, edits=[правка(3, code="\tХ();")])
-    assert "записано — строки" in текст and "│" not in текст
-    _, текст = запустить(root, apply=False, path=ВЕНДОРСКИЙ, revert=True)
-    assert "на их место — ничего, на стыке:" in текст and "·\tЗначение = 1;" in текст, текст
-    root = репо(ТЕСТ, имя="подробно")
+    code, text = запустить(root, path=ВЕНДОРСКИЙ, edits=[правка(3, code="\tХ();")])
+    assert "записано — строки" in text and "│" not in text
+    _, text = запустить(root, apply=False, path=ВЕНДОРСКИЙ, revert=True)
+    assert "на их место — ничего, на стыке:" in text and "·\tЗначение = 1;" in text, text
+    root = репо(ТЕСТ, name="подробно")
     job = {"repo": root, "task": "TASK-1", "date": "31.08.2026", "author": АВТОР,
            "path": ВЕНДОРСКИЙ, "edits": [правка(3, code="\tХ();")]}
     файл = os.path.join(os.path.dirname(root), "подробно.json")
@@ -1823,12 +1823,12 @@ def test_unpaired_markers_inside_a_removed_block_are_quiet():
     «[+]» без пары внутри него — история, а не дефект разметки."""
     from meta.domain.edits import marker_ranges
 
-    строки = ["// {[-](фрагмент УДАЛЕН), 04.03.2025, #TEAM Кто #B-2",
+    lines = ["// {[-](фрагмент УДАЛЕН), 04.03.2025, #TEAM Кто #B-2",
               "// {[+](фрагмент ДОБАВЛЕН), 22.06.2023, #TEAM Другой #B-1",
               "//Функция Старая()", "//КонецФункции // }  Другой, 22.06.2023",
               "// } Кто, 04.03.2025"]
     проблемы = []
-    assert [(r["start"], r["end"]) for r in marker_ranges(строки, проблемы)] == [(1, 5)]
+    assert [(r["start"], r["end"]) for r in marker_ranges(lines, проблемы)] == [(1, 5)]
     assert проблемы == []
 
 
@@ -1838,9 +1838,9 @@ def test_a_tab_in_a_blank_line_is_visible_in_the_preview(репо):
     """Табуляция, которую инструмент ставит в пустые строки тела, видна в показе
     знаком «→», а не выглядит пустой строкой."""
     root = репо(ТЕСТ)
-    _, текст = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[правка(
+    _, text = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[правка(
         5, code="Процедура Новая()\n\n\tА = 1;\n\nКонецПроцедуры")])
-    assert "│→\n" in текст and "«→» — табуляция в пустой строке" in текст, текст
+    assert "│→\n" in text and "«→» — табуляция в пустой строке" in text, text
 
 
 # --- все отказы сразу, метка без пары, переводы строк --------------------------------
@@ -1849,38 +1849,38 @@ def test_every_refusal_of_a_module_comes_at_once(репо):
     """Отказ называет все проблемы модуля, а не первую: иначе вторая всплыла бы
     только следующим вызовом."""
     root = репо(ТЕСТ)
-    код, текст = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[
+    code, text = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[
         правка(2, 1, "\tЗначение = 2;", "\tЗначение = 2;", "\tХ();"),
         правка(4, code="\tА = «б»;")])
-    assert код == 1 and "правок с отказом: 2:" in текст, текст
-    assert "1) строка 2: ожидалось" in текст and "2) строка 4: в коде кавычки-ёлочки" in текст
+    assert code == 1 and "правок с отказом: 2:" in text, text
+    assert "1) строка 2: ожидалось" in text and "2) строка 4: в коде кавычки-ёлочки" in text
 
 
 def test_an_unpaired_marker_on_the_other_side_of_the_edits_is_quiet(репо):
     """Закрывающая без пары над правками не повторяет «сверьте решение» в каждом
     ответе: влиять на решение она может только у правок выше себя. Решения — по
     порядку строк."""
-    строки = (["Функция Ф()", "\tВозврат 1;", "КонецФункции // } Кто, 14.05.2025", ""] + ТЕСТ)
-    root = репо(строки)
-    _, текст = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[
+    lines = (["Функция Ф()", "\tВозврат 1;", "КонецФункции // } Кто, 14.05.2025", ""] + ТЕСТ)
+    root = репо(lines)
+    _, text = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[
         правка(7, code="\tБ();"), правка(6, 1, "\tЗначение = 1;", "\tЗначение = 1;", "\tА();")])
-    assert "разметка модуля: строка 3" not in текст and "ещё меток без пары: 1 (строка 3)" \
-        in текст, текст
-    assert текст.index("строка 6 (") < текст.index("перед строкой 7 ("), текст
+    assert "разметка модуля: строка 3" not in text and "ещё меток без пары: 1 (строка 3)" \
+        in text, text
+    assert text.index("строка 6 (") < text.index("перед строкой 7 ("), text
 
 
 def test_line_endings_are_kept_and_named(репо, tmp_path):
     """Ответ называет формат файла: grep из Git Bash отбрасывает CR, и
     сохранённый CRLF легко принять за переписанный LF. LF остаётся LF."""
     root = репо(ТЕСТ)
-    _, текст = запустить(root, path=ВЕНДОРСКИЙ, edits=[правка(3, code="\tХ();")])
-    assert "файл CRLF, BOM — так и останется" in текст, текст
-    lf = репо(ТЕСТ, имя="lf")
+    _, text = запустить(root, path=ВЕНДОРСКИЙ, edits=[правка(3, code="\tХ();")])
+    assert "файл CRLF, BOM — так и останется" in text, text
+    lf = репо(ТЕСТ, name="lf")
     написать(lf, ВЕНДОРСКИЙ, ТЕСТ, eol="\n")
     зафиксировать(lf, "lf")
-    _, текст = запустить(lf, path=ВЕНДОРСКИЙ, edits=[правка(3, code="\tХ();")])
+    _, text = запустить(lf, path=ВЕНДОРСКИЙ, edits=[правка(3, code="\tХ();")])
     _, bom, crlf, bare_lf = прочитать(lf, ВЕНДОРСКИЙ)
-    assert bom and crlf == 0 and bare_lf > 0 and "файл LF, BOM — так и останется" in текст
+    assert bom and crlf == 0 and bare_lf > 0 and "файл LF, BOM — так и останется" in text
 
 
 def test_a_missing_object_module_of_a_dump_is_created_with_bom_and_crlf(репо):
@@ -1889,11 +1889,11 @@ def test_a_missing_object_module_of_a_dump_is_created_with_bom_and_crlf(репо
     root = репо(ТЕСТ)
     написать(root, "Catalogs/мой_Х.xml", ["<MetaDataObject/>"])
     зафиксировать(root, "карточка")
-    код, текст = запустить(root, modules=[{"модуль": "Справочник.мой_Х.МодульОбъекта", "edits": [
+    code, text = запустить(root, modules=[{"модуль": "Справочник.мой_Х.МодульОбъекта", "edits": [
         правка(1, code="Процедура ПередЗаписью(Отказ)\n\tВозврат;\nКонецПроцедуры")]}])
-    assert код == 0 and "новый: модуля не было" in текст, текст
-    строки, bom, crlf, bare_lf = прочитать(root, "Catalogs/мой_Х/Ext/ObjectModule.bsl")
-    assert строки == ["Процедура ПередЗаписью(Отказ)", "\tВозврат;", "КонецПроцедуры"]
+    assert code == 0 and "новый: модуля не было" in text, text
+    lines, bom, crlf, bare_lf = прочитать(root, "Catalogs/мой_Х/Ext/ObjectModule.bsl")
+    assert lines == ["Процедура ПередЗаписью(Отказ)", "\tВозврат;", "КонецПроцедуры"]
     assert bom and crlf == 3 and bare_lf == 0
 
 

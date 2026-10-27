@@ -571,14 +571,14 @@ def test_application_runs_on_foreign_platform():
             return []
 
     площадка = MemoryPlatform()
-    тип = {"вид": "Строка", "длина": 10}
+    type_ = {"вид": "Строка", "длина": 10}
     сценарии = [
         (AddObjectUseCase(площадка).execute, [subscription_spec()],
          "создание мой_ЗаявкаПередЗаписью"),
         (AddChildUseCase(площадка).execute,
          [([("Справочник", "мой_Проба")], job_dialect.spec_from_json(
              {"вид": "Реквизит", "поля": {"имя": "Поле", "синоним": "Поле",
-                                          "тип": тип}}))],
+                                          "тип": type_}}))],
          "добавление Поле"),
         (ChangePropertyUseCase(площадка).execute,
          [([("Справочник", "мой_Проба"), ("Реквизит", "Поле")],
@@ -591,9 +591,9 @@ def test_application_runs_on_foreign_platform():
          "переименование мой_Новое"),
     ]
     for запустить, вход, ожидание in сценарии:
-        итог = запустить(вход, apply_now=True)
-        assert итог.ok, (ожидание, [str(f) for f in итог.errors])
-        assert итог.plan.describe() == [f"в памяти: {ожидание}"], ожидание
+        result = запустить(вход, apply_now=True)
+        assert result.ok, (ожидание, [str(f) for f in result.errors])
+        assert result.plan.describe() == [f"в памяти: {ожидание}"], ожидание
     assert записано == [ожидание for _, _, ожидание in сценарии]
 
 
@@ -787,33 +787,33 @@ def test_every_dictionary_value_occurs_in_its_own_tag():
         pytest.skip(f"пропущен: нет выгрузки {corpus.CORPUS}")
 
     ожидается = {}
-    for вид, схема in schema.SCHEMA.items():
-        for поле in схема.fields:
-            if not поле.dictionary:
+    for kind, kind_schema in schema.SCHEMA.items():
+        for field in kind_schema.fields:
+            if not field.dictionary:
                 continue
-            тег = поле.tag.rpartition(":")[2]
-            for значение in поле.dictionary.values():
-                ожидается.setdefault((тег, значение), []).append(
-                    f"{вид}.{поле.domain}")
+            тег = field.tag.rpartition(":")[2]
+            for value in field.dictionary.values():
+                ожидается.setdefault((тег, value), []).append(
+                    f"{kind}.{field.domain}")
 
     теги = sorted({тег for тег, _ in ожидается})
     образец = re.compile("<(?:[\\w]+:)?(" + "|".join(теги) + ")>([^<]*)</")
     встречено = collections.defaultdict(set)
     for каталог, папки, файлы in os.walk(corpus.CORPUS):
         папки[:] = [d for d in папки if d != "Forms"]
-        for имя in файлы:
-            if not имя.endswith(".xml"):
+        for name in файлы:
+            if not name.endswith(".xml"):
                 continue
-            текст = open(os.path.join(каталог, имя), encoding="utf-8-sig",
+            text = open(os.path.join(каталог, name), encoding="utf-8-sig",
                          errors="replace").read()
-            for тег, значение in образец.findall(текст):
-                встречено[тег].add(значение)
+            for тег, value in образец.findall(text):
+                встречено[тег].add(value)
 
     пропало = [
-        f"<{тег}> не содержит «{значение}» (поля: {', '.join(поля)})"
-        for (тег, значение), поля in sorted(ожидается.items())
-        if встречено.get(тег) and значение not in встречено[тег]
-        and (тег, значение) not in НЕ_ВСТРЕЧАЮТСЯ]
+        f"<{тег}> не содержит «{value}» (поля: {', '.join(fields)})"
+        for (тег, value), fields in sorted(ожидается.items())
+        if встречено.get(тег) and value not in встречено[тег]
+        and (тег, value) not in НЕ_ВСТРЕЧАЮТСЯ]
     assert not пропало, ("значения словарей, которых нет в конфигурации:\n   "
                          + "\n   ".join(пропало))
     print(f"значений словарей сверено {len(ожидается)} по {len(теги)} тегам")

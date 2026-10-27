@@ -6,7 +6,7 @@ from ..domain.model import Refuse
 
 
 @contextmanager
-def при(что):
+def при(what):
     """Отказ изнутри дополняется адресом пункта задания.
 
     Имена полей проверяет домен и собирает все находки разом; значения полей
@@ -17,8 +17,8 @@ def при(что):
     """
     try:
         yield
-    except Refuse as отказ:
-        raise Refuse(f"{что}: {отказ}") from отказ
+    except Refuse as refusal:
+        raise Refuse(f"{what}: {refusal}") from refusal
 
 
 class Result:
@@ -142,7 +142,7 @@ class PlanCheckResult:
 
     `source` — что с чем сравнивалось, словами; `plan` — план (`domain.plan.План`);
     `touched` — объекты, файлы которых задача тронула, [(вид, имя)];
-    `findings` — расхождения (`domain.plan.НаходкаПлана`); `notes` — пояснения.
+    `findings` — расхождения (`domain.plan.PlanFinding`); `notes` — пояснения.
     """
 
     def __init__(self, source, plan, touched, findings, notes=()):

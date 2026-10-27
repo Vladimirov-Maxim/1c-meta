@@ -17,32 +17,32 @@
 import copy
 from dataclasses import dataclass
 
-from .atomic_roles import СхемаРолей
-from .form_dialect import ПЛАТФОРМА as ПЛАТФОРМА_ДИАЛЕКТ
-from .form_dialect import ДиалектКодаФорм
+from .atomic_roles import RoleSchema
+from .form_dialect import PLATFORM as PLATFORM_DIALECT
+from .form_dialect import FormCodeDialect
 from .model import Finding, Refuse
 
 #: Уровень правила в профиле: «ошибка» — писать нельзя, «предупреждение» —
 #: можно, но посмотреть; «выкл» — правило команда не соблюдает, находки нет.
-ОШИБКА = Finding.ERROR
-ПРЕДУПРЕЖДЕНИЕ = Finding.WARNING
-ВЫКЛ = "выкл"
-УРОВНИ = (ОШИБКА, ПРЕДУПРЕЖДЕНИЕ, ВЫКЛ)
+ERROR = Finding.ERROR
+WARNING = Finding.WARNING
+OFF = "выкл"
+LEVELS = (ERROR, WARNING, OFF)
 
 #: Встроенный язык кода доработки формы — методы платформы. Свой язык команда
 #: подключает файлом-диалектом (`domain.form_dialect`).
-ПЛАТФОРМА = ПЛАТФОРМА_ДИАЛЕКТ.имя
+PLATFORM = PLATFORM_DIALECT.name
 
 #: Правила проверки правок, у которых предмет — метки вставок. Команда, которая
 #: меток не ставит (`Соглашения.метки`), их не держит: иначе каждая её правка
 #: была бы «вне вставки».
-ПРАВИЛА_МЕТОК = ("ВСТАВКА-БУКВА-Ё", "ВСТАВКА-БЕЗ-ТИПА", "ВСТАВКА-БЕЗ-ДАТЫ",
+MARKER_RULES = ("ВСТАВКА-БУКВА-Ё", "ВСТАВКА-БЕЗ-ТИПА", "ВСТАВКА-БЕЗ-ДАТЫ",
                  "ВСТАВКА-БЕЗ-ЗАДАЧИ", "ПРАВКА-ВНЕ-ВСТАВКИ", "ПРАВКА-В-ЧУЖОЙ-ВСТАВКЕ",
                  "ВСТАВКА-НЕ-ЗАКРЫТА", "ВСТАВКА-МЕТОДА-НЕ-НА-КОНЦЕ")
 
 
 @dataclass(frozen=True)
-class КодФорм:
+class FormCode:
     """На каком языке пишется код доработки формы — для типовой формы, которую
     правят только кодом.
 
@@ -53,69 +53,69 @@ class КодФорм:
     проверяет сам язык: неполная запись — отказ, а не догадка.
     """
 
-    язык: str = ПЛАТФОРМА
-    диалект: ДиалектКодаФорм = ПЛАТФОРМА_ДИАЛЕКТ
-    настройки: tuple = ()
+    language: str = PLATFORM
+    dialect: FormCodeDialect = PLATFORM_DIALECT
+    settings: tuple = ()
 
     def __post_init__(self):
-        if self.язык == ПЛАТФОРМА:
-            if self.диалект is not ПЛАТФОРМА_ДИАЛЕКТ:
+        if self.language == PLATFORM:
+            if self.dialect is not PLATFORM_DIALECT:
                 raise Refuse("язык «платформа» встроен — файл диалекта ему не нужен")
-        elif self.диалект is ПЛАТФОРМА_ДИАЛЕКТ:
-            raise Refuse(f"язык кода формы «{self.язык}» не встроен (встроен «{ПЛАТФОРМА}»): "
+        elif self.dialect is PLATFORM_DIALECT:
+            raise Refuse(f"язык кода формы «{self.language}» не встроен (встроен «{PLATFORM}»): "
                          "укажите в «кодФормы» «диалект» — файл диалекта, путь от файла "
                          "профиля")
-        elif self.диалект.имя != self.язык:
-            raise Refuse(f"файл диалекта описывает язык «{self.диалект.имя}», а профиль "
-                         f"называет «{self.язык}» — подключён не тот файл")
-        self.диалект.проверить(self.словарь)
+        elif self.dialect.name != self.language:
+            raise Refuse(f"файл диалекта описывает язык «{self.dialect.name}», а профиль "
+                         f"называет «{self.language}» — подключён не тот файл")
+        self.dialect.check(self.vocabulary)
 
     @property
-    def словарь(self):
+    def vocabulary(self):
         """Настройки языка словарём — так их получает диалект."""
-        return dict(self.настройки)
+        return dict(self.settings)
 
     @property
-    def встроенный(self):
+    def builtin(self):
         """Код пишут методы платформы — перекладкой, а не файлом диалекта."""
-        return self.диалект is ПЛАТФОРМА_ДИАЛЕКТ
+        return self.dialect is PLATFORM_DIALECT
 
 
 @dataclass(frozen=True)
-class Соглашения:
+class Conventions:
     """Соглашения одной команды.
 
     `приставка` — с чего начинается имя всего, что команда добавляет сама
-    («мой_»); `None` — соглашения о приставке нет. `другие_приставки` — тоже
+    («мой_»); `None` — соглашения о приставке нет. `other_prefixes` — тоже
     свои, но не для новых имён: прежние приставки команды, имена тестовых
-    модулей («ОМ_мой_» — так YAxUnit зовёт модуль тестов). `тег_меток` — метка
+    модулей («ОМ_мой_» — так YAxUnit зовёт модуль тестов). `marker_tag` — метка
     команды в открывающей метке вставки перед автором («#TEAM»); `None` —
     метка пишется без неё. `метки` — ставит ли команда метки
     вставок вообще: нет — правка кода пишется на место старого кода, правила
-    меток выключены. `атомарные_роли` — как команда называет атомарные
-    роли (`СхемаРолей`); `None` — команда их не заводит. `код_форм` — на
-    каком языке пишется код доработки типовой формы (`КодФорм`, по умолчанию
+    меток выключены. `atomic_roles` — как команда называет атомарные
+    роли (`RoleSchema`); `None` — команда их не заводит. `form_code` — на
+    каком языке пишется код доработки типовой формы (`FormCode`, по умолчанию
     методы платформы). `правила` — пары (код находки, уровень): правило можно
     выключить или сменить ему уровень, само правило при этом не меняется. Пары,
     а не словарь: соглашения неизменяемы и сравниваются значением — по ним
     кешируется, например, реестр видов.
     """
 
-    приставка: str | None = None
-    другие_приставки: tuple = ()
-    тег_меток: str | None = None
-    метки: bool = True
-    атомарные_роли: СхемаРолей | None = None
-    код_форм: КодФорм = КодФорм()
-    правила: tuple = ()
+    prefix: str | None = None
+    other_prefixes: tuple = ()
+    marker_tag: str | None = None
+    markers: bool = True
+    atomic_roles: RoleSchema | None = None
+    form_code: FormCode = FormCode()
+    rules: tuple = ()
 
-    def уровень(self, код, обычный):
+    def level(self, code, regular):
         """Уровень правила с учётом профиля."""
-        if not self.метки and код in ПРАВИЛА_МЕТОК:
-            return ВЫКЛ
-        return dict(self.правила).get(код, обычный)
+        if not self.markers and code in MARKER_RULES:
+            return OFF
+        return dict(self.rules).get(code, regular)
 
-    def применить(self, находки):
+    def apply(self, findings):
         """Находки домена по соглашениям: выключенные — прочь, уровень — из профиля.
 
         Применяется там, где находки собраны, до решения «писать или нет»:
@@ -123,30 +123,30 @@ class Соглашения:
         копируется целиком: у находки проверки правок есть ещё файл и строка,
         и профиль меняет строгость, а не место.
         """
-        if not self.правила and self.метки:
-            return list(находки)
-        итог = []
-        for находка in находки:
-            уровень = self.уровень(находка.code, находка.level)
-            if уровень == ВЫКЛ:
+        if not self.rules and self.markers:
+            return list(findings)
+        result = []
+        for finding in findings:
+            level = self.level(finding.code, finding.level)
+            if level == OFF:
                 continue
-            if уровень != находка.level:
-                находка = copy.copy(находка)
-                находка.level = уровень
-            итог.append(находка)
-        return итог
+            if level != finding.level:
+                finding = copy.copy(finding)
+                finding.level = level
+            result.append(finding)
+        return result
 
     @property
-    def приставки(self):
+    def prefixes(self):
         """Все свои приставки: основная первой. Пусто — соглашения нет."""
-        return ((self.приставка,) + tuple(self.другие_приставки)) if self.приставка else ()
+        return ((self.prefix,) + tuple(self.other_prefixes)) if self.prefix else ()
 
-    def своё(self, имя):
+    def is_own(self, name):
         """Названо ли имя по соглашению о приставке. Без соглашения — неизвестно (`None`)."""
-        if not self.приставка:
+        if not self.prefix:
             return None
-        return (имя or "").startswith(self.приставки)
+        return (name or "").startswith(self.prefixes)
 
 
 #: Соглашения по умолчанию — когда профиль не задан.
-НЕЙТРАЛЬНЫЕ = Соглашения()
+NEUTRAL = Conventions()

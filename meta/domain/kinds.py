@@ -14,16 +14,16 @@ import difflib
 import re
 
 from . import atomic_roles
-from .conventions import НЕЙТРАЛЬНЫЕ
+from .conventions import NEUTRAL
 from .model import (
-    НЕХРАНИМАЯ_ТЧ,
+    UNSTORED_TABLE,
     Finding,
     Host,
     NumberType,
     Refuse,
     StringType,
     TypeRef,
-    вид_табличной_части,
+    table_kind,
 )
 from .platform import (
     HANDLER_ARITY,
@@ -40,7 +40,7 @@ NAME_RE = re.compile(r"^[A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё_0-9]*$")
 
 #: Как назвать знак, которого в имени быть не должно. Печатать сам знак мало:
 #: пробел и неразрывный пробел на экране не отличить.
-ЗНАКИ = {" ": "пробел", "-": "дефис", ".": "точка", ",": "запятая",
+SIGNS = {" ": "пробел", "-": "дефис", ".": "точка", ",": "запятая",
          "/": "косая черта", "\\": "обратная косая", "(": "скобка",
          ")": "скобка", '"': "кавычка", "'": "апостроф", "+": "плюс",
          "%": "процент", "#": "решётка", "&": "амперсанд", ":": "двоеточие",
@@ -49,7 +49,7 @@ NAME_RE = re.compile(r"^[A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё_0-9]*$")
          "\t": "табуляция", "\n": "перевод строки"}
 
 
-def почему_имя_плохое(name):
+def why_name_is_bad(name):
     """Что именно не так с именем: одно «не является именем» не объясняет ничего.
 
     Имя объекта метаданных — буквы, цифры и подчёркивание, первым знаком
@@ -58,25 +58,25 @@ def почему_имя_плохое(name):
     """
     if not name:
         return "имя пустое"
-    причины = []
+    reasons = []
     if name[0].isdigit():
-        причины.append("начинается с цифры")
-    плохие = [c for c in dict.fromkeys(name) if not NAME_RE.match("x" + c)]
-    if плохие:
-        причины.append("недопустимые знаки: " + ", ".join(
-            ЗНАКИ.get(c, f"«{c}»") for c in плохие))
-    return "; ".join(причины) or "знаки допустимы только буквенно-цифровые"
+        reasons.append("начинается с цифры")
+    bad = [c for c in dict.fromkeys(name) if not NAME_RE.match("x" + c)]
+    if bad:
+        reasons.append("недопустимые знаки: " + ", ".join(
+            SIGNS.get(c, f"«{c}»") for c in bad))
+    return "; ".join(reasons) or "знаки допустимы только буквенно-цифровые"
 
 
-def про_неизвестные_поля(unknown, known, вид):
+def about_unknown_fields(unknown, known, kind):
     """Текст про незнакомые поля: сначала подсказка, потом куда смотреть.
 
     Иначе на две опечатки вываливались бы все 55 имён полей одной строкой, и
     нужное слово в ней пришлось бы искать глазами. Опечатка же почти всегда в
     одну букву.
     """
-    куски = []
-    for поле in sorted(unknown):
+    chunks = []
+    for field in sorted(unknown):
         # Порог замерен на настоящих опечатках в заданиях — и в том самом
         # порядке сравнения, который применяет `get_close_matches` (он не
         # симметричен: в обратном порядке оценка выше на 0.09):
@@ -84,18 +84,18 @@ def про_неизвестные_поля(unknown, known, вид):
         # «типНомеров»/«типНомера» 0.84, «иерархичный»/«иерархический» 0.75,
         # «индексация»/«индексирование» 0.58. Не-опечатки не поднимаются
         # выше 0.31 («состав» против «синоним»), так что 0.55 их отсекает.
-        близкие = difflib.get_close_matches(поле, known, n=2, cutoff=0.55)
-        куски.append(f"«{поле}»" + (f" — возможно, {' или '.join(близкие)}"
-                                    if близкие else ""))
+        close_ones = difflib.get_close_matches(field, known, n=2, cutoff=0.55)
+        chunks.append(f"«{field}»" + (f" — возможно, {' или '.join(close_ones)}"
+                                    if close_ones else ""))
     # Порог — не круглое число, а граница между «прочитал строку» и «ищу
     # глазами»: у перечисления полей 16 и список полезен, у справочника 55
     # и он превращается в экран текста.
     # Как спросить перечень, знает канал, а не домен: совет «--поля» был бы
     # на языке терминала, а через MCP он ничего не говорит.
-    хвост = (", ".join(known) if len(known) <= 20
-             else f"их {len(known)}, перечень — в справке по полям вида «{вид}»")
+    tail = (", ".join(known) if len(known) <= 20
+             else f"их {len(known)}, перечень — в справке по полям вида «{kind}»")
     return "вид «{}» не знает полей: {}; известны: {}".format(
-        вид, "; ".join(куски), хвост)
+        kind, "; ".join(chunks), tail)
 
 
 class Kind:
@@ -110,13 +110,13 @@ class Kind:
     #: Соглашения команды — приставка и уровни правил из её профиля. У вида из
     #: общего реестра — нейтральные; `kind_of(имя, соглашения)` даёт копию вида
     #: с соглашениями команды.
-    соглашения = НЕЙТРАЛЬНЫЕ
+    conventions = NEUTRAL
     APPLIES_TO = {}    # свойство -> виды хозяев, у которых оно бывает
 
     @property
     def prefix(self):
         """Приставка доработок команды; `None` — соглашения о ней нет."""
-        return self.соглашения.приставка
+        return self.conventions.prefix
 
     def fill(self, spec, context=None):
         """Спецификация с подставленными умолчаниями.
@@ -155,9 +155,9 @@ class Kind:
         # У табличной части вид хозяина для её реквизитов зависит от того,
         # хранится ли объект: у обработки и отчёта состав другой (см.
         # `WITH_FILL`).
-        вид = (вид_табличной_части(owner.kind) if self.name == "ТабличнаяЧасть"
+        kind = (table_kind(owner.kind) if self.name == "ТабличнаяЧасть"
                else self.name)
-        return Host(вид, owner.name or spec.get("имя"),
+        return Host(kind, owner.name or spec.get("имя"),
                     exists=owner.exists if context is not None else False,
                     path=owner.path)
 
@@ -215,9 +215,9 @@ class Kind:
             found.append(Finding(
                 "МД-ИМЯ-НЕДОПУСТИМО",
                 f"«{new_name}» не является именем объекта метаданных: "
-                + почему_имя_плохое(new_name), "имя"))
+                + why_name_is_bad(new_name), "имя"))
             return found
-        if self.needs_prefix(context) and not self.соглашения.своё(new_name):
+        if self.needs_prefix(context) and not self.conventions.is_own(new_name):
             found.append(Finding(
                 "МД-ПРЕФИКС",
                 f"имя «{new_name}» без префикса «{self.prefix}»",
@@ -241,7 +241,7 @@ class Kind:
         if unknown:
             found.append(Finding(
                 "МД-ПОЛЕ-НЕИЗВЕСТНО",
-                про_неизвестные_поля(unknown, self.fields, self.name)))
+                about_unknown_fields(unknown, self.fields, self.name)))
         if "имя" in fields:
             found.append(Finding(
                 "МД-ПЕРЕИМЕНОВАНИЕ",
@@ -274,11 +274,11 @@ class Kind:
         только о полях затронутых групп: об остальном объекте правка не
         спрашивала.
         """
-        группы = [группа for группа in self.RELATED if set(группа) & set(changed)]
-        if not группы:
+        groups = [group for group in self.RELATED if set(group) & set(changed)]
+        if not groups:
             return []
-        поля = set().union(*группы)
-        return [f for f in self.own_findings(spec, config) if f.field in поля]
+        fields = set().union(*groups)
+        return [f for f in self.own_findings(spec, config) if f.field in fields]
 
     def own_findings(self, spec, config, context=None):
         """Инварианты этого вида.
@@ -358,22 +358,22 @@ class Kind:
         # и тогда префикса требуют и от детей. Правило верное, но вторая
         # ошибка — следствие первой: исправив обе, человек получит
         # `мой_Лимиты` с реквизитом `мой_Сумма`, чего никто не просил.
-        сам_без_префикса = any(f.code == "МД-ПРЕФИКС"
+        bare_name = any(f.code == "МД-ПРЕФИКС"
                                for f in self._common(spec, context))
         for field, child_kind in self.child_fields:
             children = spec.get(field) or []
-            for место, child in enumerate(children, 1):
+            for place, child in enumerate(children, 1):
                 # Умолчания детям подставил `fill` — здесь только проверка.
                 name = child.get("имя")
                 host = self._child_host(spec, context)
-                for finding in kind_of(child_kind, self.соглашения).check(child, config, host):
-                    if сам_без_префикса and finding.code == "МД-ПРЕФИКС":
+                for finding in kind_of(child_kind, self.conventions).check(child, config, host):
+                    if bare_name and finding.code == "МД-ПРЕФИКС":
                         continue          # следствие ошибки в имени объекта
                     # Без пути до ребёнка находку не к кому отнести: у объекта
                     # их бывает десяток, а печатается всё под именем объекта.
                     # Безымянного зовём по месту в списке: «значения[?]»
                     # не говорит, какое из четырёх значений виновато.
-                    where = f"{field}[{name or место}]"
+                    where = f"{field}[{name or place}]"
                     if finding.field:
                         where += "." + finding.field
                     found.append(Finding(finding.code, finding.message,
@@ -428,7 +428,7 @@ class Kind:
         if unknown:
             found.append(Finding(
                 "МД-ПОЛЕ-НЕИЗВЕСТНО",
-                про_неизвестные_поля(unknown, self.fields, self.name)))
+                about_unknown_fields(unknown, self.fields, self.name)))
             # Дальше не идём: остальные проверки читают поля, которых
             # инструмент не понял, и говорят о следствиях. Значение
             # перечисления, написанное как объект (`{"вид": …, "поля": …}`),
@@ -444,11 +444,11 @@ class Kind:
             # «Вместе с префиксом» — только когда он у имени есть: у
             # реквизитов `Комментарий`, `Сумма`, `Лимит` префикса нет, и такая
             # приписка отправила бы перечитывать правило про префиксы.
-            имя = spec.get("имя") or ""
+            name = spec.get("имя") or ""
             found.append(Finding(
                 "МД-БЕЗ-СИНОНИМА",
-                f"синоним не задан — в интерфейсе будет видно имя «{имя}»"
-                + (" вместе с префиксом" if self.соглашения.своё(имя) else ""),
+                f"синоним не задан — в интерфейсе будет видно имя «{name}»"
+                + (" вместе с префиксом" if self.conventions.is_own(name) else ""),
                 "синоним", Finding.WARNING))
         return found + self._name_findings(spec, context)
 
@@ -462,8 +462,8 @@ class Kind:
                 found.append(Finding(
                     "МД-ИМЯ-НЕДОПУСТИМО",
                     f"«{name}» не является именем объекта метаданных: "
-                    + почему_имя_плохое(name), "имя"))
-            elif self.needs_prefix(context) and not self.соглашения.своё(name):
+                    + why_name_is_bad(name), "имя"))
+            elif self.needs_prefix(context) and not self.conventions.is_own(name):
                 found.append(Finding(
                     "МД-ПРЕФИКС",
                     f"имя «{name}» без префикса «{self.prefix}» "
@@ -473,18 +473,18 @@ class Kind:
             # Ошибка, а не предупреждение: предупреждением оно записывалось
             # бы через «принято».
             if name and len(name) > self.LONGEST_MEASURED_NAME:
-                роль = spec.kind == "Роль" and atomic_roles.is_atomic_role(
-                    self.соглашения.атомарные_роли, name)
+                role = spec.kind == "Роль" and atomic_roles.is_atomic_role(
+                    self.conventions.atomic_roles, name)
                 found.append(Finding(
                     "МД-ИМЯ-ДЛИННОЕ",
                     f"имя длиной {len(name)} — длиннее {self.LONGEST_MEASURED_NAME} "
                     "символов (#std474 п. 2.3)"
                     + ("; имя роли строится из имени объекта — задайте в пункте "
-                       "«сокращение» короткое имя объекта для имён ролей" if роль else ""),
+                       "«сокращение» короткое имя объекта для имён ролей" if role else ""),
                     "имя"))
         # #std474 — про метаданные; у частей схемы компоновки имена свои
         if not self.inside_schema:
-            found.extend(_буква_ё(spec))
+            found.extend(_letter_yo(spec))
         return found
 
 
@@ -660,7 +660,7 @@ class EventSubscriptionKind(Kind):
         if not self.prefix:
             return []
         own = [str(t) for t in (spec.get("источник") or [])
-                if t.name and self.соглашения.своё(t.name)]
+                if t.name and self.conventions.is_own(t.name)]
         if not own:
             return []
         return [Finding(
@@ -744,29 +744,29 @@ class CommonModuleKind(Kind):
     REUSE_DEFAULT = "НаВремяСеанса"
 
     @classmethod
-    def разобрать_имя(cls, name):
+    def parse_name(cls, name):
         """Имя -> (базовый постфикс, уточнения). «Клиент» у `…КлиентПовтИсп` виден.
 
         Уточнения снимаются с хвоста по одному: `…СлужебныйПолныеПрава` — это
         серверный модуль с привилегиями, `…КлиентПовтИсп` — клиентский
         с повторным использованием.
         """
-        уточнения = []
-        остаток = name
-        снято = True
-        while снято:
-            снято = False
-            for хвост in cls.REFINEMENTS:
-                if остаток.endswith(хвост) and хвост not in уточнения:
-                    уточнения.append(хвост)
-                    остаток = остаток[:-len(хвост)]
-                    снято = True
+        refinements = []
+        remainder = name
+        removed = True
+        while removed:
+            removed = False
+            for tail in cls.REFINEMENTS:
+                if remainder.endswith(tail) and tail not in refinements:
+                    refinements.append(tail)
+                    remainder = remainder[:-len(tail)]
+                    removed = True
         # от длинного к короткому: «ВызовСервера» кончается на «Сервера», не «Сервер»,
         # но «КлиентСервер» кончается и на «Сервер»
-        for постфикс in ("ВызовСервера", "КлиентСервер", "Глобальный", "Клиент", "Сервер"):
-            if остаток.endswith(постфикс):
-                return постфикс, уточнения
-        return "", уточнения
+        for postfix in ("ВызовСервера", "КлиентСервер", "Глобальный", "Клиент", "Сервер"):
+            if remainder.endswith(postfix):
+                return postfix, refinements
+        return "", refinements
 
     def fill(self, spec, context=None):
         """Умолчания контекстов — по постфиксу имени (стандарт #469).
@@ -775,92 +775,92 @@ class CommonModuleKind(Kind):
         рядом с `…ВызовСервера` остаётся и получает замечание в проверке.
         """
         filled = Kind.fill(self, spec, context)
-        постфикс, уточнения = self.разобрать_имя(spec.get("имя") or "")
-        включено = self.CONTEXT_BY_POSTFIX[постфикс]
+        postfix, refinements = self.parse_name(spec.get("имя") or "")
+        included = self.CONTEXT_BY_POSTFIX[postfix]
         for flag in self.CONTEXT_FLAGS:
             if flag not in spec.fields:
-                filled.fields[flag] = flag in включено
-        if "ПовтИсп" in уточнения and "повторноеИспользование" not in spec.fields:
+                filled.fields[flag] = flag in included
+        if "ПовтИсп" in refinements and "повторноеИспользование" not in spec.fields:
             filled.fields["повторноеИспользование"] = self.REUSE_DEFAULT
-        if "ПолныеПрава" in уточнения and "привилегированный" not in spec.fields:
+        if "ПолныеПрава" in refinements and "привилегированный" not in spec.fields:
             filled.fields["привилегированный"] = True
         return filled
 
     def own_findings(self, spec, config, context=None):
         found = []
         name = spec.get("имя") or ""
-        постфикс, уточнения = self.разобрать_имя(name)
-        включено = set(self.CONTEXT_BY_POSTFIX[постфикс])
+        postfix, refinements = self.parse_name(name)
+        included = set(self.CONTEXT_BY_POSTFIX[postfix])
 
         # --- имя и флаги обязаны сходиться там, где стандарт говорит «обязательно»
-        if spec.get("вызовСервера") and постфикс != "ВызовСервера":
+        if spec.get("вызовСервера") and postfix != "ВызовСервера":
             found.append(Finding(
                 "МОДУЛЬ-ВЫЗОВ-БЕЗ-ПОСТФИКСА",
                 "флаг «вызов сервера» взведён, а имя не кончается на «ВызовСервера» — "
                 "стандарт #469 п. 2.2 требует этот постфикс обязательно",
                 "имя"))
-        if постфикс == "ВызовСервера" and not spec.get("вызовСервера"):
+        if postfix == "ВызовСервера" and not spec.get("вызовСервера"):
             found.append(Finding(
                 "МОДУЛЬ-ИМЯ-ВЫЗОВ-СЕРВЕРА",
                 "имя обещает вызов сервера, а флаг выключен явно "
                 "(в замеренной крупной типовой конфигурации таких расхождений нет ни одного)",
                 "вызовСервера"))
-        if spec.get("глобальный") and постфикс != "Глобальный":
+        if spec.get("глобальный") and postfix != "Глобальный":
             found.append(Finding(
                 "МОДУЛЬ-ГЛОБАЛЬНЫЙ-БЕЗ-ПОСТФИКСА",
                 "флаг «глобальный» взведён, а имя не кончается на «Глобальный» "
                 "(стандарт #469 п. 3.2.1; постфикс «Клиент» при этом не добавляется)",
                 "имя"))
-        if постфикс == "Глобальный" and not spec.get("глобальный"):
+        if postfix == "Глобальный" and not spec.get("глобальный"):
             found.append(Finding(
                 "МОДУЛЬ-ИМЯ-ГЛОБАЛЬНЫЙ",
                 "имя обещает глобальный модуль, а флаг выключен явно", "глобальный"))
-        if (постфикс in ("Клиент", "КлиентСервер", "Глобальный")
+        if (postfix in ("Клиент", "КлиентСервер", "Глобальный")
                 and not spec.get("клиентУправляемоеПриложение")):
             found.append(Finding(
                 "МОДУЛЬ-КЛИЕНТ-БЕЗ-КЛИЕНТА",
-                f"имя с постфиксом «{постфикс}» обещает клиентский контекст, "
+                f"имя с постфиксом «{postfix}» обещает клиентский контекст, "
                 "а «клиент (управляемое приложение)» выключен явно (стандарт #469 п. 2.3)",
                 "клиентУправляемоеПриложение"))
-        if постфикс == "Клиент" and spec.get("сервер"):
+        if postfix == "Клиент" and spec.get("сервер"):
             found.append(Finding(
                 "МОДУЛЬ-КЛИЕНТ-С-СЕРВЕРОМ",
                 "имя с постфиксом «Клиент» и включённый «сервер» — это клиент-серверный "
                 "модуль, постфикс у него «КлиентСервер» (стандарт #469 п. 2.4)", "сервер"))
 
         # --- рекомендации стандарта: отклонение допустимо, но названо
-        лишние = [f for f in self.CONTEXT_FLAGS if spec.get(f) and f not in включено]
-        недостающие = [f for f in включено if not spec.get(f)]
-        if (лишние or недостающие) and not any(
+        extra = [f for f in self.CONTEXT_FLAGS if spec.get(f) and f not in included]
+        lacking = [f for f in included if not spec.get(f)]
+        if (extra or lacking) and not any(
                 f.code in ("МОДУЛЬ-ВЫЗОВ-БЕЗ-ПОСТФИКСА", "МОДУЛЬ-ГЛОБАЛЬНЫЙ-БЕЗ-ПОСТФИКСА",
                            "МОДУЛЬ-КЛИЕНТ-БЕЗ-КЛИЕНТА", "МОДУЛЬ-КЛИЕНТ-С-СЕРВЕРОМ")
                 for f in found):
-            что = []
-            if лишние:
-                что.append("лишние: " + ", ".join(лишние))
-            if недостающие:
-                что.append("выключены: " + ", ".join(недостающие))
+            what = []
+            if extra:
+                what.append("лишние: " + ", ".join(extra))
+            if lacking:
+                what.append("выключены: " + ", ".join(lacking))
             found.append(Finding(
                 "МОДУЛЬ-КОНТЕКСТ-НЕ-ПО-СТАНДАРТУ",
                 "контекст отличается от стандарта #469 для постфикса «{}» ({}); "
                 "такие модули встречаются, но проверьте, что это намеренно".format(
-                    постфикс or "без постфикса", "; ".join(что)),
-                (лишние or недостающие)[0], Finding.WARNING))
-        повтор = spec.get("повторноеИспользование")
-        if "ПовтИсп" in уточнения and повтор == "НеИспользовать":
+                    postfix or "без постфикса", "; ".join(what)),
+                (extra or lacking)[0], Finding.WARNING))
+        repeat = spec.get("повторноеИспользование")
+        if "ПовтИсп" in refinements and repeat == "НеИспользовать":
             found.append(Finding(
                 "МОДУЛЬ-ПОВТИСП-БЕЗ-ФЛАГА",
                 "имя с постфиксом «ПовтИсп», а повторное использование выключено явно "
                 "(стандарт #469 п. 3.2.3; в замеренной крупной типовой конфигурации так "
                 "лишь у 2 модулей из 257)",
                 "повторноеИспользование", Finding.WARNING))
-        if повтор in RETURN_REUSE_VALUES[1:] and "ПовтИсп" not in уточнения:
+        if repeat in RETURN_REUSE_VALUES[1:] and "ПовтИсп" not in refinements:
             found.append(Finding(
                 "МОДУЛЬ-ПОВТИСП-БЕЗ-ПОСТФИКСА",
                 "повторное использование включено, а имя без постфикса «ПовтИсп» "
                 "(«КлиентПовтИсп» у клиентского) — стандарт #469 п. 3.2.3",
                 "имя", Finding.WARNING))
-        if spec.get("привилегированный") and "ПолныеПрава" not in уточнения:
+        if spec.get("привилегированный") and "ПолныеПрава" not in refinements:
             found.append(Finding(
                 "МОДУЛЬ-ПРИВИЛЕГИРОВАННЫЙ-БЕЗ-ПОСТФИКСА",
                 "флаг «привилегированный» взведён, а имя без постфикса «ПолныеПрава» "
@@ -885,10 +885,10 @@ class CommonModuleKind(Kind):
                 "МОДУЛЬ-БЕЗ-КОНТЕКСТА",
                 "не задан ни один контекст: модуль не будет доступен ниоткуда",
                 "сервер"))
-        if повтор not in RETURN_REUSE_VALUES:
+        if repeat not in RETURN_REUSE_VALUES:
             found.append(Finding(
                 "МОДУЛЬ-ПОВТОРНОЕ-ИСПОЛЬЗОВАНИЕ",
-                f"«{повтор}» — не значение повторного использования; допустимы: "
+                f"«{repeat}» — не значение повторного использования; допустимы: "
                 f"{', '.join(RETURN_REUSE_VALUES)}",
                 "повторноеИспользование"))
         return found
@@ -1199,7 +1199,7 @@ class AttributeKind(NestedKind):
                "ПланВидовРасчета", "ПланОбмена", "БизнесПроцесс", "Задача",
                "РегистрСведений", "РегистрНакопления", "РегистрБухгалтерии",
                "Обработка", "Отчет", "ВнешняяОбработка", "ВнешнийОтчет",
-               "ТабличнаяЧасть", НЕХРАНИМАЯ_ТЧ)
+               "ТабличнаяЧасть", UNSTORED_TABLE)
 
     # «Использование» есть у видов с группами — у справочника и плана видов
     # характеристик. У остальных его нет ни одного.
@@ -1209,7 +1209,7 @@ class AttributeKind(NestedKind):
     WITH_HISTORY = tuple(k for k in HOSTS
                              if k not in ("РегистрНакопления", "РегистрБухгалтерии",
                                           "Обработка", "Отчет", "ВнешняяОбработка",
-                                          "ВнешнийОтчет", НЕХРАНИМАЯ_ТЧ))
+                                          "ВнешнийОтчет", UNSTORED_TABLE))
     # Заполнение — там же, но не в табличной части хранимого объекта.
     #
     # Состав реквизита табличной части зависит от того, хранится ли
@@ -1223,7 +1223,7 @@ class AttributeKind(NestedKind):
     # У реквизита табличной части хранимого объекта заполнения нет, а у
     # нехранимого — есть: 4411 реквизитов обработок и отчётов несут его все.
     WITH_FILL = tuple(k for k in WITH_HISTORY
-                      if k != "ТабличнаяЧасть") + (НЕХРАНИМАЯ_ТЧ,)
+                      if k != "ТабличнаяЧасть") + (UNSTORED_TABLE,)
     # Индексирование и полнотекстовый поиск не бывают у обработки и отчёта:
     # их реквизиты не хранятся в базе.
     # Реквизиты обработки и отчёта в базе не хранятся — ни сами, ни внутри
@@ -1232,7 +1232,7 @@ class AttributeKind(NestedKind):
     # табличных частей обработок и 582 отчётов.
     WITH_SEARCH = tuple(k for k in HOSTS
                         if k not in ("Обработка", "Отчет", "ВнешняяОбработка",
-                                     "ВнешнийОтчет", НЕХРАНИМАЯ_ТЧ))
+                                     "ВнешнийОтчет", UNSTORED_TABLE))
 
     APPLIES_TO = {
         "использование": WITH_USE,
@@ -1336,14 +1336,14 @@ class CatalogKind(Kind):
     }
 
     def fill(self, spec, context=None):
-        готово = Kind.fill(self, spec, context)
+        ready = Kind.fill(self, spec, context)
         if "вводПоСтроке" not in spec.fields:
-            имя = готово.get("имя")
-            готово.fields["вводПоСтроке"] = [
-                f"Catalog.{имя}.StandardAttribute.Description",
-                f"Catalog.{имя}.StandardAttribute.Code",
-            ] if имя else []
-        return готово
+            name = ready.get("имя")
+            ready.fields["вводПоСтроке"] = [
+                f"Catalog.{name}.StandardAttribute.Description",
+                f"Catalog.{name}.StandardAttribute.Code",
+            ] if name else []
+        return ready
 
 
 class EnumKind(Kind):
@@ -1496,12 +1496,12 @@ class DocumentKind(Kind):
                       "РегистрБухгалтерии", "РегистрРасчета")
 
     def fill(self, spec, context=None):
-        готово = Kind.fill(self, spec, context)
+        ready = Kind.fill(self, spec, context)
         if "вводПоСтроке" not in spec.fields:
-            имя = готово.get("имя")
-            готово.fields["вводПоСтроке"] = (
-                [f"Document.{имя}.StandardAttribute.Number"] if имя else [])
-        return готово
+            name = ready.get("имя")
+            ready.fields["вводПоСтроке"] = (
+                [f"Document.{name}.StandardAttribute.Number"] if name else [])
+        return ready
 
     def own_findings(self, spec, config, context=None):
         """Движения: только регистры, только существующие, и не без проведения.
@@ -1518,42 +1518,42 @@ class DocumentKind(Kind):
         заводят предыдущим заданием.
         """
         found = []
-        for адрес in spec.get("движения") or []:
-            вид, _, имя = str(адрес).partition(".")
-            if not вид or not имя:
+        for address in spec.get("движения") or []:
+            kind, _, name = str(address).partition(".")
+            if not kind or not name:
                 found.append(Finding(
                     "ДОКУМЕНТ-ДВИЖЕНИЯ-ФОРМА",
-                    f"движение задаётся как «РегистрНакопления.Имя», получено «{адрес}»",
+                    f"движение задаётся как «РегистрНакопления.Имя», получено «{address}»",
                     "движения"))
                 continue
-            if вид not in self.REGISTER_KINDS:
+            if kind not in self.REGISTER_KINDS:
                 found.append(Finding(
                     "ДОКУМЕНТ-ДВИЖЕНИЯ-НЕ-РЕГИСТР",
-                    f"в движениях «{адрес}», а движения бывают только по регистрам: "
+                    f"в движениях «{address}», а движения бывают только по регистрам: "
                     + ", ".join(self.REGISTER_KINDS)
                     + " (в замеренной крупной типовой конфигурации 4191 движение, "
                       "не-регистров — ни одного)",
                     "движения"))
                 continue
-            if config is not None and config.object_exists(вид, имя) is False:
+            if config is not None and config.object_exists(kind, name) is False:
                 found.append(Finding(
                     "ДОКУМЕНТ-ДВИЖЕНИЯ-НЕТ",
-                    f"в движениях «{адрес}», которого в конфигурации нет",
+                    f"в движениях «{address}», которого в конфигурации нет",
                     "движения"))
                 continue
-            if вид == "РегистрСведений" and config is not None:
-                режим = config.register_write_mode(имя)
-                if режим == "Независимо":
+            if kind == "РегистрСведений" and config is not None:
+                mode = config.register_write_mode(name)
+                if mode == "Независимо":
                     found.append(Finding(
                         "ДОКУМЕНТ-ДВИЖЕНИЯ-НЕЗАВИСИМЫЙ-РЕГИСТР",
-                        f"«{адрес}» — независимый регистр сведений, а движения бывают "
+                        f"«{address}» — независимый регистр сведений, а движения бывают "
                         "только по подчинённым регистратору (в замеренной крупной типовой "
                         "конфигурации — 986 из 986); "
                         "конфигуратор такой выбор не предлагает", "движения"))
-                elif режим is None:
+                elif mode is None:
                     found.append(Finding(
                         "ДОКУМЕНТ-ДВИЖЕНИЯ-РЕЖИМ-НЕПРОВЕРЕН",
-                        f"режим записи «{адрес}» прочитать не удалось — подчинён ли "
+                        f"режим записи «{address}» прочитать не удалось — подчинён ли "
                         "он регистратору, не проверено", "движения", Finding.WARNING))
         if spec.get("движения") and spec.get("проведение") == "Запретить":
             found.append(Finding(
@@ -1562,17 +1562,17 @@ class DocumentKind(Kind):
                 "конфигурации так у 7 документов из 383 с движениями — все они «операции», "
                 "пишущие движения без проведения. Проверьте, что это намеренно",
                 "проведение", Finding.WARNING))
-        for адрес in spec.get("основание") or []:
-            вид, _, имя = str(адрес).partition(".")
-            if not вид or not имя:
+        for address in spec.get("основание") or []:
+            kind, _, name = str(address).partition(".")
+            if not kind or not name:
                 found.append(Finding(
                     "ДОКУМЕНТ-ОСНОВАНИЕ-ФОРМА",
-                    f"основание задаётся как «Документ.Имя», получено «{адрес}»",
+                    f"основание задаётся как «Документ.Имя», получено «{address}»",
                     "основание"))
-            elif config is not None and config.object_exists(вид, имя) is False:
+            elif config is not None and config.object_exists(kind, name) is False:
                 found.append(Finding(
                     "ДОКУМЕНТ-ОСНОВАНИЕ-НЕТ",
-                    f"в основаниях «{адрес}», которого в конфигурации нет",
+                    f"в основаниях «{address}», которого в конфигурации нет",
                     "основание"))
         return found
 
@@ -1606,11 +1606,11 @@ class DimensionKind(NestedKind):
     #: Шесть свойств бывают только у измерения регистра сведений, одно —
     #: только у накопления. Замер: 4319 измерений сведений против 1145
     #: накопления, вариант состава у каждого вида один.
-    ТОЛЬКО_СВЕДЕНИЙ = ("заполнятьИзДанныхЗаполнения", "значениеЗаполнения",
+    INFORMATION_ONLY = ("заполнятьИзДанныхЗаполнения", "значениеЗаполнения",
                        "ведущее", "основнойОтбор", "историяДанных",
                        "приведениеТипа")
     APPLIES_TO = dict(
-        {поле: ("РегистрСведений",) for поле in ТОЛЬКО_СВЕДЕНИЙ},
+        {field: ("РегистрСведений",) for field in INFORMATION_ONLY},
         использованиеВИтогах=("РегистрНакопления",))
     defaults = {
         "синоним": "", "комментарий": "", "режимПароля": False, "формат": "",
@@ -1657,7 +1657,7 @@ class ResourceKind(NestedKind):
     HOSTS = ("РегистрСведений", "РегистрНакопления")
     #: Четыре свойства бывают только у ресурса регистра сведений: замер
     #: по 7216 ресурсам сведений (28 свойств) против 558 накопления (24).
-    APPLIES_TO = {поле: ("РегистрСведений",) for поле in
+    APPLIES_TO = {field: ("РегистрСведений",) for field in
                   ("заполнятьИзДанныхЗаполнения", "значениеЗаполнения",
                    "индексирование", "историяДанных")}
     HOST_FINDING = "РЕСУРС-ВИД-ХОЗЯИНА"
@@ -1826,11 +1826,11 @@ class ScheduledJobKind(Kind):
     defaults = {"комментарий": "", "наименование": "", "ключ": ""}
 
     def own_findings(self, spec, config, context=None):
-        from .schedule import problems as беды_расписания
-        расписание = [Finding("РАСПИСАНИЕ-НЕВЕРНО", беда, "расписание")
-                      for беда in (беды_расписания(spec.get("расписание"))
+        from .schedule import problems as schedule_problems
+        schedule = [Finding("РАСПИСАНИЕ-НЕВЕРНО", problem, "расписание")
+                      for problem in (schedule_problems(spec.get("расписание"))
                                    if spec.get("расписание") is not None else [])]
-        return расписание + self._handler_findings(spec, config)
+        return schedule + self._handler_findings(spec, config)
 
     def _handler_findings(self, spec, config):
         found = []
@@ -1958,10 +1958,10 @@ class DataSetFieldKind(Kind):
     defaults = {"измерение": False}
 
     def fill(self, spec, context=None):
-        готово = super().fill(spec, context)
-        if not готово.get("поле"):
-            готово.fields["поле"] = готово.get("путь")
-        return готово
+        ready = super().fill(spec, context)
+        if not ready.get("поле"):
+            ready.fields["поле"] = ready.get("путь")
+        return ready
 
 
 class ResourceFieldKind(Kind):
@@ -2077,12 +2077,12 @@ class ReportKind(Kind):
         Заданное человеком не трогаем: у отчёта бывает несколько схем,
         и какая из них основная, решает он.
         """
-        готово = Kind.fill(self, spec, context)
-        схема = готово.get("схема")
-        if схема and not готово.get("основнаяСхема"):
-            готово.fields["основнаяСхема"] = (
-                f"{self.name}.{готово.get('имя')}.Макет.{схема}")
-        return готово
+        ready = Kind.fill(self, spec, context)
+        schema = ready.get("схема")
+        if schema and not ready.get("основнаяСхема"):
+            ready.fields["основнаяСхема"] = (
+                f"{self.name}.{ready.get('имя')}.Макет.{schema}")
+        return ready
 
 
 
@@ -2367,18 +2367,18 @@ class SubsystemKind(Kind):
         if config is None:
             return []
         found = []
-        for адрес in spec.get("состав") or []:
-            вид, _, имя = str(адрес).partition(".")
-            if not вид or not имя:
+        for address in spec.get("состав") or []:
+            kind, _, name = str(address).partition(".")
+            if not kind or not name:
                 found.append(Finding(
                     "ПОДСИСТЕМА-СОСТАВ-ФОРМА",
                     f"объект состава задаётся как «Справочник.Имя», "
-                    f"получено «{адрес}»", "состав"))
+                    f"получено «{address}»", "состав"))
                 continue
-            if config.object_exists(вид, имя) is False:
+            if config.object_exists(kind, name) is False:
                 found.append(Finding(
                     "ПОДСИСТЕМА-СОСТАВ-НЕТ",
-                    f"в состав включён «{адрес}», которого в конфигурации нет",
+                    f"в состав включён «{address}», которого в конфигурации нет",
                     "состав"))
         return found
 
@@ -2484,7 +2484,7 @@ LOOKALIKE = {
 }
 
 
-def _буква_ё(spec):
+def _letter_yo(spec):
     """«ё» в имени, синониме, комментарии — то, что назвал человек.
 
     #std474 п. 4: в именах, синонимах и комментариях буква «ё» не
@@ -2493,20 +2493,20 @@ def _буква_ё(spec):
     которое правка не трогает, не повод отказать.
     """
     found = []
-    for поле in ("имя", "синоним", "комментарий"):
-        if поле not in spec.asked:
+    for field in ("имя", "синоним", "комментарий"):
+        if field not in spec.asked:
             continue
-        значение = spec.get(поле)
-        тексты = (list(значение.values()) if isinstance(значение, dict)
-                  else [значение] if isinstance(значение, str) else [])
-        for текст in тексты:
-            if "ё" in текст or "Ё" in текст:
-                исправлено = текст.replace("ё", "е").replace("Ё", "Е")
+        value = spec.get(field)
+        texts = (list(value.values()) if isinstance(value, dict)
+                  else [value] if isinstance(value, str) else [])
+        for text in texts:
+            if "ё" in text or "Ё" in text:
+                fixed = text.replace("ё", "е").replace("Ё", "Е")
                 found.append(Finding(
                     "МД-БУКВА-Ё",
-                    f"в поле «{поле}» буква «ё»: «{текст}» — в именах, синонимах и "
-                    f"комментариях её не используют (#std474 п. 4); напишите «{исправлено}»",
-                    поле))
+                    f"в поле «{field}» буква «ё»: «{text}» — в именах, синонимах и "
+                    f"комментариях её не используют (#std474 п. 4); напишите «{fixed}»",
+                    field))
     return found
 
 
@@ -2520,13 +2520,13 @@ def _lookalike(name, prefix):
     beginning = name[:len(prefix)]
     if len(beginning) < len(prefix) or beginning == prefix:
         return ""
-    подменены = [
-        f"символ {i + 1}: «{было}» (латиница) вместо «{надо}»"
-        for i, (было, надо) in enumerate(zip(beginning, prefix, strict=True))
-        if было != надо and LOOKALIKE.get(было) == надо]
-    if not подменены:
+    substituted = [
+        f"символ {i + 1}: «{before}» (латиница) вместо «{required_}»"
+        for i, (before, required_) in enumerate(zip(beginning, prefix, strict=True))
+        if before != required_ and LOOKALIKE.get(before) == required_]
+    if not substituted:
         return ""
-    return ". На глаз не отличить — " + "; ".join(подменены)
+    return ". На глаз не отличить — " + "; ".join(substituted)
 
 
 # --- реестр ----------------------------------------------------------------
@@ -2568,30 +2568,30 @@ REGISTRY = {
 
 
 #: Реестры видов по соглашениям: вид с соглашениями команды — копия общего.
-_РЕЕСТРЫ = {}
+_REGISTRIES = {}
 
 
-def _реестр(соглашения):
-    if соглашения == НЕЙТРАЛЬНЫЕ:
+def _registry(conventions):
+    if conventions == NEUTRAL:
         return REGISTRY
-    if соглашения not in _РЕЕСТРЫ:
-        реестр = {}
-        for имя, вид in REGISTRY.items():
-            копия = copy.copy(вид)
-            копия.соглашения = соглашения
-            реестр[имя] = копия
-        _РЕЕСТРЫ[соглашения] = реестр
-    return _РЕЕСТРЫ[соглашения]
+    if conventions not in _REGISTRIES:
+        registry = {}
+        for name, kind in REGISTRY.items():
+            copy_ = copy.copy(kind)
+            copy_.conventions = conventions
+            registry[name] = copy_
+        _REGISTRIES[conventions] = registry
+    return _REGISTRIES[conventions]
 
 
-def kind_of(name, соглашения=НЕЙТРАЛЬНЫЕ):
+def kind_of(name, conventions=NEUTRAL):
     """Вид по имени — с соглашениями команды. Неизвестный — отказ со списком,
     а не `KeyError`.
 
     `KeyError` никто не ловит: человек увидел бы стек Python и решил бы, что
     сломал инструмент, а не задание.
     """
-    kind = _реестр(соглашения).get(name)
+    kind = _registry(conventions).get(name)
     if kind is None:
         raise Refuse("вид «{}» не заведён; известны: {}".format(
             name, ", ".join(sorted(REGISTRY))))

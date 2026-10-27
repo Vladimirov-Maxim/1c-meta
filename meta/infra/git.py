@@ -89,35 +89,35 @@ def checkout_eols(root, paths):
     """{путь: «CRLF» | «LF» | None} — `checkout_eol` для многих путей: настройки
     читаются один раз, атрибуты — пачками."""
     paths = list(paths)
-    атрибуты = {путь: {} for путь in paths}
-    for начало in range(0, len(paths), ATTR_BATCH):
-        пачка = paths[начало:начало + ATTR_BATCH]
+    атрибуты = {path: {} for path in paths}
+    for start in range(0, len(paths), ATTR_BATCH):
+        пачка = paths[start:start + ATTR_BATCH]
         done = run(root, "check-attr", "text", "eol", "--", *пачка, why="не могу прочитать атрибуты файлов")
         if done is None or done.returncode != 0:
-            return {путь: None for путь in paths}
-        for строка in done.stdout.decode("utf-8", "replace").splitlines():
-            части = строка.rsplit(": ", 2)
-            if len(части) == 3 and unquote(части[0]) in атрибуты:
-                атрибуты[unquote(части[0])][части[1]] = части[2]
+            return {path: None for path in paths}
+        for line in done.stdout.decode("utf-8", "replace").splitlines():
+            parts = line.rsplit(": ", 2)
+            if len(parts) == 3 and unquote(parts[0]) in атрибуты:
+                атрибуты[unquote(parts[0])][parts[1]] = parts[2]
     autocrlf = setting(root, "core.autocrlf") if paths else None
     родной = None
-    итог = {}
-    for путь, свои in атрибуты.items():
-        text, eol = свои.get("text", "unspecified"), свои.get("eol", "unspecified")
+    result = {}
+    for path, own in атрибуты.items():
+        text, eol = own.get("text", "unspecified"), own.get("eol", "unspecified")
         if text == "unset":
-            итог[путь] = None
+            result[path] = None
         elif eol in ("crlf", "lf"):
-            итог[путь] = eol.upper()
+            result[path] = eol.upper()
         elif autocrlf == "true":
-            итог[путь] = "CRLF"
+            result[path] = "CRLF"
         elif autocrlf == "input":
-            итог[путь] = "LF"
+            result[path] = "LF"
         elif text in ("set", "auto"):
             родной = родной or setting(root, "core.eol") or "native"
-            итог[путь] = "CRLF" if родной == "crlf" or (родной == "native" and os.name == "nt") else "LF"
+            result[path] = "CRLF" if родной == "crlf" or (родной == "native" and os.name == "nt") else "LF"
         else:
-            итог[путь] = None
-    return итог
+            result[path] = None
+    return result
 
 
 def strict_eol(root):

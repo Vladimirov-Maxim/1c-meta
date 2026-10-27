@@ -64,28 +64,28 @@ CATALOG = """<?xml version="1.0" encoding="UTF-8"?>
 
 
 def _checker():
-    путь = os.path.join(ROOT, "tools", "edt_order_check.py")
-    описание = importlib.util.spec_from_file_location("edt_order_check", путь)
-    модуль = importlib.util.module_from_spec(описание)
-    описание.loader.exec_module(модуль)
-    return модуль
+    path = os.path.join(ROOT, "tools", "edt_order_check.py")
+    description = importlib.util.spec_from_file_location("edt_order_check", path)
+    module = importlib.util.module_from_spec(description)
+    description.loader.exec_module(module)
+    return module
 
 
 def test_produced_types_go_first_then_emf_order():
-    имена = [f.name for f in edt_model.features(MDCLASS + "Catalog")]
-    assert имена[0] == "producedTypes"
-    assert имена.index("uuid") < имена.index("name") < имена.index("useStandardCommands") \
-        < имена.index("levelCount") < имена.index("attributes") < имена.index("tabularSections")
+    names = [f.name for f in edt_model.features(MDCLASS + "Catalog")]
+    assert names[0] == "producedTypes"
+    assert names.index("uuid") < names.index("name") < names.index("useStandardCommands") \
+        < names.index("levelCount") < names.index("attributes") < names.index("tabularSections")
 
 
 def test_the_order_of_a_member_depends_on_its_class():
     """Реквизит справочника пишет историю данных после полнотекстового поиска,
     реквизит табличной части — до: у классов разные суперклассы."""
-    def до(класс, a, b):
+    def before_(класс, a, b):
         return edt_model.position(MDCLASS + класс, a) < edt_model.position(MDCLASS + класс, b)
 
-    assert до("CatalogAttribute", "fullTextSearch", "dataHistory")
-    assert до("TabularSectionAttribute", "dataHistory", "fullTextSearch")
+    assert before_("CatalogAttribute", "fullTextSearch", "dataHistory")
+    assert before_("TabularSectionAttribute", "dataHistory", "fullTextSearch")
 
 
 def test_defaults_and_xml_attributes():
@@ -94,35 +94,35 @@ def test_defaults_and_xml_attributes():
     assert edt_model.is_default(edt_model.feature(MDCLASS + "Catalog", "hierarchical"), "false")
     assert edt_model.is_xml_attribute(edt_model.feature(MDCLASS + "Catalog", "uuid"))
     assert not edt_model.is_xml_attribute(edt_model.feature(MDCLASS + "Catalog", "name"))
-    значение = edt_model.feature("com._1c.g5.v8.dt.mcore.NumberValue", "value")
-    assert not edt_model.is_default(значение, "0")              # BigDecimal: умолчание — null
+    value = edt_model.feature("com._1c.g5.v8.dt.mcore.NumberValue", "value")
+    assert not edt_model.is_default(value, "0")              # BigDecimal: умолчание — null
 
 
 def test_a_card_written_by_edt_obeys_the_table():
-    модуль, расхождения = _checker(), {}
+    module, расхождения = _checker(), {}
     корень = etree.fromstring(CATALOG.encode("utf-8"))
     from collections import defaultdict
     расхождения = defaultdict(list)
-    модуль.check(корень, модуль.class_of_element(корень), "образец", расхождения)
+    module.check(корень, module.class_of_element(корень), "образец", расхождения)
     assert dict(расхождения) == {}
 
 
 def test_a_card_out_of_order_is_caught():
-    модуль = _checker()
+    module = _checker()
     from collections import defaultdict
     расхождения = defaultdict(list)
     испорчена = CATALOG.replace("  <levelCount>2</levelCount>\n", "").replace(
         "  <attributes uuid=", "  <levelCount>2</levelCount>\n  <attributes uuid=", 1)
     корень = etree.fromstring(испорчена.encode("utf-8"))
-    модуль.check(корень, модуль.class_of_element(корень), "образец", расхождения)
-    assert any(что == "порядок" for что, _ in расхождения)
+    module.check(корень, module.class_of_element(корень), "образец", расхождения)
+    assert any(what == "порядок" for what, _ in расхождения)
 
 
 @pytest.mark.skipif(not os.environ.get("META_EDT_CORPUS"), reason="не задан проект EDT META_EDT_CORPUS")
 def test_every_card_and_form_of_the_project_obeys_the_table(capsys):
-    модуль = _checker()
+    module = _checker()
     os.environ["EDT_SUFFIXES"] = ".mdo,.form"
-    модуль.SUFFIXES = (".mdo", ".form")
-    модуль.main([os.environ["META_EDT_CORPUS"]])
+    module.SUFFIXES = (".mdo", ".form")
+    module.main([os.environ["META_EDT_CORPUS"]])
     вывод = capsys.readouterr().out
     assert "видов расхождений: 0" in вывод, вывод
