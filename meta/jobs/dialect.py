@@ -102,13 +102,13 @@ def child_spec_from_json(kind, data):
     вид объекта пришлось бы вписывать сюда руками — и забыть вписать.
     Глубина не ограничена: у справочника есть табличные части, у них реквизиты.
     """
-    собранные = Collected("в задании непонятно")
-    spec = _spec(kind, data, "", собранные)
-    собранные.raise_collected()
+    collected_items = Collected("в задании непонятно")
+    spec = _spec(kind, data, "", collected_items)
+    collected_items.raise_collected()
     return spec
 
 
-def _spec(kind, data, address, собранные):
+def _spec(kind, data, address, collected_items):
     """То же, но беды копятся с адресом, а не рвут разбор на первой.
 
     Домен собирает все свои находки разом — и разбор задания тоже: иначе
@@ -134,7 +134,7 @@ def _spec(kind, data, address, собранные):
             else:
                 fields[field] = value_type_from_json(value)
         except Refuse as refusal:
-            собранные.add(f"{address}{field}: {refusal}")
+            collected_items.add(f"{address}{field}: {refusal}")
             fields.pop(field)             # неразобранное не выдаём за разобранное
     # Списки обозначений («движения», «состав», «основание») принимаются
     # и строкой «Вид.Имя», и объектом {"вид", "имя"} — как типы. Объект
@@ -146,17 +146,17 @@ def _spec(kind, data, address, собранные):
         try:
             fields[field] = [designation_from_json(x) for x in (fields[field] or [])]
         except Refuse as refusal:
-            собранные.add(f"{address}{field}: {refusal}")
+            collected_items.add(f"{address}{field}: {refusal}")
             fields.pop(field)
     for field, child_kind in getattr(REGISTRY.get(kind), "child_fields", ()) or ():
         if field not in fields:
             continue
-        дети = []
+        children = []
         for place, child in enumerate(fields[field] or [], 1):
             name = child.get("имя") if isinstance(child, dict) else None
-            дети.append(_spec(child_kind, child,
-                              f"{address}{field}[{name or place}].", собранные))
-        fields[field] = дети
+            children.append(_spec(child_kind, child,
+                              f"{address}{field}[{name or place}].", collected_items))
+        fields[field] = children
     return Spec(kind, fields)
 
 

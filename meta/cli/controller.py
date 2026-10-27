@@ -43,8 +43,8 @@ class Controller:
             owner, name = dialect.form_address(address)
             view, form_file, module_file, своя = self.show_form(repo).execute(owner, name)
             return "форма", view, name, form_file, module_file, своя
-        spec, файл = self.show_object(repo).execute(dialect.path_from_json(address))
-        return "объект", spec, файл
+        spec, file = self.show_object(repo).execute(dialect.path_from_json(address))
+        return "объект", spec, file
 
     def verify(self, repo=None, base="HEAD", rev=None, baseline=None, target=None, task=None,
                only=None, paths=None):

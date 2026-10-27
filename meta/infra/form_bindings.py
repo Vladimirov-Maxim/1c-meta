@@ -33,11 +33,11 @@ FORM_EVENT_NAMES = tuple(FORM_EVENTS)
 def bindings(text):
     """Текст описания формы -> (привязанные процедуры, имена элементов)."""
     if text.lstrip().startswith("<?xml") and "<form:Form" in text[:500]:
-        связанные, элементы = EDT_BOUND, EDT_ELEMENT
+        linked, elements = EDT_BOUND, EDT_ELEMENT
     else:
-        связанные, элементы = DESIGNER_BOUND, DESIGNER_ELEMENT
-    привязаны = {next(g for g in m.groups() if g).strip() for m in связанные.finditer(text)}
-    return привязаны, {m.group(1) for m in элементы.finditer(text)}
+        linked, elements = DESIGNER_BOUND, DESIGNER_ELEMENT
+    bound = {next(g for g in m.groups() if g).strip() for m in linked.finditer(text)}
+    return bound, {m.group(1) for m in elements.finditer(text)}
 
 
 def form_file(module_path):

@@ -78,7 +78,7 @@ CONFIGURATION_FILES = {
 
 #: Обратное: файл собственного модуля -> слово адреса. Для подсказки
 #: «у объекта есть такие модули».
-OWN_BY_FILE = {файл: word for word, файл in OWN_FILES.items()}
+OWN_BY_FILE = {file: word for word, file in OWN_FILES.items()}
 
 
 class ModuleLayout:
@@ -156,9 +156,9 @@ DESIGNER = ModuleLayout("выгрузка конфигуратора", ("Ext",),
 EDT = ModuleLayout("проект EDT", (), ("Module.bsl",), "Configuration")
 
 #: Обратное к `CONTAINERS`: каталог выгрузки -> вид.
-KIND_BY_CONTAINER = {каталог: kind for kind, каталог in CONTAINERS.items()}
+KIND_BY_CONTAINER = {directory: kind for kind, directory in CONTAINERS.items()}
 #: Обратное к `CONFIGURATION_FILES`.
-CONFIGURATION_BY_FILE = {файл: word for word, файл in CONFIGURATION_FILES.items()}
+CONFIGURATION_BY_FILE = {file: word for word, file in CONFIGURATION_FILES.items()}
 
 #: Выгрузка конфигуратора — раскладка по умолчанию.
 module_file = DESIGNER.module_file

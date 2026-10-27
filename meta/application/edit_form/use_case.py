@@ -52,7 +52,7 @@ class EditFormUseCase:
         own_one = f"{prefix}{edits.owner_name}"
         flags = self.platform.common_module_flags(own_one)
         if not flags or not flags.get("сервер") or any(
-                flags.get(флаг) for флаг in ("клиентУправляемоеПриложение", "глобальный",
+                flags.get(flag) for flag in ("клиентУправляемоеПриложение", "глобальный",
                                              "вызовСервера")):
             return None
         edits.code_module = f"ОбщийМодуль.{own_one}"
@@ -133,8 +133,8 @@ class EditFormUseCase:
                         "в коде кавычки прямые, задание на код такой текст не примет; "
                         "поправьте заголовок в задании на форму",
                         "элементы", Finding.WARNING))
-        остальные = [item for item in items if not item[0].as_code]
-        plan = (self.platform.prepare_form_edits(остальные, new_uuid) if остальные
+        remaining = [item for item in items if not item[0].as_code]
+        plan = (self.platform.prepare_form_edits(remaining, new_uuid) if remaining
                 else None)
         written = plan.apply() if plan is not None and apply_now else []
         # и к находкам о коде формы, добавленным после решения о записи

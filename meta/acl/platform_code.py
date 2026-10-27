@@ -39,9 +39,9 @@ from .form_code import (
 
 #: Переменные кода — те же в каждом фрагменте: дописанный в существующую
 #: процедуру код просто переприсваивает их.
-ЭЛЕМЕНТ = "Элемент"
-КОМАНДА = "Команда"
-РЕКВИЗИТЫ = "ДобавляемыеРеквизиты"
+ELEMENT = "Элемент"
+COMMAND = "Команда"
+ATTRIBUTES = "ДобавляемыеРеквизиты"
 
 #: Вид элемента домена -> (тип элемента платформы, его вид или `None`).
 #: Вид кнопки ставится по родителю, у таблицы вида нет.
@@ -85,7 +85,7 @@ def type_description(value_type):
     composition = value_type if isinstance(value_type, list) else [value_type]
     if any(isinstance(type_, dm.AnyType) for type_ in composition):
         return "Новый ОписаниеТипов()"
-    names, число, line, date = [], "", "", ""
+    names, num, line, date = [], "", "", ""
     for type_ in composition:
         if isinstance(type_, dm.BooleanType):
             names.append("Булево")
@@ -97,7 +97,7 @@ def type_description(value_type):
         elif isinstance(type_, dm.NumberType):
             # Без квалификаторов числа платформа числа хранить не даёт.
             names.append("Число")
-            число = (f"Новый КвалификаторыЧисла({type_.digits}, {type_.fraction_digits}"
+            num = (f"Новый КвалификаторыЧисла({type_.digits}, {type_.fraction_digits}"
                      + (", ДопустимыйЗнак.Неотрицательный" if type_.nonnegative else "") + ")")
         elif isinstance(type_, dm.DateType):
             names.append("Дата")
@@ -108,10 +108,10 @@ def type_description(value_type):
             names.append(type_.name)
         else:
             raise Refuse(f"не знаю, как записать тип «{type_}» в коде")
-    аргументы = [quote(",".join(names)), число, line, date]
-    while not аргументы[-1]:
-        аргументы.pop()
-    return f"Новый ОписаниеТипов({', '.join(аргументы)})"
+    arguments = [quote(",".join(names)), num, line, date]
+    while not arguments[-1]:
+        arguments.pop()
+    return f"Новый ОписаниеТипов({', '.join(arguments)})"
 
 
 def _attributes(edits):
@@ -123,24 +123,24 @@ def _attributes(edits):
                     for c in attribute.columns]
     if not own and not columns:
         return []
-    lines = [f"{РЕКВИЗИТЫ} = Новый Массив;"]
+    lines = [f"{ATTRIBUTES} = Новый Массив;"]
     for attribute in own + columns:
-        аргументы = [quote(attribute.name), type_description(attribute.value_type)]
+        arguments = [quote(attribute.name), type_description(attribute.value_type)]
         if attribute.table or attribute.title:
-            аргументы.append(quote(attribute.table) if attribute.table else "")
+            arguments.append(quote(attribute.table) if attribute.table else "")
         if attribute.title:
-            аргументы.append(quote(attribute.title))
-        lines.append(f"{РЕКВИЗИТЫ}.Добавить(Новый РеквизитФормы({', '.join(аргументы)}));")
-    return lines + [f"Форма.ИзменитьРеквизиты({РЕКВИЗИТЫ});", ""]
+            arguments.append(quote(attribute.title))
+        lines.append(f"{ATTRIBUTES}.Добавить(Новый РеквизитФормы({', '.join(arguments)}));")
+    return lines + [f"Форма.ИзменитьРеквизиты({ATTRIBUTES});", ""]
 
 
 def _commands(edits):
     lines = []
     for command in edits.commands:
-        lines.append(f"{КОМАНДА} = Форма.Команды.Добавить({quote(command.name)});")
+        lines.append(f"{COMMAND} = Форма.Команды.Добавить({quote(command.name)});")
         if command.title:
-            lines.append(f"{КОМАНДА}.Заголовок = {quote(command.title)};")
-        lines.append(f"{КОМАНДА}.Действие = {quote(handler_name(command.action))};")
+            lines.append(f"{COMMAND}.Заголовок = {quote(command.title)};")
+        lines.append(f"{COMMAND}.Действие = {quote(handler_name(command.action))};")
         lines.append("")
     return lines
 
@@ -155,25 +155,25 @@ def _element(element, kinds, parent=None, view=None):
     destination = (f"Форма.Элементы.{parent_name}" if parent_name
             else f"Форма.Элементы.{before_it}.Родитель" if before_it else None)
     if before_it:
-        создание = (f"{ЭЛЕМЕНТ} = Форма.Элементы.Вставить({quote(element.name)}, "
+        creation = (f"{ELEMENT} = Форма.Элементы.Вставить({quote(element.name)}, "
                     f"Тип({quote(type_)}), {destination}, Форма.Элементы.{before_it});")
     else:
-        создание = (f"{ЭЛЕМЕНТ} = Форма.Элементы.Добавить({quote(element.name)}, Тип({quote(type_)})"
+        creation = (f"{ELEMENT} = Форма.Элементы.Добавить({quote(element.name)}, Тип({quote(type_)})"
                     + (f", {destination}" if destination else "") + ");")
-    lines = [создание]
+    lines = [creation]
     if kind:
-        lines.append(f"{ЭЛЕМЕНТ}.Вид = {kind};")
+        lines.append(f"{ELEMENT}.Вид = {kind};")
     if element.kind == "Кнопка" and kinds.get(parent_name) in BAR_KINDS:
-        lines.append(f"{ЭЛЕМЕНТ}.Вид = ВидКнопкиФормы.КнопкаКоманднойПанели;")
+        lines.append(f"{ELEMENT}.Вид = ВидКнопкиФормы.КнопкаКоманднойПанели;")
     if element.path:
-        lines.append(f"{ЭЛЕМЕНТ}.ПутьКДанным = {quote(element.path)};")
+        lines.append(f"{ELEMENT}.ПутьКДанным = {quote(element.path)};")
     if element.command:
-        lines.append(f"{ЭЛЕМЕНТ}.ИмяКоманды = {quote(command_of(element))};")
+        lines.append(f"{ELEMENT}.ИмяКоманды = {quote(command_of(element))};")
     for name, value in element.properties.items():
-        lines.append(f"{ЭЛЕМЕНТ}.{fm.property_of(element.kind, name)[0]} = "
+        lines.append(f"{ELEMENT}.{fm.property_of(element.kind, name)[0]} = "
                      f"{value_literal(element.kind, name, value)};")
     for event, handler in element.events.items():
-        lines.append(f"{ЭЛЕМЕНТ}.УстановитьДействие({quote(event)}, {quote(handler_name(handler))});")
+        lines.append(f"{ELEMENT}.УстановитьДействие({quote(event)}, {quote(handler_name(handler))});")
     lines.append("")
     for child in element.children:
         lines += _element(child, kinds, element.name, view)

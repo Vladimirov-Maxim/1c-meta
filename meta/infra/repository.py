@@ -261,7 +261,7 @@ class Repository(Configuration):
             spec, _ = self.read_spec([("ОбщийМодуль", name)])
         except Refuse:
             return None
-        return {флаг: bool(spec.get(флаг)) for флаг in REGISTRY["ОбщийМодуль"].CONTEXT_FLAGS}
+        return {flag: bool(spec.get(flag)) for flag in REGISTRY["ОбщийМодуль"].CONTEXT_FLAGS}
 
     def common_module_lines(self, name):
         path = self._module_path(name)
@@ -276,16 +276,16 @@ class Repository(Configuration):
         Только каталоги этих ролей и их `Rights.xml`: сотни файлов вместо поиска
         по всей выгрузке.
         """
-        папка = os.path.join(self.root, "Roles")
-        if not os.path.isdir(папка):
+        folder = os.path.join(self.root, "Roles")
+        if not os.path.isdir(folder):
             return {}
         regex = re.compile(pattern)
         found = {}
-        for name in sorted(os.listdir(папка)):
+        for name in sorted(os.listdir(folder)):
             rights = self._rights_path(name)
             if regex.fullmatch(name) and os.path.isfile(rights):
-                with open(rights, encoding="utf-8-sig", errors="replace") as файл:
-                    text = файл.read().replace("\r\n", "\n")
+                with open(rights, encoding="utf-8-sig", errors="replace") as file:
+                    text = file.read().replace("\r\n", "\n")
                 found[name] = mapping.granted_rights(self.tree.granted(self.tree.parse(text)))
         return found
 
@@ -362,9 +362,9 @@ class Repository(Configuration):
         node = self.tree.to_node(element)
         spec = mapping.spec_from_node(kind, node)
         if not rest:
-            формы = mapping.forms_from_node(node)
-            if формы:
-                spec.fields["формы"] = формы
+            forms = mapping.forms_from_node(node)
+            if forms:
+                spec.fields["формы"] = forms
         if kind == "РегламентноеЗадание" and not rest:
             schedule = self.schedule_of(path[0][1])
             if schedule is not None:
@@ -555,9 +555,9 @@ class Repository(Configuration):
         возникает."""
         if path is None:
             return self.eol
-        от_git = git.checkout_eol(self.root, os.path.relpath(path, self.root).replace(os.sep, "/"))
-        if от_git:
-            return EOL_BY_WORD[от_git]
+        from_git = git.checkout_eol(self.root, os.path.relpath(path, self.root).replace(os.sep, "/"))
+        if from_git:
+            return EOL_BY_WORD[from_git]
         try:
             with open(path, "rb") as source:
                 head = source.read(self.EOL_HEAD)
@@ -779,9 +779,9 @@ class Repository(Configuration):
         rest = path[1:]
         # Вложенная подсистема — своя карточка в каталоге родителя, а не узел
         # его карточки: «Подсистема.А.Подсистема.Б» открывает её файл.
-        цепочка = [object_name]
+        chain = [object_name]
         while object_kind == self.SUBSYSTEM and rest and rest[0][0] == self.SUBSYSTEM:
-            цепочка.append(rest[0][1])
+            chain.append(rest[0][1])
             rest = rest[1:]
         # Сообщение цитирует то, что написал человек, а внутреннее устройство
         # приписывает следом. Одно «карточки „…\\Catalogs\\Имя.xml“ нет» при
@@ -798,8 +798,8 @@ class Repository(Configuration):
             if not os.path.isfile(file_path):
                 raise Refuse(f"по адресу «{address}» макета нет "
                              f"(искали {file_path})")
-        elif len(цепочка) > 1:
-            file_path = self.subsystem_path(цепочка)
+        elif len(chain) > 1:
+            file_path = self.subsystem_path(chain)
             if not os.path.isfile(file_path):
                 raise Refuse(f"по адресу «{address}» подсистемы нет (искали {file_path})")
         else:
@@ -1060,8 +1060,8 @@ class Repository(Configuration):
         # сначала переписывался бы с вырезанным реквизитом, потом удалялся, —
         # а инвариант, который зависит от порядка набора строк, инвариантом
         # не является.
-        целиком = {tuple(path[0]) for path in paths if len(path) == 1}
-        собранные = Collected("не нашлось")
+        whole = {tuple(path[0]) for path in paths if len(path) == 1}
+        collected_items = Collected("не нашлось")
         for path in paths:
             object_kind, object_name = path[0]
             if len(path) == 1:
@@ -1071,12 +1071,12 @@ class Repository(Configuration):
                 # не рвётся на первом же ненайденном объекте.
                 file_path = self.object_path(object_kind, object_name)
                 if file_path is None:
-                    собранные.add(
+                    collected_items.add(
                         f"в адресе «{object_kind}.{object_name}» не знаю, "
                         f"где лежат объекты вида «{object_kind}»")
                     continue
                 if not os.path.isfile(file_path):
-                    собранные.add(
+                    collected_items.add(
                         f"по адресу «{object_kind}.{object_name}» объекта нет "
                         f"(искали {file_path})")
                     continue
@@ -1085,7 +1085,7 @@ class Repository(Configuration):
             # Вид входит в сравнение: `Справочник.Заявка` и `Документ.Заявка`
             # — разные объекты, и удаление первого целиком не мешает удалить
             # реквизит второго тем же заданием.
-            if (object_kind, object_name) in целиком:
+            if (object_kind, object_name) in whole:
                 raise Refuse(f"объект «{object_kind}.{object_name}» удаляется "
                              "целиком — удалять его часть отдельно незачем")
             # Адрес читается общей адресацией, как у правки и добавления:
@@ -1095,18 +1095,18 @@ class Repository(Configuration):
             try:
                 file_path, document, rest = self.resolve(path)
             except Refuse as refusal:
-                собранные.add(str(refusal))
+                collected_items.add(str(refusal))
                 continue
             document = opened.setdefault(file_path, document)
             steps = mapping.steps_of(rest)
             if not self.tree.remove_child(document, steps):
-                собранные.add("в «{}» нет «{}»".format(
+                collected_items.add("в «{}» нет «{}»".format(
                     os.path.basename(file_path),
                     ".".join(f"{kind}.{name}" for kind, name in rest)))
                 continue
             plan.note("удалить {}".format(
                 ".".join(f"{kind}.{name}" for kind, name in path)))
-        собранные.raise_collected()
+        collected_items.raise_collected()
         for file_path, document in opened.items():
             plan.add(file_path,
                      self._encode(self.tree.serialize(document), file_path),
@@ -1266,12 +1266,12 @@ class Repository(Configuration):
         self._writable()
         plan = Plan()
         opened = OrderedDict()
-        собранные = Collected("не нашлось")
+        collected_items = Collected("не нашлось")
         for path, node, name, kind, shown in additions:
             try:
                 file_path, document, rest = self.resolve(path)
             except Refuse as refusal:
-                собранные.add(str(refusal))
+                collected_items.add(str(refusal))
                 continue
             document = opened.setdefault(file_path, document)
             steps = mapping.steps_of(rest)
@@ -1298,7 +1298,7 @@ class Repository(Configuration):
             plan.note("добавить «{}» ({}) в {}".format(
                 shown, kind,
                 ".".join(f"{kind_}.{name_}" for kind_, name_ in path)))
-        собранные.raise_collected()
+        collected_items.raise_collected()
         for file_path, document in opened.items():
             plan.add(file_path,
                      self._encode(self.tree.serialize(document), file_path),
@@ -1340,21 +1340,21 @@ class Repository(Configuration):
         """
         self._writable()
         plan = Plan()
-        прочие = []
+        others = []
         for path, fields in changes:
             if len(path) == 1 and path[0][0] == "РегламентноеЗадание" and "расписание" in fields:
                 fields = dict(fields)
                 self._prepare_schedule(plan, path[0][1], fields.pop("расписание"))
             if fields:
-                прочие.append((path, fields))
-        changes = прочие
+                others.append((path, fields))
+        changes = others
         opened = OrderedDict()
-        собранные = Collected("не нашлось")
+        collected_items = Collected("не нашлось")
         for path, fields in changes:
             try:
                 file_path, card, rest = self.resolve(path)
             except Refuse as refusal:
-                собранные.add(str(refusal))
+                collected_items.add(str(refusal))
                 continue
             if file_path in opened:
                 card = opened[file_path]          # два изменения одного файла —
@@ -1363,7 +1363,7 @@ class Repository(Configuration):
             steps = mapping.steps_of(rest)
             node = self.tree.find(card, steps)
             if node is None:
-                собранные.add("в «{}» нет «{}»".format(
+                collected_items.add("в «{}» нет «{}»".format(
                     os.path.basename(file_path),
                     ".".join(f"{kind}.{name}" for kind, name in rest)))
                 continue
@@ -1381,16 +1381,16 @@ class Repository(Configuration):
                 # действительно другая и действительно русская: иначе у булева
                 # получилось бы «было true стало False (false)» — слева
                 # написание выгрузки, справа питоновское.
-                как_в_файле = _compact(after)
-                как_задано = _compact(str(value))
-                показать_обе = (isinstance(value, str)
-                                and как_задано != как_в_файле)
-                after_ = (f"{как_задано} ({как_в_файле})" if показать_обе
-                         else как_в_файле)
+                as_in_file = _compact(after)
+                as_given = _compact(str(value))
+                show_both = (isinstance(value, str)
+                                and as_given != as_in_file)
+                after_ = (f"{as_given} ({as_in_file})" if show_both
+                         else as_in_file)
                 plan.note("{}: {} было {} стало {}".format(
                     ".".join(f"{kind}.{name}" for kind, name in path),
                     field, _compact(before), after_))
-        собранные.raise_collected()
+        collected_items.raise_collected()
         for file_path, card in opened.items():
             plan.add(file_path,
                      self._encode(self.tree.serialize(card), file_path),
@@ -1420,13 +1420,13 @@ class Repository(Configuration):
         # именно поэтому, а не потому, что он там верен. Появится
         # второй вид — ошибка будет тихой, и потому проверяется здесь.
         if self.tree.tag_of(host) == "TabularSection":
-            присутствуют = {self.tree.local_name(t)
+            present = {self.tree.local_name(t)
                             for t in self.tree.child_elements_of(host)}
-            присутствуют.add(self.tree.local_name(tag))
-            if присутствуют - {"Attribute"}:
+            present.add(self.tree.local_name(tag))
+            if present - {"Attribute"}:
                 raise Refuse(
                     "порядок детей внутри табличной части не замерен, "
-                    f"а их тут больше одного вида: {', '.join(sorted(присутствуют))}")
+                    f"а их тут больше одного вида: {', '.join(sorted(present))}")
         # Теги сравниваются без приставки пространства имён: в порядке они
         # записаны разобранными именами, а у схемы компоновки почти всё
         # с приставкой. Приводит их сам разбор — здесь имя уже разобранное.

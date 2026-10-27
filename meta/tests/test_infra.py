@@ -791,30 +791,30 @@ def test_every_dictionary_value_occurs_in_its_own_tag():
         for field in kind_schema.fields:
             if not field.dictionary:
                 continue
-            тег = field.tag.rpartition(":")[2]
+            tag = field.tag.rpartition(":")[2]
             for value in field.dictionary.values():
-                ожидается.setdefault((тег, value), []).append(
+                ожидается.setdefault((tag, value), []).append(
                     f"{kind}.{field.domain}")
 
-    теги = sorted({тег for тег, _ in ожидается})
-    образец = re.compile("<(?:[\\w]+:)?(" + "|".join(теги) + ")>([^<]*)</")
+    tags = sorted({tag for tag, _ in ожидается})
+    образец = re.compile("<(?:[\\w]+:)?(" + "|".join(tags) + ")>([^<]*)</")
     встречено = collections.defaultdict(set)
-    for каталог, папки, файлы in os.walk(corpus.CORPUS):
+    for directory, папки, files in os.walk(corpus.CORPUS):
         папки[:] = [d for d in папки if d != "Forms"]
-        for name in файлы:
+        for name in files:
             if not name.endswith(".xml"):
                 continue
-            text = open(os.path.join(каталог, name), encoding="utf-8-sig",
+            text = open(os.path.join(directory, name), encoding="utf-8-sig",
                          errors="replace").read()
-            for тег, value in образец.findall(text):
-                встречено[тег].add(value)
+            for tag, value in образец.findall(text):
+                встречено[tag].add(value)
 
     пропало = [
-        f"<{тег}> не содержит «{value}» (поля: {', '.join(fields)})"
-        for (тег, value), fields in sorted(ожидается.items())
-        if встречено.get(тег) and value not in встречено[тег]
-        and (тег, value) not in НЕ_ВСТРЕЧАЮТСЯ]
+        f"<{tag}> не содержит «{value}» (поля: {', '.join(fields)})"
+        for (tag, value), fields in sorted(ожидается.items())
+        if встречено.get(tag) and value not in встречено[tag]
+        and (tag, value) not in НЕ_ВСТРЕЧАЮТСЯ]
     assert not пропало, ("значения словарей, которых нет в конфигурации:\n   "
                          + "\n   ".join(пропало))
-    print(f"значений словарей сверено {len(ожидается)} по {len(теги)} тегам")
+    print(f"значений словарей сверено {len(ожидается)} по {len(tags)} тегам")
 

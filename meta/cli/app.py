@@ -291,8 +291,8 @@ def show(controller, repo, address, detailed=False, ветвь=None):
         печать(shown_form(view, name, form_file, module_file, detailed, ПОДСКАЗКИ, ветвь=ветвь,
                           своя=своя))
     else:
-        _, spec, файл = ответ
-        печать(shown_object(spec, файл, ПОДСКАЗКИ, полностью=detailed))
+        _, spec, file = ответ
+        печать(shown_object(spec, file, ПОДСКАЗКИ, полностью=detailed))
         if ветвь:
             print("третий аргумент — ветка дерева формы; у объекта не применяется")
     return 0
@@ -313,9 +313,9 @@ def fields(controller, kind_name=None):
     if found is not None:
         печать(kind_fields(kind_name, *found))
         return 0
-    свойства = element_properties(kind_name)
-    if свойства is not None:
-        печать(свойства)
+    props = element_properties(kind_name)
+    if props is not None:
+        печать(props)
         return 0
     if is_a_type_word(kind_name):
         печать(types())
@@ -352,18 +352,18 @@ def verify(controller, argv):
         if len(позиционные) > 1:
             raise Refuse(f"выгрузка одна, получено: {', '.join(позиционные)}")
         только = [code.strip() for code in (ключи.get("--только") or "").split(",") if code.strip()]
-        файлы = [path.strip() for path in (ключи.get("--файлы") or "").split(",") if path.strip()]
+        files = [path.strip() for path in (ключи.get("--файлы") or "").split(",") if path.strip()]
         result = controller.verify(repo=позиционные[0] if позиционные else None,
                                    base=ключи.get("--база", "HEAD"), rev=ключи.get("--ревизия"),
                                    baseline=ключи.get("--эталон"), target=ключи.get("--копия"),
-                                   task=ключи.get("--задача"), only=только, paths=файлы)
+                                   task=ключи.get("--задача"), only=только, paths=files)
     except Refuse as refusal:
         print(f"ОТКАЗ: {refusal}")
         return 2
     печать(verify_lines(result))
     if ключи.get("--json"):
-        with open(ключи["--json"], "w", encoding="utf-8", newline="\n") as файл:
-            json.dump(verify_json(result), файл, ensure_ascii=False, indent=1)
+        with open(ключи["--json"], "w", encoding="utf-8", newline="\n") as file:
+            json.dump(verify_json(result), file, ensure_ascii=False, indent=1)
     return 0 if result.ok else 1
 
 
@@ -403,8 +403,8 @@ def plan_check(controller, argv):
         if not ключи.get("--план"):
             raise Refuse("--план <файл.json>: план изменений — JSON с ключом «объекты»")
         try:
-            with open(ключи["--план"], encoding="utf-8-sig") as файл:
-                plan = файл.read()
+            with open(ключи["--план"], encoding="utf-8-sig") as file:
+                plan = file.read()
         except OSError as error:
             raise Refuse(f"план «{ключи['--план']}» не прочитан: {error}") from error
         result = controller.plan_check(plan, **_источник(позиционные, ключи),
@@ -414,8 +414,8 @@ def plan_check(controller, argv):
         return 2
     печать(plan_check_lines(result))
     if ключи.get("--json"):
-        with open(ключи["--json"], "w", encoding="utf-8", newline="\n") as файл:
-            json.dump(plan_check_json(result), файл, ensure_ascii=False, indent=1)
+        with open(ключи["--json"], "w", encoding="utf-8", newline="\n") as file:
+            json.dump(plan_check_json(result), file, ensure_ascii=False, indent=1)
     return 0 if result.ok else 1
 
 
@@ -430,8 +430,8 @@ def plan_emit(controller, argv):
     text = json.dumps(plan_emit_json(result), ensure_ascii=False, indent=1)
     print(text)
     if ключи.get("--json"):
-        with open(ключи["--json"], "w", encoding="utf-8", newline="\n") as файл:
-            файл.write(text + "\n")
+        with open(ключи["--json"], "w", encoding="utf-8", newline="\n") as file:
+            file.write(text + "\n")
     return 0
 
 
@@ -502,7 +502,7 @@ def main(argv, controller):
     print(f"Выгрузка: {families.repo_of(job)}")
     result = controller.execute(job, apply_now)
     if isinstance(result, CodeResult):
-        печать(code_lines(result, apply_now, ПОДСКАЗКИ, целиком="--подробно" in flags))
+        печать(code_lines(result, apply_now, ПОДСКАЗКИ, whole="--подробно" in flags))
         return 0
 
     # Фрагмент кода для типовой формы терминал кладёт файлом рядом с
@@ -512,8 +512,8 @@ def main(argv, controller):
         for address, text in (getattr(result, "code", None) or {}).items():
             path = _code_path(job, job_path, address)
             if apply_now:
-                with open(path, "w", encoding="utf-8-sig", newline="\r\n") as файл:
-                    файл.write(text)
+                with open(path, "w", encoding="utf-8-sig", newline="\r\n") as file:
+                    file.write(text)
                 куда_код[address] = f"\nЗаписан фрагмент: {path}"
             else:
                 куда_код[address] = f"\nПросмотр: с --apply фрагмент ляжет в {path}"
@@ -522,5 +522,5 @@ def main(argv, controller):
     печать(result_lines(result, принято=job.get("принято"),
                         detailed="--подробно" in flags, apply_now=apply_now,
                         подсказки=ПОДСКАЗКИ, куда_код=куда_код,
-                        файлы="--подробно" in flags))
+                        files="--подробно" in flags))
     return 0 if result.ok else 1

@@ -84,10 +84,10 @@ class VerifyUseCase:
         for c in files:
             if c.status == DELETED or not src.is_text(c.path):
                 continue
-            данные = src.data(c.path, AFTER)
-            if данные is not None:
+            data = src.data(c.path, AFTER)
+            if data is not None:
                 own, почему_свои = src.expected_eol(c.path)
-                findings += rules.format_findings(c.path, данные, own, bom, почему_свои)
+                findings += rules.format_findings(c.path, data, own, bom, почему_свои)
 
         for c in files:
             if c.status != MODIFIED or not src.is_text(c.path) or src.is_service(c.path):
@@ -120,14 +120,14 @@ class VerifyUseCase:
     def _составы(self, files, skipped, notes):
         """Составные типы членов, появившихся в задаче, — по карточкам задачи."""
         src = self.source
-        карточки = [(c, src.object_of(c.path)) for c in files if c.status != DELETED]
-        карточки = [(c, obj) for c, obj in карточки if obj is not None]
-        if len(карточки) > ПРЕДЕЛ_КАРТОЧЕК:
-            skipped.append((rules.TYPE_SET_NARROWER, f"карточек в правках {len(карточки)}, больше "
+        cards = [(c, src.object_of(c.path)) for c in files if c.status != DELETED]
+        cards = [(c, obj) for c, obj in cards if obj is not None]
+        if len(cards) > ПРЕДЕЛ_КАРТОЧЕК:
+            skipped.append((rules.TYPE_SET_NARROWER, f"карточек в правках {len(cards)}, больше "
                                                    f"{ПРЕДЕЛ_КАРТОЧЕК}: похоже на перезалив выгрузки"))
             return []
         members = []
-        for c, (kind, name) in карточки:
+        for c, (kind, name) in cards:
             after = src.composition(kind, name, AFTER)
             if after is None or after.broken:
                 if after is not None:
@@ -164,11 +164,11 @@ def _ordered(findings):
 
 def _коды(only):
     """Коды правил фильтра; неизвестный — отказ с перечнем известных."""
-    коды = [к.strip() for к in only or () if к and к.strip()]
-    неизвестные = [к for к in коды if к not in rules.RULES]
+    коды = [kk.strip() for kk in only or () if kk and kk.strip()]
+    неизвестные = [kk for kk in коды if kk not in rules.RULES]
     if неизвестные:
         подсказка = (" — это номера пунктов регламента, а фильтр принимает коды правил"
-                     if any(НОМЕР_ПУНКТА.match(к) for к in неизвестные) else "")
+                     if any(НОМЕР_ПУНКТА.match(kk) for kk in неизвестные) else "")
         raise Refuse(f"неизвестные коды правил в only: {', '.join(неизвестные)}{подсказка}; "
                      f"коды: {', '.join(rules.RULES)}")
     return коды

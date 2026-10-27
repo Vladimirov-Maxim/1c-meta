@@ -29,23 +29,23 @@ from meta.tests.test_verify import git, выгрузка, зафиксирова
 ЭТАЛОНЫ = os.path.join(os.path.dirname(os.path.abspath(__file__)), "эталоны", "формы")
 
 
-def card(тег, name, members=()):
+def card(tag, name, members=()):
     """Карточка объекта: `члены` — [(тег ребёнка, имя, [обозначения типов] или None)]."""
     lines = ['<?xml version="1.0" encoding="UTF-8"?>', f'<MetaDataObject {ПРОСТРАНСТВА} version="2.21">',
-              f"\t<{тег}>", "\t\t<Properties>", f"\t\t\t<Name>{name}</Name>", "\t\t</Properties>"]
+              f"\t<{tag}>", "\t\t<Properties>", f"\t\t\t<Name>{name}</Name>", "\t\t</Properties>"]
     if members:
         lines.append("\t\t<ChildObjects>")
-        for ребёнок, член, types in members:
-            lines += [f"\t\t\t<{ребёнок}>", "\t\t\t\t<Properties>", f"\t\t\t\t\t<Name>{член}</Name>"]
+        for child, член, types in members:
+            lines += [f"\t\t\t<{child}>", "\t\t\t\t<Properties>", f"\t\t\t\t\t<Name>{член}</Name>"]
             if types is not None:
                 lines.append("\t\t\t\t\t<Type>")
                 for type_ in types:
-                    узел = "v8:TypeSet" if type_.startswith("cfg:DefinedType") else "v8:Type"
-                    lines.append(f"\t\t\t\t\t\t<{узел}>{type_}</{узел}>")
+                    node = "v8:TypeSet" if type_.startswith("cfg:DefinedType") else "v8:Type"
+                    lines.append(f"\t\t\t\t\t\t<{node}>{type_}</{node}>")
                 lines.append("\t\t\t\t\t</Type>")
-            lines += ["\t\t\t\t</Properties>", f"\t\t\t</{ребёнок}>"]
+            lines += ["\t\t\t\t</Properties>", f"\t\t\t</{child}>"]
         lines.append("\t\t</ChildObjects>")
-    return lines + [f"\t</{тег}>", "</MetaDataObject>"]
+    return lines + [f"\t</{tag}>", "</MetaDataObject>"]
 
 
 РЕГИСТР = "InformationRegisters/мой_Рег.xml"
@@ -80,17 +80,17 @@ def задача(tmp_path):
 
 def reconcile(capsys, root, plan, *ключи):
     """(код возврата, текст, находки JSON)."""
-    файл = os.path.join(os.path.dirname(str(root)), "план.json")
+    file = os.path.join(os.path.dirname(str(root)), "план.json")
     ответ = os.path.join(os.path.dirname(str(root)), "сверка.json")
-    with open(файл, "w", encoding="utf-8") as f:
+    with open(file, "w", encoding="utf-8") as f:
         json.dump(plan, f, ensure_ascii=False)
     if os.path.exists(ответ):
         os.remove(ответ)
     capsys.readouterr()
-    code = main(["--сверить-план", str(root), "--план", файл, "--json", ответ, *map(str, ключи)])
+    code = main(["--сверить-план", str(root), "--план", file, "--json", ответ, *map(str, ключи)])
     text = capsys.readouterr().out
-    данные = json.load(open(ответ, encoding="utf-8")) if os.path.exists(ответ) else None
-    return code, text, данные
+    data = json.load(open(ответ, encoding="utf-8")) if os.path.exists(ответ) else None
+    return code, text, data
 
 
 def по_факту(capsys, root, *ключи):
@@ -99,8 +99,8 @@ def по_факту(capsys, root, *ключи):
     return code, json.loads(capsys.readouterr().out)
 
 
-def коды(данные):
-    return sorted(f["код"] for f in данные["находки"])
+def коды(data):
+    return sorted(f["код"] for f in data["находки"])
 
 
 def изменить(plan, правка):
@@ -113,40 +113,40 @@ def изменить(plan, правка):
 
 
 def test_a_plan_matching_the_code_is_clean(tmp_path, capsys):
-    code, text, данные = reconcile(capsys, задача(tmp_path), ХОРОШИЙ)
-    assert code == 0 and данные["находки"] == [] and "СОВПАДАЕТ" in text, text
+    code, text, data = reconcile(capsys, задача(tmp_path), ХОРОШИЙ)
+    assert code == 0 and data["находки"] == [] and "СОВПАДАЕТ" in text, text
 
 
 def test_a_type_of_a_dimension_differs(tmp_path, capsys):
     plan = изменить(ХОРОШИЙ, lambda ob: ob[0]["измерения"].update(
         Документ=["ДокументСсылка.А", "ДокументСсылка.Б", "ДокументСсылка.В"]))
-    code, text, данные = reconcile(capsys, задача(tmp_path), plan)
-    assert code == 1 and коды(данные) == ["ПЛАН-ТИПЫ-РАСХОДЯТСЯ"]
+    code, text, data = reconcile(capsys, задача(tmp_path), plan)
+    assert code == 1 and коды(data) == ["ПЛАН-ТИПЫ-РАСХОДЯТСЯ"]
     assert "измерение «Документ»: типы расходятся; в плане, но не в выгрузке: ДокументСсылка.В" in text
 
 
 def test_a_member_made_but_not_declared(tmp_path, capsys):
-    code, text, данные = reconcile(capsys, задача(tmp_path), изменить(ХОРОШИЙ, lambda ob: ob[0].pop("ресурсы")))
-    assert коды(данные) == ["ПЛАН-ЧЛЕН-НЕ-ЗАЯВЛЕН"] and "ресурс «Сумма» есть в выгрузке" in text
-    assert данные["находки"][0]["файл"] == РЕГИСТР and данные["находки"][0]["объект"] == "РегистрСведений.мой_Рег"
+    code, text, data = reconcile(capsys, задача(tmp_path), изменить(ХОРОШИЙ, lambda ob: ob[0].pop("ресурсы")))
+    assert коды(data) == ["ПЛАН-ЧЛЕН-НЕ-ЗАЯВЛЕН"] and "ресурс «Сумма» есть в выгрузке" in text
+    assert data["находки"][0]["файл"] == РЕГИСТР and data["находки"][0]["объект"] == "РегистрСведений.мой_Рег"
 
 
 def test_a_member_declared_but_not_made(tmp_path, capsys):
     plan = изменить(ХОРОШИЙ, lambda ob: ob[0]["измерения"].update(Период=["Дата"]))
-    code, text, данные = reconcile(capsys, задача(tmp_path), plan)
-    assert коды(данные) == ["ПЛАН-ЧЛЕН-НЕ-СДЕЛАН"] and "измерение «Период» заявлено, в выгрузке нет" in text
+    code, text, data = reconcile(capsys, задача(tmp_path), plan)
+    assert коды(data) == ["ПЛАН-ЧЛЕН-НЕ-СДЕЛАН"] and "измерение «Период» заявлено, в выгрузке нет" in text
 
 
 def test_a_method_declared_but_not_written(tmp_path, capsys):
     plan = изменить(ХОРОШИЙ, lambda ob: ob[1].update(методы=["Пересчитать", "НетТакого"]))
-    code, text, данные = reconcile(capsys, задача(tmp_path), plan)
-    assert коды(данные) == ["ПЛАН-МЕТОД-НЕ-СДЕЛАН"] and "метод НетТакого заявлен, в модуле нет" in text
-    assert данные["находки"][0]["файл"] == МОДУЛЬ
+    code, text, data = reconcile(capsys, задача(tmp_path), plan)
+    assert коды(data) == ["ПЛАН-МЕТОД-НЕ-СДЕЛАН"] and "метод НетТакого заявлен, в модуле нет" in text
+    assert data["находки"][0]["файл"] == МОДУЛЬ
 
 
 def test_an_object_of_the_task_not_declared(tmp_path, capsys):
-    code, text, данные = reconcile(capsys, задача(tmp_path), изменить(ХОРОШИЙ, lambda ob: ob.pop(2)))
-    assert code == 1 and коды(данные) == ["ПЛАН-ОБЪЕКТ-НЕ-ЗАЯВЛЕН"]
+    code, text, data = reconcile(capsys, задача(tmp_path), изменить(ХОРОШИЙ, lambda ob: ob.pop(2)))
+    assert code == 1 and коды(data) == ["ПЛАН-ОБЪЕКТ-НЕ-ЗАЯВЛЕН"]
     assert "Перечисление.мой_Виды — новый объект, в плане не заявлен" in text
 
 
@@ -154,13 +154,13 @@ def test_only_declared_objects_are_checked_on_request(tmp_path, capsys):
     """Урезанный план круга: тронутое, но не заявленное — к сведению, не находкой;
     заявленное сверяется как обычно."""
     урезанный = изменить(ХОРОШИЙ, lambda ob: ob.pop(2))
-    code, text, данные = reconcile(capsys, задача(tmp_path), урезанный, "--только-заявленные")
-    assert code == 0 and данные["находки"] == [], text
+    code, text, data = reconcile(capsys, задача(tmp_path), урезанный, "--только-заявленные")
+    assert code == 0 and data["находки"] == [], text
     assert "сверены только заявленные объекты; к сведению — тронуто, но не заявлено: Перечисление.мой_Виды" \
         in text
     plan = изменить(урезанный, lambda ob: ob[0]["измерения"].update(Период=["Дата"]))
-    _, _, данные = reconcile(capsys, задача(tmp_path / "2"), plan, "--только-заявленные")
-    assert коды(данные) == ["ПЛАН-ЧЛЕН-НЕ-СДЕЛАН"]
+    _, _, data = reconcile(capsys, задача(tmp_path / "2"), plan, "--только-заявленные")
+    assert коды(data) == ["ПЛАН-ЧЛЕН-НЕ-СДЕЛАН"]
 
 
 def test_a_new_export_method_outside_the_plan_is_a_warning_with_its_line(tmp_path, capsys):
@@ -168,9 +168,9 @@ def test_a_new_export_method_outside_the_plan_is_a_warning_with_its_line(tmp_pat
     написать(root, МОДУЛЬ, ["Функция Пересчитать(Договор) Экспорт", "\tВозврат 1;", "КонецФункции", "",
                             "Функция Ещё(", "\tПараметр) Экспорт", "КонецФункции", "",
                             "Процедура Служебная()", "КонецПроцедуры"])
-    code, text, данные = reconcile(capsys, root, ХОРОШИЙ)
-    assert code == 0 and коды(данные) == ["ПЛАН-МЕТОД-НЕ-ЗАЯВЛЕН"], text
-    assert данные["находки"][0]["строка"] == 5 and "Служебная" not in text
+    code, text, data = reconcile(capsys, root, ХОРОШИЙ)
+    assert code == 0 and коды(data) == ["ПЛАН-МЕТОД-НЕ-ЗАЯВЛЕН"], text
+    assert data["находки"][0]["строка"] == 5 and "Служебная" not in text
 
 
 # --- запись типов ------------------------------------------------------------------------
@@ -227,8 +227,8 @@ def test_a_changed_object_declares_only_what_the_task_added(tmp_path, capsys):
     code, text, _ = reconcile(capsys, root, plan)
     assert code == 0, text
     plan["объекты"][0].pop("реквизиты")
-    code, text, данные = reconcile(capsys, root, plan)
-    assert коды(данные) == ["ПЛАН-ЧЛЕН-НЕ-ЗАЯВЛЕН"] and "мой_Признак" in text and "«Сумма»" not in text
+    code, text, data = reconcile(capsys, root, plan)
+    assert коды(data) == ["ПЛАН-ЧЛЕН-НЕ-ЗАЯВЛЕН"] and "мой_Признак" in text and "«Сумма»" not in text
 
 
 def test_a_change_declared_without_edits_is_a_warning(tmp_path, capsys):
@@ -237,23 +237,23 @@ def test_a_change_declared_without_edits_is_a_warning(tmp_path, capsys):
         ("Attribute", "Сумма", ["xs:decimal"])]))
     зафиксировать(root)
     plan = {"объекты": [{"вид": "Документ", "имя": "Вендорский", "действие": "изменить"}]}
-    code, text, данные = reconcile(capsys, root, plan)
-    assert code == 0 and коды(данные) == ["ПЛАН-ОБЪЕКТ-БЕЗ-ПРАВОК"], text
+    code, text, data = reconcile(capsys, root, plan)
+    assert code == 0 and коды(data) == ["ПЛАН-ОБЪЕКТ-БЕЗ-ПРАВОК"], text
 
 
 def test_an_unreadable_card_is_named_not_skipped(tmp_path, capsys):
     """Сломанная карточка — расхождение с причиной, а не молча пустой состав."""
     root = задача(tmp_path)
     написать(root, РЕГИСТР, ["<MetaDataObject/>"])
-    code, text, данные = reconcile(capsys, root, ХОРОШИЙ)
-    assert коды(данные) == ["ПЛАН-КАРТОЧКА-НЕ-ЧИТАЕТСЯ"] and "объявлением XML" in text, text
+    code, text, data = reconcile(capsys, root, ХОРОШИЙ)
+    assert коды(data) == ["ПЛАН-КАРТОЧКА-НЕ-ЧИТАЕТСЯ"] and "объявлением XML" in text, text
 
 
 def test_a_role_touched_along_the_way_is_a_warning(tmp_path, capsys):
     root = задача(tmp_path)
     написать(root, "Roles/мой_Чтение/Ext/Rights.xml", ["<Rights/>"])
-    code, text, данные = reconcile(capsys, root, ХОРОШИЙ)
-    assert code == 0 and коды(данные) == ["ПЛАН-ПОПУТНОЕ-НЕ-ЗАЯВЛЕНО"], text
+    code, text, data = reconcile(capsys, root, ХОРОШИЙ)
+    assert code == 0 and коды(data) == ["ПЛАН-ПОПУТНОЕ-НЕ-ЗАЯВЛЕНО"], text
     assert "Роль.мой_Чтение — новый объект" not in text and "Роль.мой_Чтение — изменён" in text
 
 
@@ -265,8 +265,8 @@ def test_deletion(tmp_path, capsys):
     code, text, _ = reconcile(capsys, root, plan)
     assert code == 0, text
     plan["объекты"].append({"вид": "Документ", "имя": "Вендорский", "действие": "удалить"})
-    code, text, данные = reconcile(capsys, root, plan)
-    assert коды(данные) == ["ПЛАН-ОБЪЕКТ-ОСТАЛСЯ"], text
+    code, text, data = reconcile(capsys, root, plan)
+    assert коды(data) == ["ПЛАН-ОБЪЕКТ-ОСТАЛСЯ"], text
 
 
 def test_a_revision_is_checked_as_well_as_the_working_copy(tmp_path, capsys):
@@ -289,7 +289,7 @@ def test_the_profile_sets_the_level(tmp_path, capsys):
 # --- неверный план — отказ ------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("правка, слова", [
+@pytest.mark.parametrize("правка, words", [
     (lambda ob: ob[0].update(измерение={"Х": None}), "неизвестные ключи измерение"),
     (lambda ob: ob[0].update(действие="переделать"), "бывает: создать, изменить, удалить"),
     (lambda ob: ob[0].update(методы=["Записать"]), "«методы» — у вида с одним модулем"),
@@ -298,10 +298,10 @@ def test_the_profile_sets_the_level(tmp_path, capsys):
     (lambda ob: ob[2].update(значения={"Первый": ["Строка"]}), "у значения перечисления типов не бывает"),
     (lambda ob: ob.append({"вид": "Выдумка", "имя": "Х", "действие": "создать"}), "выгрузке неизвестен"),
 ])
-def test_a_wrong_plan_is_refused_not_half_checked(tmp_path, capsys, правка, слова):
+def test_a_wrong_plan_is_refused_not_half_checked(tmp_path, capsys, правка, words):
     """Опечатка в ключе молча выключила бы сверку того, что за ним стоит."""
-    code, text, данные = reconcile(capsys, задача(tmp_path), изменить(ХОРОШИЙ, правка))
-    assert code == 2 and данные is None and text.startswith("ОТКАЗ:") and слова in text, text
+    code, text, data = reconcile(capsys, задача(tmp_path), изменить(ХОРОШИЙ, правка))
+    assert code == 2 and data is None and text.startswith("ОТКАЗ:") and words in text, text
 
 
 # --- план по факту ----------------------------------------------------------------------
@@ -345,8 +345,8 @@ def test_what_the_tool_wrote_the_plan_check_reads(tmp_path, capsys):
     регистр = next(ob for ob in plan["объекты"] if ob["имя"] == "мой_Остатки")
     assert регистр["ресурсы"] == {"Сумма": ["Число(15,2)"]} and регистр["измерения"] == {
         "Вид": ["Перечисление.мой_Виды"]}
-    code, text, данные = reconcile(capsys, root, plan)
-    assert code == 0 and данные["находки"] == [], text
+    code, text, data = reconcile(capsys, root, plan)
+    assert code == 0 and data["находки"] == [], text
 
 
 # --- MCP ----------------------------------------------------------------------------------
@@ -358,11 +358,11 @@ def test_the_agent_checks_a_plan_and_gets_the_fact(tmp_path):
     root = задача(tmp_path)
     сервер = mcp_server(roots=[str(root)])
 
-    def вызвать(инструмент, **аргументы):
-        ответ = asyncio.run(сервер.call_tool(инструмент, аргументы))
+    def вызвать(инструмент, **arguments):
+        ответ = asyncio.run(сервер.call_tool(инструмент, arguments))
         if isinstance(ответ, tuple):
             ответ = ответ[0]
-        return "\n".join(блок.text for блок in ответ)
+        return "\n".join(block.text for block in ответ)
 
     objects = json.loads(json.dumps(ХОРОШИЙ["объекты"]))
     objects[0]["измерения"]["Договор"] = None              # null — тип не сверяется
@@ -396,8 +396,8 @@ def test_a_narrower_type_set_of_a_similar_member_is_a_warning(tmp_path, capsys):
     написать(root, "InformationRegisters/мой_Итог.xml", card("InformationRegister", "мой_Итог", [
         ("Dimension", "ДокументВыдачи", ["cfg:DocumentRef.А", "cfg:DocumentRef.Б"]),
         ("Dimension", "ДокументЗачета", ["cfg:DocumentRef.А", "cfg:DocumentRef.Б", "cfg:DocumentRef.В"])]))
-    text, данные = проверить_правки(capsys, root)
-    findings = [f for f in данные["находки"] if f["код"] == "СОСТАВ-ТИПОВ-УЖЕ"]
+    text, data = проверить_правки(capsys, root)
+    findings = [f for f in data["находки"] if f["код"] == "СОСТАВ-ТИПОВ-УЖЕ"]
     assert len(findings) == 1 and findings[0]["уровень"] == "предупреждение", text
     assert "«РегистрСведений.мой_Итог.ДокументВыдачи» — состав типов уже" in findings[0]["текст"]
     assert "нет Документ.В" in findings[0]["текст"]
@@ -416,5 +416,5 @@ def test_equal_or_far_type_sets_and_old_members_are_left_alone(tmp_path, capsys)
         ("Dimension", "Второй", ["cfg:DocumentRef.А", "cfg:DocumentRef.Б", "cfg:DocumentRef.В"]),
         ("Dimension", "Широкий", ["cfg:DocumentRef.А", "cfg:DocumentRef.Б", "cfg:DocumentRef.В",
                                   "cfg:DocumentRef.Г", "cfg:DocumentRef.Д", "cfg:DocumentRef.Е"])]))
-    text, данные = проверить_правки(capsys, root)
-    assert not [f for f in данные["находки"] if f["код"] == "СОСТАВ-ТИПОВ-УЖЕ"], text
+    text, data = проверить_правки(capsys, root)
+    assert not [f for f in data["находки"] if f["код"] == "СОСТАВ-ТИПОВ-УЖЕ"], text

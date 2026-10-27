@@ -11,7 +11,7 @@ from .objects import describe
 
 
 def result_lines(result, принято=(), detailed=False, apply_now=False,
-                 подсказки=БЕЗ_КАНАЛА, куда_код=None, файлы=False):
+                 подсказки=БЕЗ_КАНАЛА, куда_код=None, files=False):
     """Ответ на задание целиком.
 
     `принято` — коды предупреждений, принятых в задании осознанно;
@@ -29,8 +29,8 @@ def result_lines(result, принято=(), detailed=False, apply_now=False,
     # с кем. Список кодов — в самом задании, чтобы решение хранилось рядом
     # с тем, к чему относится, а не в памяти запускающего.
     принято = set(принято or ())
-    непринятые = [к for к in принято
-                  if not any(f.code == к and not f.blocking
+    непринятые = [kk for kk in принято
+                  if not any(f.code == kk and not f.blocking
                              for _, obj_findings in result.per_object for f in obj_findings)]
     if непринятые:
         пиши("в «принято» коды, которых нет среди предупреждений: "
@@ -168,7 +168,7 @@ def result_lines(result, принято=(), detailed=False, apply_now=False,
     пиши("\nПлан:")
     for line in result.plan.describe():
         пиши("   " + line)
-    if файлы and not apply_now:
+    if files and not apply_now:
         lines.extend(тексты_файлов(result.plan))
     if apply_now:
         пиши(f"\nЗаписано файлов: {len(result.written)}")
@@ -197,7 +197,7 @@ def тексты_файлов(plan):
             разница = list(difflib.unified_diff(before.splitlines(), станет.splitlines(),
                                                 lineterm="", n=2))[2:]
             texts.extend("   " + line for line in разница)
-            с_uuid = с_uuid or any(с.startswith("+") and 'uuid="' in с for с in разница)
+            с_uuid = с_uuid or any(ss.startswith("+") and 'uuid="' in ss for ss in разница)
             if not разница:
                 texts.append("   (текст тот же)")
     # Показ выглядит как точный diff, а uuid в нём не те, что запишутся: сверка

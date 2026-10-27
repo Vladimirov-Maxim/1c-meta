@@ -620,7 +620,7 @@ def test_the_metadata_job_takes_the_type_the_way_show_prints_it():
     from meta.domain import model as dm
     from meta.jobs import dialect as job_dialect
 
-    образцы = [dm.StringType(50), dm.StringType(9, True), dm.NumberType(15, 2),
+    samples = [dm.StringType(50), dm.StringType(9, True), dm.NumberType(15, 2),
                dm.NumberType(10, 0, True), dm.DateType("Дата"), dm.DateType("ДатаВремя"),
                dm.DateType("Время"), dm.BooleanType(), dm.PlatformType("ХранилищеЗначения"),
                dm.TypeRef("Справочник", "Контрагенты", "Ссылка"),
@@ -629,18 +629,18 @@ def test_the_metadata_job_takes_the_type_the_way_show_prints_it():
                dm.TypeRef("ЛюбаяСсылка", None, None, is_set=True),
                dm.TypeRef.of_kind("Документ", "Ссылка"),
                dm.TypeRef("Документ", "Заявка", "Объект")]
-    for type_ in образцы:
-        запись = dm.type_record(type_)
-        разобрано = job_dialect.value_type_from_json(запись)
-        assert dm.type_record(разобрано) == запись, запись
-        assert type(разобрано) is type(type_), запись
-        assert getattr(разобрано, "is_set", None) == getattr(type_, "is_set", None), запись
+    for type_ in samples:
+        record = dm.type_record(type_)
+        разобрано = job_dialect.value_type_from_json(record)
+        assert dm.type_record(разобрано) == record, record
+        assert type(разобрано) is type(type_), record
+        assert getattr(разобрано, "is_set", None) == getattr(type_, "is_set", None), record
     составной = [dm.StringType(10), dm.TypeRef("Справочник", "Склады", "Ссылка")]
-    запись = dm.type_record(составной)
-    assert запись == "Строка(10) | Справочник.Склады"
-    assert dm.type_record(job_dialect.value_type_from_json(запись)) == запись
+    record = dm.type_record(составной)
+    assert record == "Строка(10) | Справочник.Склады"
+    assert dm.type_record(job_dialect.value_type_from_json(record)) == record
     # и задание на формы понимает ту же запись
-    assert dm.type_record(job_dialect.value_type_from_text(запись)) == запись
+    assert dm.type_record(job_dialect.value_type_from_text(record)) == record
     точка = dm.TypeRef("ТочкаМаршрутаБизнесПроцесса", None, None)
     assert dm.type_record(job_dialect.value_type_from_json(str(точка))) == str(точка)
 
@@ -659,29 +659,29 @@ def test_every_attribute_type_of_the_corpus_is_read_and_reads_back():
     дамп = DesignerDump(root)
     bad, всего = [], 0
 
-    def обойти(spec, where):
+    def walk(spec, where):
         nonlocal всего
         for attribute in spec.get("реквизиты") or []:
             всего += 1
             type_ = attribute.get("тип")
-            запись = dm.type_record(type_)
-            if isinstance(type_, dm.AnyType) or "object at" in запись:
-                bad.append(f"{where}.{attribute.get('имя')}: {запись}")
+            record = dm.type_record(type_)
+            if isinstance(type_, dm.AnyType) or "object at" in record:
+                bad.append(f"{where}.{attribute.get('имя')}: {record}")
                 continue
             try:
-                обратно = dm.type_record(job.value_type_from_json(запись))
+                обратно = dm.type_record(job.value_type_from_json(record))
             except Refuse as refusal:
                 обратно = f"отказ: {refusal}"
-            if обратно != запись:
-                bad.append(f"{where}.{attribute.get('имя')}: {запись} -> {обратно}")
+            if обратно != record:
+                bad.append(f"{where}.{attribute.get('имя')}: {record} -> {обратно}")
         for part in spec.get("табличныеЧасти") or []:
-            обойти(part, f"{where}.{part.get('имя')}")
+            walk(part, f"{where}.{part.get('имя')}")
 
-    for kind, каталог in (("Справочник", "Catalogs"), ("Документ", "Documents")):
-        for файл in sorted(os.listdir(os.path.join(root, каталог))):
-            if файл.endswith(".xml"):
-                spec, _ = дамп.read_spec([(kind, файл[:-4])])
-                обойти(spec, f"{kind}.{файл[:-4]}")
+    for kind, directory in (("Справочник", "Catalogs"), ("Документ", "Documents")):
+        for file in sorted(os.listdir(os.path.join(root, directory))):
+            if file.endswith(".xml"):
+                spec, _ = дамп.read_spec([(kind, file[:-4])])
+                walk(spec, f"{kind}.{file[:-4]}")
     assert всего > 40000, всего
     assert not bad, bad[:10]
 
@@ -1175,16 +1175,16 @@ def test_the_plan_keeps_the_size_it_had_before_writing(tmp_path):
     """
     from meta.infra.repository import Plan
 
-    файл = os.path.join(str(tmp_path), "карточка.xml")
-    open(файл, "wb").write(b"x" * 100)
+    file = os.path.join(str(tmp_path), "карточка.xml")
+    open(file, "wb").write(b"x" * 100)
     plan = Plan()
-    plan.add(файл, b"y" * 250, False)
+    plan.add(file, b"y" * 250, False)
     до_записи = "\n".join(plan.describe())
     plan.apply()
     after = "\n".join(plan.describe())
     assert "станет 250 Б, было 100 Б" in до_записи, до_записи
     assert after == до_записи, after
-    assert os.path.getsize(файл) == 250          # запись действительно была
+    assert os.path.getsize(file) == 250          # запись действительно была
 
 
 def test_a_typo_in_a_type_kind_is_not_taken_for_a_reference():
@@ -1380,9 +1380,9 @@ def test_what_was_written_reads_back_the_same(tmp_path, задание):
     AddObjectUseCase(DesignerDump(root)).execute(
         [job.spec_from_json(задание)], apply_now=True)
 
-    прочитано, файл = DesignerDump(root).read_spec(
+    прочитано, file = DesignerDump(root).read_spec(
         [(задание["вид"], задание["поля"]["имя"])])
-    assert os.path.isfile(файл)
+    assert os.path.isfile(file)
     for field, ожидалось in задание["поля"].items():
         если_дети = isinstance(ожидалось, list) and ожидалось and isinstance(
             ожидалось[0], dict)
@@ -1758,7 +1758,7 @@ def test_the_register_matches_what_the_designer_wrote(tmp_path):
         f.code for f in result.findings]
     записано = open(os.path.join(root, "AccumulationRegisters", "мой_ЭталонРН.xml"),
                     encoding="utf-8-sig").read()
-    эталон = open(os.path.join(os.path.dirname(os.path.abspath(__file__)),
+    reference_node = open(os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                "эталоны", "РегистрНакопления-конфигуратор.xml"),
                   encoding="utf-8-sig").read()
     уид = re.compile(r'(uuid="|<xr:TypeId>|<xr:ValueId>)[0-9a-f-]{36}')
@@ -1766,7 +1766,7 @@ def test_the_register_matches_what_the_designer_wrote(tmp_path):
     def без_идентификаторов(text):
         return уид.sub(r"\1…", text).replace("\r\n", "\n").rstrip("\n")
 
-    assert без_идентификаторов(записано) == без_идентификаторов(эталон)
+    assert без_идентификаторов(записано) == без_идентификаторов(reference_node)
 
 
 def test_the_three_demands_of_an_accumulation_register_differ_in_severity():
@@ -1787,8 +1787,8 @@ def test_the_three_demands_of_an_accumulation_register_differ_in_severity():
     assert not по_коду["РЕГИСТР-НАКОПЛЕНИЯ-БЕЗ-ИЗМЕРЕНИЯ"].blocking
     assert not по_коду["РЕГИСТР-НАКОПЛЕНИЯ-БЕЗ-РЕГИСТРАТОРА"].blocking
     # про регистратор говорится всегда: его в карточке регистра не видно
-    полный = kind.check(kind.fill(job.spec_from_json(РЕГИСТР_НАКОПЛЕНИЯ)), World())
-    коды = [f.code for f in полный if f.code != "МД-БЕЗ-СИНОНИМА"]
+    full = kind.check(kind.fill(job.spec_from_json(РЕГИСТР_НАКОПЛЕНИЯ)), World())
+    коды = [f.code for f in full if f.code != "МД-БЕЗ-СИНОНИМА"]
     assert коды == ["РЕГИСТР-НАКОПЛЕНИЯ-БЕЗ-РЕГИСТРАТОРА"], коды
 
 

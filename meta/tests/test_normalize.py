@@ -32,9 +32,9 @@ def прочитать(root, rel):
     return lines, bom, crlf, lf, text.endswith("\n")
 
 
-def нормализовать(capsys, *аргументы):
+def нормализовать(capsys, *arguments):
     capsys.readouterr()
-    code = main(["--нормализовать", *map(str, аргументы)])
+    code = main(["--нормализовать", *map(str, arguments)])
     return code, capsys.readouterr().out
 
 
@@ -150,18 +150,18 @@ def test_it_is_an_operation_not_an_event(tmp_path, capsys):
 def test_a_directory_pair_takes_the_format_of_the_baseline(tmp_path, capsys):
     """Обработка вне репозитория: BOM и переводы строк — как у эталона,
     хвостовые пробелы — по совпадению строк без них."""
-    эталон, copy_ = tmp_path / "эталон", tmp_path / "копия"
-    написать(эталон, "Обработка/Ext/ObjectModule.bsl",
+    reference_node, copy_ = tmp_path / "эталон", tmp_path / "копия"
+    написать(reference_node, "Обработка/Ext/ObjectModule.bsl",
              ["Процедура Сформировать()", "\tЗначение = 1;  ", "\tДругое = 2;", "КонецПроцедуры"])
     написать(copy_, "Обработка/Ext/ObjectModule.bsl",
              ["Процедура Сформировать()", "\tЗначение = 1;", "\tДругое = 3;", "КонецПроцедуры"],
              eol="\n", bom=False)
-    code, text = нормализовать(capsys, "--эталон", эталон, "--копия", copy_, "--apply")
+    code, text = нормализовать(capsys, "--эталон", reference_node, "--копия", copy_, "--apply")
     lines, bom, crlf, lf, _ = прочитать(copy_, "Обработка/Ext/ObjectModule.bsl")
     assert code == 0 and bom and crlf == 4 and lf == 0, text
     assert lines[1] == "\tЗначение = 1;  " and lines[2] == "\tДругое = 3;"
-    assert прочитать(эталон, "Обработка/Ext/ObjectModule.bsl")[1]          # эталон не тронут
-    code, text = нормализовать(capsys, "--эталон", эталон, "--копия", copy_)
+    assert прочитать(reference_node, "Обработка/Ext/ObjectModule.bsl")[1]          # эталон не тронут
+    code, text = нормализовать(capsys, "--эталон", reference_node, "--копия", copy_)
     assert code == 0 and "ФОРМАТ В НОРМЕ" in text
 
 
@@ -174,11 +174,11 @@ def test_the_agent_normalizes_only_allowed_dumps(tmp_path):
     написать(root, НОВЫЙ, ["Процедура Б() Экспорт", "\tВозврат;", "КонецПроцедуры"], bom=False)
     сервер = mcp_server(roots=[str(root)])
 
-    def вызвать(инструмент, **аргументы):
-        ответ = asyncio.run(сервер.call_tool(инструмент, аргументы))
+    def вызвать(инструмент, **arguments):
+        ответ = asyncio.run(сервер.call_tool(инструмент, arguments))
         if isinstance(ответ, tuple):
             ответ = ответ[0]
-        return "\n".join(блок.text for блок in ответ)
+        return "\n".join(block.text for block in ответ)
 
     assert "вызовите normalize_apply" in вызвать("normalize_check", repo=str(root))
     assert not прочитать(root, НОВЫЙ)[1]

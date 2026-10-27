@@ -93,13 +93,13 @@ NUMBERS = f"""<?xml version="1.0" encoding="UTF-8"?>
 def написать(src, rel, text):
     path = os.path.join(str(src), *rel.split("/"))
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "wb") as файл:
-        файл.write(text.encode("utf-8"))
+    with open(path, "wb") as file:
+        file.write(text.encode("utf-8"))
 
 
 def прочитать(src, rel):
-    with open(os.path.join(str(src), *rel.split("/")), "rb") as файл:
-        return файл.read().decode("utf-8")
+    with open(os.path.join(str(src), *rel.split("/")), "rb") as file:
+        return file.read().decode("utf-8")
 
 
 def git(root, *args):
@@ -122,11 +122,11 @@ def проект(tmp_path, monkeypatch):
 def add(src, tmp_path, *пункты, apply=True):
     задание = {"repo": str(src), "additions": [
         {"путь": path, "вид": "ПредопределенныйЭлемент", "поля": fields} for path, fields in пункты]}
-    файл = tmp_path / "задание.json"
-    файл.write_text(json.dumps(задание, ensure_ascii=False), encoding="utf-8")
+    file = tmp_path / "задание.json"
+    file.write_text(json.dumps(задание, ensure_ascii=False), encoding="utf-8")
     профиль = tmp_path / "профиль.json"
     профиль.write_text(json.dumps(ПРОФИЛЬ, ensure_ascii=False), encoding="utf-8")
-    return main([str(файл), "--профиль", str(профиль)] + (["--apply"] if apply else []))
+    return main([str(file), "--профиль", str(профиль)] + (["--apply"] if apply else []))
 
 
 def test_a_predefined_item_goes_to_the_end_of_the_block(проект, tmp_path):
@@ -209,10 +209,10 @@ def test_the_plan_names_new_predefined_items_and_checks_them(проект, tmp_p
             "предопределенные": ["Новый"]} in plan["объекты"], plan
 
     def reconcile(obj):
-        файл = tmp_path / "заявлено.json"
-        файл.write_text(json.dumps({"объекты": [obj]}, ensure_ascii=False), encoding="utf-8")
+        file = tmp_path / "заявлено.json"
+        file.write_text(json.dumps({"объекты": [obj]}, ensure_ascii=False), encoding="utf-8")
         отчёт = tmp_path / "сверка.json"
-        main(["--сверить-план", str(проект), "--план", str(файл), "--json", str(отчёт)])
+        main(["--сверить-план", str(проект), "--план", str(file), "--json", str(отчёт)])
         return [f["код"] for f in json.loads(отчёт.read_text(encoding="utf-8"))["находки"]]
 
     assert reconcile({"вид": "Справочник", "имя": "мой_Виды", "действие": "изменить"}) == ["ПЛАН-ЧЛЕН-НЕ-ЗАЯВЛЕН"]

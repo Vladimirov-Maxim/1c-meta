@@ -44,8 +44,8 @@ def написать(root, rel, lines, eol="\r\n", bom=True, final=True):
     path = os.path.join(root, *rel.split("/"))
     os.makedirs(os.path.dirname(path), exist_ok=True)
     text = eol.join(lines) + (eol if final else "")
-    with open(path, "wb") as файл:
-        файл.write((b"\xef\xbb\xbf" if bom else b"") + text.encode("utf-8"))
+    with open(path, "wb") as file:
+        file.write((b"\xef\xbb\xbf" if bom else b"") + text.encode("utf-8"))
 
 
 def прочитать(root, rel):
@@ -88,13 +88,13 @@ def запустить(root, apply=True, **fields):
     job = {"repo": root, "task": fields.pop("task", "TASK-1"),
            "date": fields.pop("date", "31.08.2026"), "author": fields.pop("author", АВТОР)}
     job.update(fields)
-    файл = os.path.join(os.path.dirname(root), f"задание-{abs(hash(json.dumps(job, ensure_ascii=False)))}.json")
-    with open(файл, "w", encoding="utf-8") as f:
+    file = os.path.join(os.path.dirname(root), f"задание-{abs(hash(json.dumps(job, ensure_ascii=False)))}.json")
+    with open(file, "w", encoding="utf-8") as f:
         json.dump(job, f, ensure_ascii=False)
     буфер = io.StringIO()
     with redirect_stdout(буфер):
         try:
-            code = add.main([файл] + (["--apply"] if apply else []))
+            code = add.main([file] + (["--apply"] if apply else []))
         except Refuse as refusal:
             print(f"ОТКАЗ: {refusal}")
             code = 1
@@ -749,11 +749,11 @@ def test_code_through_mcp(репо):
     root = репо(ТЕСТ)
     сервер = mcp_server(roots=[root])
 
-    def вызвать(name, **аргументы):
-        ответ = asyncio.run(сервер.call_tool(name, аргументы))
+    def вызвать(name, **arguments):
+        ответ = asyncio.run(сервер.call_tool(name, arguments))
         if isinstance(ответ, tuple):
             ответ = ответ[0]
-        return "\n".join(блок.text for блок in ответ)
+        return "\n".join(block.text for block in ответ)
 
     # Ключ модуля в схеме MCP — `module`, латиницей, как соседи; «модуль»
     # тоже понимается, а оба сразу — отказ.
@@ -762,9 +762,9 @@ def test_code_through_mcp(репо):
                             "edits": [{"line": 3, "lines": 0, "code": "\tПроверка();"}]}]}
     просмотр = вызвать("code_check", **задание)
     assert "вызовите code_apply с тем же заданием" in просмотр
-    по_русски = dict(задание, modules=[{"модуль": "ОбщийМодуль.их_Вендорский",
+    in_russian = dict(задание, modules=[{"модуль": "ОбщийМодуль.их_Вендорский",
                                         "edits": задание["modules"][0]["edits"]}])
-    assert вызвать("code_check", **по_русски) == просмотр
+    assert вызвать("code_check", **in_russian) == просмотр
     дважды = dict(задание, modules=[dict(задание["modules"][0], модуль="ОбщийМодуль.Х")])
     assert "назван дважды" in вызвать("code_check", **дважды)
     assert "фрагмент" not in body(root)
@@ -816,14 +816,14 @@ def test_the_server_answers_through_a_real_channel(репо):
                             "edits": [{"line": 3, "lines": 0, "code": "\tПроверка();"}]}]}
 
     async def через_канал():
-        async with stdio_client(parameters) as (чтение, запись):
-            async with ClientSession(чтение, запись) as сеанс:
+        async with stdio_client(parameters) as (чтение, record):
+            async with ClientSession(чтение, record) as сеанс:
                 await сеанс.initialize()
                 ответ = await asyncio.wait_for(сеанс.call_tool("code_check", задание), СРОК)
                 # Ответ — простым текстом: в обёртке {"result": …} переводы строк
                 # и табуляции показа пришли бы клиенту экранированными.
                 assert ответ.structuredContent is None
-                return "\n".join(блок.text for блок in ответ.content)
+                return "\n".join(block.text for block in ответ.content)
 
     СРОК = 30
     start = time.monotonic()
@@ -1545,7 +1545,7 @@ def test_the_preview_shows_the_neighbours_of_the_block(репо):
     root = репо(ТЕСТ)
     _, text = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[правка(3, code="\tХ();")])
     lines = text.splitlines()
-    shown = [i for i, с in enumerate(lines) if re.match(r"^ {8}[ \d]{6} │", с)]
+    shown = [i for i, ss in enumerate(lines) if re.match(r"^ {8}[ \d]{6} │", ss)]
     assert lines[shown[0] - 1].endswith("·\tЗначение = 1;"), lines[shown[0] - 1]
     assert lines[shown[-1] + 1].endswith("·\tВозврат;"), lines[shown[-1] + 1]
     assert "«·» — соседние строки" in text
@@ -1613,8 +1613,8 @@ def test_revert_decisions_go_in_line_order(репо):
     root = репо(ТЕСТ)
     запустить(root, path=ВЕНДОРСКИЙ, edits=[правка(2, code="\tА();"), правка(4, code="\tБ();")])
     _, text = запустить(root, apply=False, path=ВЕНДОРСКИЙ, revert=True)
-    первые = [int(m.group(1)) for m in re.finditer(r"(?m)^    строки (\d+)-\d+: откат", text)]
-    assert первые == sorted(первые) and len(первые) == 2, text
+    first_ones = [int(m.group(1)) for m in re.finditer(r"(?m)^    строки (\d+)-\d+: откат", text)]
+    assert first_ones == sorted(first_ones) and len(first_ones) == 2, text
 
 
 # --- ёлочки, отступы, место правки, области и стыки отката ---------------------------
@@ -1787,13 +1787,13 @@ def test_a_repeated_region_is_refused(репо):
     lines = ["#Область Обработчики", "", "Процедура А()", "\tА();", "КонецПроцедуры", "",
               "#КонецОбласти", "", "#Область Служебные", "", "#КонецОбласти"]
     root = репо(lines)
-    новая = "#Область Обработчики\n\nПроцедура Б()\n\tБ();\nКонецПроцедуры\n\n#КонецОбласти"
+    new_one = "#Область Обработчики\n\nПроцедура Б()\n\tБ();\nКонецПроцедуры\n\n#КонецОбласти"
     code, text = запустить(root, apply=False, path=ВЕНДОРСКИЙ,
-                           edits=[правка(9, first="#Область Служебные", code=новая)])
+                           edits=[правка(9, first="#Область Служебные", code=new_one)])
     assert code == 1 and "область «Обработчики» здесь уже есть (строки 1-7)" in text, text
     assert "якорем её #КонецОбласти (строка 7)" in text
     code, text = запустить(root, apply=False, path=ВЕНДОРСКИЙ,
-                           edits=[правка(11, first="#КонецОбласти", code=новая)])
+                           edits=[правка(11, first="#КонецОбласти", code=new_one)])
     assert code == 0, text
 
 
@@ -1809,12 +1809,12 @@ def test_the_revert_preview_shows_neighbours_and_apply_shows_text_on_request(р�
     root = репо(ТЕСТ, name="подробно")
     job = {"repo": root, "task": "TASK-1", "date": "31.08.2026", "author": АВТОР,
            "path": ВЕНДОРСКИЙ, "edits": [правка(3, code="\tХ();")]}
-    файл = os.path.join(os.path.dirname(root), "подробно.json")
-    with open(файл, "w", encoding="utf-8") as f:
+    file = os.path.join(os.path.dirname(root), "подробно.json")
+    with open(file, "w", encoding="utf-8") as f:
         json.dump(job, f, ensure_ascii=False)
     буфер = io.StringIO()
     with redirect_stdout(буфер):
-        add.main([файл, "--apply", "--подробно"])
+        add.main([file, "--apply", "--подробно"])
     assert "«│» — что записано" in буфер.getvalue() and "│\tХ();" in буфер.getvalue()
 
 

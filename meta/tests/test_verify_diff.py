@@ -42,5 +42,5 @@ def test_a_new_method_after_a_nested_insertion_is_not_an_edit_inside_another_tas
     написать(root, МОДУЛЬ, БЫЛО)
     зафиксировать(root, "чужой метод")
     написать(root, МОДУЛЬ, СТАЛО)
-    _, text, данные = check(capsys, профиль, root, "--задача", "TASK-1")
-    assert "ПРАВКА-В-ЧУЖОЙ-ВСТАВКЕ" not in коды(данные), text
+    _, text, data = check(capsys, профиль, root, "--задача", "TASK-1")
+    assert "ПРАВКА-В-ЧУЖОЙ-ВСТАВКЕ" not in коды(data), text

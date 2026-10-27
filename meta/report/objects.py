@@ -29,8 +29,8 @@ def по_человечески(value):
     if isinstance(value, (list, tuple)):
         return ", ".join(по_человечески(x) for x in value) or "(пусто)"
     if isinstance(value, dict):
-        return ", ".join(f"{к}: {по_человечески(vv)}"
-                         for к, vv in value.items()) or "(пусто)"
+        return ", ".join(f"{kk}: {по_человечески(vv)}"
+                         for kk, vv in value.items()) or "(пусто)"
     # Длины и разрядности записываются текстом, а голым числом печатались бы
     # ровно в том виде, в каком инструмент их и отвергает, если это число.
     # Кавычки снимают вопрос «а что он записал».
@@ -82,7 +82,7 @@ def describe(spec, indent="   ", top=True, показать_всё=False, detail
         # умолчания» отвечал бы на вопрос «что тут необычного», а нужен
         # ответ на «то ли я заказал». Заодно видно, принято ли поле вообще:
         # его отсутствие в выводе означает, что оно не разобрано.
-        дети = dict(getattr(kind, "child_fields", ()) or ())
+        child_fields = dict(getattr(kind, "child_fields", ()) or ())
         назвал = (frozenset(spec.fields) if показать_всё
                   else getattr(spec, "asked", frozenset(spec.fields)))
 
@@ -90,7 +90,7 @@ def describe(spec, indent="   ", top=True, показать_всё=False, detail
         # три десятка, и за ними теряется то, ради чего смотрят. В просмотре
         # задания наоборот — там пустое значение человек написал сам.
         def стоит_печатать(field_name):
-            if field_name in дети or field_name == "имя":
+            if field_name in child_fields or field_name == "имя":
                 return False
             if field_name in getattr(kind, "derived", ()):
                 return False
@@ -127,16 +127,16 @@ def describe(spec, indent="   ", top=True, показать_всё=False, detail
                 continue
             if (not полностью and isinstance(value, str)
                     and value.count("\n") >= СВОДКА_ОТ_СТРОК):
-                first, *прочие = _сводка(value, indent, подсказки)
+                first, *rest = _сводка(value, indent, подсказки)
                 пиши(f"{indent}{field_name}: {first}")
-                lines.extend(прочие)
+                lines.extend(rest)
                 continue
             пиши(f"{indent}{field_name}: {по_человечески(value)}")
         # Про остальное сказано одной строкой — иначе молчание двусмысленно:
         # «поле не названо» и «поле проглочено» выглядят одинаково.
         прочих = 0 if kind is None else len(
             [pt for pt in kind.fields if not стоит_печатать(pt)
-             and pt not in дети and pt != "имя"
+             and pt not in child_fields and pt != "имя"
              and pt not in getattr(kind, "derived", ())])
     for field, child_kind in (getattr(kind, "child_fields", ()) or ()):
         children = spec.get(field) or []
@@ -194,7 +194,7 @@ def describe(spec, indent="   ", top=True, показать_всё=False, detail
     return lines
 
 
-def shown_object(spec, файл, подсказки=БЕЗ_КАНАЛА, полностью=False):
+def shown_object(spec, file, подсказки=БЕЗ_КАНАЛА, полностью=False):
     """Карточка с диска тем же языком, что просмотр задания.
 
     Просмотр задания отвечает на вопрос «то ли я заказал» — про намерение.
@@ -202,16 +202,16 @@ def shown_object(spec, файл, подсказки=БЕЗ_КАНАЛА, пол�
     XML глазами — ровно тем знанием формата, ради избавления от которого
     инструмент и заведён.
     """
-    lines = [f"{spec.kind} {spec.get('имя')}   ({файл})"]
+    lines = [f"{spec.kind} {spec.get('имя')}   ({file})"]
     describe(spec, показать_всё=True, подсказки=подсказки, lines=lines, полностью=полностью)
     # Формы — чтобы узнать их, не открывая каталог. Основные помечены.
-    формы = spec.get("формы") or []
-    if формы:
+    forms = spec.get("формы") or []
+    if forms:
         def role(name):
             roles = [word for field, word in ОСНОВНЫЕ_ФОРМЫ
                     if str(spec.get(field) or "").endswith((f".Form.{name}", f".Форма.{name}"))]
             return f" ({', '.join(roles)})" if roles else ""
-        lines.append("   формы: " + ", ".join(name + role(name) for name in формы))
+        lines.append("   формы: " + ", ".join(name + role(name) for name in forms))
         lines.append(f"   форма — show по адресу «{spec.kind}.{spec.get('имя')}.<Имя формы>»")
     return lines
 

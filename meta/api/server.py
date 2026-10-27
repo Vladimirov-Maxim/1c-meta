@@ -104,7 +104,7 @@ def _подсказки(записать):
         ключ_модуля="module",
         # Формы у MCP — свои инструменты, а не операция рядом с objects:
         # формат задания терминала в эту справку не переносится.
-        формы="Формы — не операция metadata_*: их заводят и дополняют инструменты "
+        forms="Формы — не операция metadata_*: их заводят и дополняют инструменты "
               "forms_check / forms_apply, задание на формы описано их схемой; свойства "
               'элемента — fields(kind="ПолеВвода") и т. п.',
         ветвь="«element»",
@@ -264,9 +264,9 @@ def build(controller, conventions=NEUTRAL):
             _, view, name, form_file, module_file, своя = ответ
             return text(shown_form(view, name, form_file, module_file, verbose, ФОРМЫ,
                                     ветвь=element, своя=своя))
-        _, spec, файл = ответ
+        _, spec, file = ответ
         surplus = ["«element» — ветка дерева формы; у объекта не применяется"] if element else []
-        return text(shown_object(spec, файл, МЕТАДАННЫЕ, полностью=verbose) + surplus)
+        return text(shown_object(spec, file, МЕТАДАННЫЕ, полностью=verbose) + surplus)
 
     @server.tool(structured_output=False)
     @словами
@@ -284,9 +284,9 @@ def build(controller, conventions=NEUTRAL):
         found = controller.kind(kind)
         if found is not None:
             return text(kind_fields(kind, *found))
-        свойства = element_properties(kind)
-        if свойства is not None:
-            return text(свойства)
+        props = element_properties(kind)
+        if props is not None:
+            return text(props)
         if is_a_type_word(kind):
             return text(types())
         raise Refuse("вида «{}» нет; есть: {}".format(kind, ", ".join(controller.kind_names())))
@@ -294,7 +294,7 @@ def build(controller, conventions=NEUTRAL):
     def _формы(repo, forms, accepted, apply_now, verbose=False):
         result = controller.forms(repo, forms, apply_now)
         return text(с_выгрузкой(repo, result_lines(
-            result, принято=accepted, apply_now=apply_now, подсказки=ФОРМЫ, файлы=verbose)))
+            result, принято=accepted, apply_now=apply_now, подсказки=ФОРМЫ, files=verbose)))
 
     @server.tool(structured_output=False)
     @словами
@@ -324,7 +324,7 @@ def build(controller, conventions=NEUTRAL):
     def _код(repo, task, date, author, modules, move_method, apply_now, verbose=False, base="HEAD"):
         result = controller.code(repo, task, date, author, modules, move_method, apply_now,
                                  base=None if base in ("", "HEAD") else base)
-        return text([f"Выгрузка: {repo}"] + code_lines(result, apply_now, КОД, целиком=verbose))
+        return text([f"Выгрузка: {repo}"] + code_lines(result, apply_now, КОД, whole=verbose))
 
     @server.tool(structured_output=False)
     @словами
@@ -381,7 +381,7 @@ def build(controller, conventions=NEUTRAL):
                                      apply_now)
         return text(с_выгрузкой(repo, result_lines(
             result, принято=accepted, apply_now=apply_now, подсказки=МЕТАДАННЫЕ,
-            detailed=verbose, файлы=verbose)))
+            detailed=verbose, files=verbose)))
 
     @server.tool(structured_output=False)
     @словами
@@ -522,7 +522,7 @@ def build(controller, conventions=NEUTRAL):
     # Схемы инструментов читает агент в каждом запуске, и служебное pydantic в
     # них — четверть объёма. Аргументы проверяются по модели функции, а не по
     # показанной схеме, так что сжатие меняет только то, что видит клиент.
-    инструменты = {и.name: и for и in server._tool_manager.list_tools()}
+    инструменты = {ii.name: ii for ii in server._tool_manager.list_tools()}
     for инструмент in инструменты.values():
         инструмент.parameters = compact_schema(инструмент.parameters)
     # Пара просмотр — запись: задание одно и то же, и вложенные модели задания

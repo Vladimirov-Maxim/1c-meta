@@ -31,7 +31,7 @@ from .test_verify import ПРОФИЛЬ, выгрузка, зафиксиров�
          "КонецПроцедуры\n\n&НаКлиенте\nПроцедура Посчитать()\nКонецПроцедуры")
 
 
-def форма(tmp_path):
+def form(tmp_path):
     root = выгрузка(tmp_path)
     написать(root, ФОРМА, ОПИСАНИЕ)
     написать(root, МОДУЛЬ, БЫЛО)
@@ -40,7 +40,7 @@ def форма(tmp_path):
 
 
 def test_code_apply_warns_about_event_named_procedures_without_binding(tmp_path, capsys):
-    root = форма(tmp_path)
+    root = form(tmp_path)
     задание = {"repo": str(root), "task": "TASK-1", "date": "31.08.2026", "author": "Автор",
                "modules": [{"модуль": "Документ.мой_Наш.Форма.ФормаДокумента", "edits": [
                    {"line": 4, "lines": 0, "code": НОВОЕ}]}]}
@@ -88,9 +88,9 @@ def test_bindings_are_read_from_an_edt_form():
   </formCommands>
 </form:Form>
 """
-    привязаны, элементы = form_bindings.bindings(text)
-    assert привязаны == {"НомерПриИзменении", "ПередЗакрытием", "ПосчитатьКоманда"}
-    assert "Номер" in элементы
+    bound, elements = form_bindings.bindings(text)
+    assert bound == {"НомерПриИзменении", "ПередЗакрытием", "ПосчитатьКоманда"}
+    assert "Номер" in elements
     assert form_bindings.form_file("Documents/Д/Forms/Ф/Module.bsl") == "Documents/Д/Forms/Ф/Form.form"
     assert form_bindings.form_file("Documents/Д/Forms/Ф/Ext/Form/Module.bsl") == "Documents/Д/Forms/Ф/Ext/Form.xml"
     assert form_bindings.form_file("Documents/Д/Ext/ObjectModule.bsl") is None

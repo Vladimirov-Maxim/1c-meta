@@ -37,27 +37,27 @@ def написать(root, rel, lines, eol="\n", bom=False, final=True):
     path = os.path.join(str(root), *rel.split("/"))
     os.makedirs(os.path.dirname(path), exist_ok=True)
     text = eol.join(lines) + (eol if final else "")
-    with open(path, "wb") as файл:
-        файл.write((b"\xef\xbb\xbf" if bom else b"") + text.encode("utf-8"))
+    with open(path, "wb") as file:
+        file.write((b"\xef\xbb\xbf" if bom else b"") + text.encode("utf-8"))
 
 
 def прочитать(root, rel):
-    with open(os.path.join(str(root), *rel.split("/")), "rb") as файл:
-        return файл.read()
+    with open(os.path.join(str(root), *rel.split("/")), "rb") as file:
+        return file.read()
 
 
-def card(kind, name, *дети):
+def card(kind, name, *children):
     """Карточка `.mdo`: корень вида, имя и дети — уже готовыми строками."""
     return ['<?xml version="1.0" encoding="UTF-8"?>',
             f'<mdclass:{kind} xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" {MDCLASS} '
             f'uuid="7d1e2824-b889-41a0-a83e-d45103c58d47">',
-            f"  <name>{name}</name>", *дети, f"</mdclass:{kind}>"]
+            f"  <name>{name}</name>", *children, f"</mdclass:{kind}>"]
 
 
-def член(тег, name, *types):
+def член(tag, name, *types):
     """Ребёнок карточки с типом: `типы` — строки внутри `<type>`."""
-    return [f'  <{тег} uuid="f3d110c5-c64c-426a-9525-b612dbab0753">', f"    <name>{name}</name>",
-            "    <type>", *[f"      {tk}" for tk in types], "    </type>", f"  </{тег}>"]
+    return [f'  <{tag} uuid="f3d110c5-c64c-426a-9525-b612dbab0753">', f"    <name>{name}</name>",
+            "    <type>", *[f"      {tk}" for tk in types], "    </type>", f"  </{tag}>"]
 
 
 def rights(obj):
@@ -104,20 +104,20 @@ def профиль(tmp_path):
     return str(path)
 
 
-def check(capsys, профиль, *аргументы):
+def check(capsys, профиль, *arguments):
     """(код возврата, текст, ответ JSON)."""
     ответ = os.path.join(os.path.dirname(профиль), "ответ.json")
     if os.path.exists(ответ):
         os.remove(ответ)
     capsys.readouterr()
-    code = main(["--проверить", *map(str, аргументы), "--профиль", профиль, "--json", ответ])
+    code = main(["--проверить", *map(str, arguments), "--профиль", профиль, "--json", ответ])
     text = capsys.readouterr().out
-    данные = json.load(open(ответ, encoding="utf-8")) if os.path.exists(ответ) else None
-    return code, text, данные
+    data = json.load(open(ответ, encoding="utf-8")) if os.path.exists(ответ) else None
+    return code, text, data
 
 
-def коды(данные):
-    return sorted(f["код"] for f in данные["находки"])
+def коды(data):
+    return sorted(f["код"] for f in data["находки"])
 
 
 # --- проверка правок ------------------------------------------------------------------------
@@ -129,38 +129,38 @@ def test_paths_are_from_the_sources_and_files_outside_them_are_not_in_scope(tmp_
     repo, src = проект(tmp_path)
     написать(repo, "project/DT-INF/PROJECT.PMF", ["Manifest-Version: 2.0"])
     написать(src, "Catalogs/Чужой/Чужой.mdo", card("Catalog", "Чужой"))
-    code, text, данные = check(capsys, профиль, src, "--задача", "TASK-1")
-    assert code == 1 and коды(данные) == ["МД-ПРЕФИКС", "ПРАВА-НЕ-ВЫДАНЫ"], text
-    [prefix] = [f for f in данные["находки"] if f["код"] == "МД-ПРЕФИКС"]
+    code, text, data = check(capsys, профиль, src, "--задача", "TASK-1")
+    assert code == 1 and коды(data) == ["МД-ПРЕФИКС", "ПРАВА-НЕ-ВЫДАНЫ"], text
+    [prefix] = [f for f in data["находки"] if f["код"] == "МД-ПРЕФИКС"]
     assert prefix["файл"] == "Catalogs/Чужой/Чужой.mdo"
     assert "A  Catalogs/Чужой/Чужой.mdo" in text and "PROJECT.PMF" not in text
-    assert данные["источник"].startswith("проект EDT")
+    assert data["источник"].startswith("проект EDT")
 
 
 def test_a_new_object_needs_a_right_in_rights_rights(tmp_path, capsys, профиль):
     """Права на новый объект ищутся в `Roles/<Роль>/Rights.rights`."""
     repo, src = проект(tmp_path)
     написать(src, "Catalogs/мой_Новый/мой_Новый.mdo", card("Catalog", "мой_Новый"))
-    _, text, данные = check(capsys, профиль, src, "--задача", "TASK-1")
-    assert коды(данные) == ["ПРАВА-НЕ-ВЫДАНЫ"], text
+    _, text, data = check(capsys, профиль, src, "--задача", "TASK-1")
+    assert коды(data) == ["ПРАВА-НЕ-ВЫДАНЫ"], text
     написать(src, "Roles/мой_атом_Новый/мой_атом_Новый.mdo", card("Role", "мой_атом_Новый"))
     написать(src, "Roles/мой_атом_Новый/Rights.rights", rights("Catalog.мой_Новый"))
-    code, text, данные = check(capsys, профиль, src, "--задача", "TASK-1")
-    assert code == 0 and коды(данные) == [], text
+    code, text, data = check(capsys, профиль, src, "--задача", "TASK-1")
+    assert code == 0 and коды(data) == [], text
     # право только в чужой роли — своё нарушение
     os.remove(os.path.join(src, "Roles", "мой_атом_Новый", "Rights.rights"))
     написать(src, "Roles/Чужая/Rights.rights", rights("Catalog.мой_Новый"))
-    _, _, данные = check(capsys, профиль, src, "--задача", "TASK-1")
-    assert "ПРАВА-ТОЛЬКО-В-ЧУЖОЙ-РОЛИ" in коды(данные)
+    _, _, data = check(capsys, профиль, src, "--задача", "TASK-1")
+    assert "ПРАВА-ТОЛЬКО-В-ЧУЖОЙ-РОЛИ" in коды(data)
 
 
 def test_an_unwrapped_edit_of_a_module_without_ext_is_found(tmp_path, capsys, профиль):
     repo, src = проект(tmp_path)
     написать(src, ВЕНДОРСКИЙ, ["Процедура ПередЗаписью(Отказ, РежимЗаписи, РежимПроведения)",
                                "\tЗначение = 42;", "КонецПроцедуры"])
-    code, text, данные = check(capsys, профиль, src, "--задача", "TASK-1")
-    assert code == 1 and коды(данные) == ["ПРАВКА-ВНЕ-ВСТАВКИ"], text
-    assert данные["находки"][0]["файл"] == ВЕНДОРСКИЙ
+    code, text, data = check(capsys, профиль, src, "--задача", "TASK-1")
+    assert code == 1 and коды(data) == ["ПРАВКА-ВНЕ-ВСТАВКИ"], text
+    assert data["находки"][0]["файл"] == ВЕНДОРСКИЙ
 
 
 def test_revisions_are_read_from_the_subfolder(tmp_path, capsys, профиль):
@@ -173,9 +173,9 @@ def test_revisions_are_read_from_the_subfolder(tmp_path, capsys, профиль)
     написать(src, "CommonModules/мой_Новый/Module.bsl", ["Функция Посчитать() Экспорт", "\tВозврат 1;",
                                                          "КонецФункции"])
     зафиксировать(repo, "задача")
-    code, text, данные = check(capsys, профиль, src, "--база", base, "--ревизия", "HEAD",
+    code, text, data = check(capsys, профиль, src, "--база", base, "--ревизия", "HEAD",
                                    "--задача", "TASK-1")
-    assert code == 1 and коды(данные) == ["ПРАВКА-ВНЕ-ВСТАВКИ"], text
+    assert code == 1 and коды(data) == ["ПРАВКА-ВНЕ-ВСТАВКИ"], text
     assert "A  CommonModules/мой_Новый/Module.bsl" in text and f"M  {ВЕНДОРСКИЙ}" in text
 
 
@@ -184,12 +184,12 @@ def test_bom_is_checked_against_the_repository(tmp_path, capsys, профиль)
     repo, src = проект(tmp_path)
     написать(src, "CommonModules/мой_БезBOM/мой_БезBOM.mdo", card("CommonModule", "мой_БезBOM"))
     написать(src, "CommonModules/мой_БезBOM/Module.bsl", ["Процедура А() Экспорт", "КонецПроцедуры"])
-    code, text, данные = check(capsys, профиль, src, "--задача", "TASK-1")
-    assert code == 0 and коды(данные) == [], text
+    code, text, data = check(capsys, профиль, src, "--задача", "TASK-1")
+    assert code == 0 and коды(data) == [], text
     написать(src, "CommonModules/мой_БезBOM/Module.bsl", ["Процедура А() Экспорт", "КонецПроцедуры"],
              bom=True)
-    code, text, данные = check(capsys, профиль, src, "--задача", "TASK-1")
-    assert code == 1 and коды(данные) == ["ФАЙЛ-ЛИШНИЙ-BOM"], text
+    code, text, data = check(capsys, профиль, src, "--задача", "TASK-1")
+    assert code == 1 and коды(data) == ["ФАЙЛ-ЛИШНИЙ-BOM"], text
     assert "лишний BOM: CommonModules/мой_БезBOM/Module.bsl" in text
 
 
@@ -197,16 +197,16 @@ def test_line_endings_are_those_of_the_repository(tmp_path, capsys, профил
     repo, src = проект(tmp_path)
     написать(src, "CommonModules/мой_М/мой_М.mdo", card("CommonModule", "мой_М"))
     написать(src, "CommonModules/мой_М/Module.bsl", ["Процедура А() Экспорт", "КонецПроцедуры"], eol="\r\n")
-    _, text, данные = check(capsys, профиль, src, "--задача", "TASK-1")
-    assert коды(данные) == ["ФАЙЛ-ПЕРЕВОДЫ-ЧУЖИЕ"], text
+    _, text, data = check(capsys, профиль, src, "--задача", "TASK-1")
+    assert коды(data) == ["ФАЙЛ-ПЕРЕВОДЫ-ЧУЖИЕ"], text
 
 
 def test_the_service_file_rule_is_not_applicable_and_does_not_make_the_run_incomplete(
         tmp_path, capsys, профиль):
     repo, src = проект(tmp_path)
-    code, text, данные = check(capsys, профиль, src, "--задача", "TASK-1")
-    assert code == 0 and "ЧИСТО" in text and данные["пропущено"] == [], text
-    assert any("ВЫГРУЗКА-СЛУЖЕБНЫЙ-ФАЙЛ" in пояснение for пояснение in данные["пояснения"])
+    code, text, data = check(capsys, профиль, src, "--задача", "TASK-1")
+    assert code == 0 and "ЧИСТО" in text and data["пропущено"] == [], text
+    assert any("ВЫГРУЗКА-СЛУЖЕБНЫЙ-ФАЙЛ" in пояснение for пояснение in data["пояснения"])
 
 
 def test_type_sets_of_new_members_are_read_from_mdo(tmp_path, capsys, профиль):
@@ -221,16 +221,16 @@ def test_type_sets_of_new_members_are_read_from_mdo(tmp_path, capsys, профи
               "<types>CatalogRef.Организации</types>", "<types>CatalogRef.ФизическиеЛица</types>"),
         *член("attributes", "Получатель", "<types>CatalogRef.Контрагенты</types>",
               "<types>CatalogRef.Организации</types>")))
-    _, text, данные = check(capsys, профиль, src, "--задача", "TASK-1")
-    assert коды(данные) == ["СОСТАВ-ТИПОВ-УЖЕ"], text
+    _, text, data = check(capsys, профиль, src, "--задача", "TASK-1")
+    assert коды(data) == ["СОСТАВ-ТИПОВ-УЖЕ"], text
 
 
 # --- нормализация ---------------------------------------------------------------------------
 
 
-def нормализовать(capsys, *аргументы):
+def нормализовать(capsys, *arguments):
     capsys.readouterr()
-    code = main(["--нормализовать", *map(str, аргументы)])
+    code = main(["--нормализовать", *map(str, arguments)])
     return code, capsys.readouterr().out
 
 
@@ -277,14 +277,14 @@ def test_the_plan_is_checked_against_mdo(tmp_path, capsys):
                                    "Вид": ["ОпределяемыйТип.ВидДоговора"]}
     assert obj["реквизиты"] == {"Комментарий": ["Строка(200)"]}
     assert obj["модули"] == {"МодульМенеджера": ["Зарегистрировать"]}
-    файл = tmp_path / "план.json"
-    файл.write_text(json.dumps(plan, ensure_ascii=False), encoding="utf-8")
-    assert main(["--сверить-план", str(src), "--план", str(файл)]) == 0
+    file = tmp_path / "план.json"
+    file.write_text(json.dumps(plan, ensure_ascii=False), encoding="utf-8")
+    assert main(["--сверить-план", str(src), "--план", str(file)]) == 0
     plan["объекты"] = [ob for ob in plan["объекты"] if ob["имя"] != "мой_Остатки"] + [
         dict(obj, ресурсы={"Сумма": ["Строка(10)"]})]
-    файл.write_text(json.dumps(plan, ensure_ascii=False), encoding="utf-8")
+    file.write_text(json.dumps(plan, ensure_ascii=False), encoding="utf-8")
     capsys.readouterr()
-    assert main(["--сверить-план", str(src), "--план", str(файл)]) == 1
+    assert main(["--сверить-план", str(src), "--план", str(file)]) == 1
     assert "ПЛАН-ТИПЫ-РАСХОДЯТСЯ" in capsys.readouterr().out
 
 
@@ -305,9 +305,9 @@ def test_code_apply_writes_an_edt_module_in_its_format_and_verify_accepts_it(tmp
     path = tmp_path / "код.json"
     path.write_text(json.dumps(задание, ensure_ascii=False), encoding="utf-8")
     assert main(["--apply", str(path), "--профиль", профиль]) == 0
-    данные = прочитать(src, ВЕНДОРСКИЙ)
-    assert not данные.startswith(b"\xef\xbb\xbf") and b"\r\n" not in данные
-    assert "#TEAM Автор #TASK-1" in данные.decode("utf-8")
+    data = прочитать(src, ВЕНДОРСКИЙ)
+    assert not data.startswith(b"\xef\xbb\xbf") and b"\r\n" not in data
+    assert "#TEAM Автор #TASK-1" in data.decode("utf-8")
     code, text, ответ = check(capsys, профиль, src, "--задача", "TASK-1")
     assert code == 0 and коды(ответ) == [], text
 
@@ -341,8 +341,8 @@ def test_a_missing_module_of_an_existing_object_is_created_without_markers(tmp_p
     assert main(["--apply", str(path), "--профиль", профиль]) == 0
     text = capsys.readouterr().out
     assert "новый: модуля не было, правка его создаёт" in text, text
-    данные = прочитать(src, "Documents/Вендорский/ManagerModule.bsl")
-    assert данные == "Функция Новая() Экспорт\n\tВозврат 1;\nКонецФункции\n".encode()
+    data = прочитать(src, "Documents/Вендорский/ManagerModule.bsl")
+    assert data == "Функция Новая() Экспорт\n\tВозврат 1;\nКонецФункции\n".encode()
     code, text, ответ = check(capsys, профиль, src, "--задача", "TASK-1")
     assert code == 0 and коды(ответ) == [], text
 

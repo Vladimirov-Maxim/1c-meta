@@ -27,12 +27,12 @@ from meta.domain.model import Refuse  # noqa: E402
 def выгрузка(tmp_path, версия=None):
     """Выгрузка конфигуратора с двумя документами; `версия` — подменить формат."""
     root = tmp_path / "cf"
-    for name, эталон in (("Configuration.xml", "Configuration.xml"),
+    for name, reference_node in (("Configuration.xml", "Configuration.xml"),
                         (f"Documents/{ДОКУМЕНТ}.xml", f"{ДОКУМЕНТ}.до.xml"),
                         ("Documents/мой_ПробаНепроводимый.xml", "мой_ПробаНепроводимый.до.xml")):
         path = root.joinpath(*name.split("/"))
         path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(os.path.join(ЭТАЛОНЫ, эталон), path)
+        shutil.copyfile(os.path.join(ЭТАЛОНЫ, reference_node), path)
     if версия:
         registry = root / "Configuration.xml"
         сырьё = registry.read_bytes()
@@ -41,15 +41,15 @@ def выгрузка(tmp_path, версия=None):
     return root
 
 
-def задание(tmp_path, данные, name="job.json"):
+def задание(tmp_path, data, name="job.json"):
     path = tmp_path / name
-    path.write_text(json.dumps(данные, ensure_ascii=False), encoding="utf-8")
+    path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
     return str(path)
 
 
 def снимок(root):
     return {path: open(path, "rb").read()
-            for path in (os.path.join(папка, name) for папка, _, names in os.walk(root)
+            for path in (os.path.join(folder, name) for folder, _, names in os.walk(root)
                          for name in names)}
 
 
@@ -76,9 +76,9 @@ def test_a_dump_of_another_format_is_not_written(tmp_path, операция):
 def test_the_own_format_is_written(tmp_path):
     """Тот же отказ не должен задевать свой формат: эталон — 2.21."""
     root = выгрузка(tmp_path)
-    данные = {"repo": str(root), "objects": [
+    data = {"repo": str(root), "objects": [
         {"вид": "Справочник", "поля": {"имя": "мой_Проба", "синоним": "Проба"}}]}
-    assert main(["--apply", задание(tmp_path, данные)]) == 0
+    assert main(["--apply", задание(tmp_path, data)]) == 0
     assert (root / "Catalogs" / "мой_Проба.xml").is_file()
 
 
@@ -96,10 +96,10 @@ def test_code_is_edited_in_a_dump_of_any_format(tmp_path):
     module = root / "Documents" / ДОКУМЕНТ / "Ext" / "ObjectModule.bsl"
     module.parent.mkdir(parents=True)
     module.write_bytes("﻿Процедура Проба()\r\n\tВозврат;\r\nКонецПроцедуры\r\n".encode())
-    данные = {"repo": str(root), "task": "TASK-1", "date": "06.10.2026", "author": "Автор",
+    data = {"repo": str(root), "task": "TASK-1", "date": "06.10.2026", "author": "Автор",
               "modules": [{"модуль": f"Документ.{ДОКУМЕНТ}.МодульОбъекта",
                            "edits": [{"line": 2, "lines": 0, "code": "\tА = 1;"}]}]}
-    assert main(["--apply", задание(tmp_path, данные)]) == 0
+    assert main(["--apply", задание(tmp_path, data)]) == 0
     assert "\tА = 1;" in module.read_text(encoding="utf-8-sig")
 
 
@@ -134,8 +134,8 @@ def test_moving_the_source_checks_the_handler_signature(tmp_path, capsys):
     правка = {"repo": str(root), "changes": [{"путь": "ПодпискаНаСобытие.мой_ЗаявкаПередЗаписью",
                                               "поля": {"источник": "Справочник.мой_Партнеры"}}]}
     assert main([задание(tmp_path, правка, "3.json")]) == 0
-    вывод = capsys.readouterr().out
-    assert "ПОДПИСКА-СИГНАТУРА" in вывод and "параметров 4" in вывод and "принимает 2" in вывод
+    output = capsys.readouterr().out
+    assert "ПОДПИСКА-СИГНАТУРА" in output and "параметров 4" in output and "принимает 2" in output
 
 
 def test_a_change_of_unrelated_field_does_not_ask_about_the_rest(tmp_path, capsys):
@@ -154,13 +154,13 @@ def test_a_single_source_without_a_list_is_checked_not_crashed(tmp_path, capsys,
     как и список, а не падает с `TypeError: object of type 'TypeRef' has no len()`."""
     root = с_подпиской(tmp_path)
     capsys.readouterr()
-    данные = {"repo": str(root), "objects": [{"вид": "ПодпискаНаСобытие", "поля": {
+    data = {"repo": str(root), "objects": [{"вид": "ПодпискаНаСобытие", "поля": {
         "имя": "мой_ПартнерыПередЗаписью", "синоним": "Партнеры перед записью",
         "источник": source, "событие": "ПередЗаписью",
         "обработчик": "мой_ЗаявкиСервер.ЗаявкаПередЗаписью"}}]}
-    assert main([задание(tmp_path, данные, "3.json")]) == 0
-    вывод = capsys.readouterr().out
-    assert "ПОДПИСКА-СИГНАТУРА" in вывод and "Справочник.мой_Партнеры (Объект)" in вывод
+    assert main([задание(tmp_path, data, "3.json")]) == 0
+    output = capsys.readouterr().out
+    assert "ПОДПИСКА-СИГНАТУРА" in output and "Справочник.мой_Партнеры (Объект)" in output
 
 
 # --- форма: кнопки в командных панелях, рождённых тем же заданием -------------
@@ -171,7 +171,7 @@ def test_buttons_go_to_the_command_bars_born_by_the_same_job(tmp_path, capsys):
     (так её показывает README), встаёт на место, а не получает «родителя нет».
     Так же и кнопка в панели таблицы, заводимой тем же заданием."""
     root = выгрузка(tmp_path)
-    данные = {"repo": str(root), "forms": [{
+    data = {"repo": str(root), "forms": [{
         "форма": f"Документ.{ДОКУМЕНТ}.мой_Проба",
         "создать": {"назначение": "Документа", "синоним": "Проба"},
         "реквизиты": [{"имя": "мой_Строки", "тип": "ТаблицаЗначений",
@@ -184,13 +184,13 @@ def test_buttons_go_to_the_command_bars_born_by_the_same_job(tmp_path, capsys):
              "родитель": "ФормаКоманднаяПанель"},
             {"вид": "Кнопка", "имя": "мой_СтрокиЗаполнить", "команда": "мой_Заполнить",
              "родитель": "мой_СтрокиКоманднаяПанель"}]}]}
-    assert main(["--apply", задание(tmp_path, данные)]) == 0
+    assert main(["--apply", задание(tmp_path, data)]) == 0
     assert "ФОРМА-РОДИТЕЛЬ-НЕТ" not in capsys.readouterr().out
-    форма = (root / "Documents" / ДОКУМЕНТ / "Forms" / "мой_Проба" / "Ext" / "Form.xml").read_text(
+    form = (root / "Documents" / ДОКУМЕНТ / "Forms" / "мой_Проба" / "Ext" / "Form.xml").read_text(
         encoding="utf-8-sig")
-    панель_формы = форма[форма.index('<AutoCommandBar name="ФормаКоманднаяПанель"'):]
+    панель_формы = form[form.index('<AutoCommandBar name="ФормаКоманднаяПанель"'):]
     assert панель_формы.index('<Button name="ФормаЗаполнить"') < панель_формы.index("</AutoCommandBar>")
-    панель_таблицы = форма[форма.index('<AutoCommandBar name="мой_СтрокиКоманднаяПанель"'):]
+    панель_таблицы = form[form.index('<AutoCommandBar name="мой_СтрокиКоманднаяПанель"'):]
     assert (панель_таблицы.index('<Button name="мой_СтрокиЗаполнить"')
             < панель_таблицы.index("</AutoCommandBar>"))
 
@@ -198,16 +198,16 @@ def test_buttons_go_to_the_command_bars_born_by_the_same_job(tmp_path, capsys):
 def test_a_column_named_with_its_table_is_warned_about(tmp_path, capsys):
     """«имя» колонки — поле строки; полное имя элемента дало бы двойное имя молча."""
     root = выгрузка(tmp_path)
-    данные = {"repo": str(root), "forms": [{
+    data = {"repo": str(root), "forms": [{
         "форма": f"Документ.{ДОКУМЕНТ}.мой_Проба",
         "создать": {"назначение": "Документа", "синоним": "Проба"},
         "реквизиты": [{"имя": "мой_Строки", "тип": "ТаблицаЗначений",
                        "колонки": [{"имя": "Статья", "тип": "Строка(100)"}]}],
         "элементы": [{"вид": "ТаблицаФормы", "имя": "мой_Строки", "путь": "мой_Строки",
                       "колонки": [{"имя": "мой_СтрокиСтатья"}]}]}]}
-    assert main([задание(tmp_path, данные)]) == 0
-    вывод = capsys.readouterr().out
-    assert "ФОРМА-КОЛОНКА-ИМЯ" in вывод and "«Статья»" in вывод and "мой_Строкимой_СтрокиСтатья" in вывод
+    assert main([задание(tmp_path, data)]) == 0
+    output = capsys.readouterr().out
+    assert "ФОРМА-КОЛОНКА-ИМЯ" in output and "«Статья»" in output and "мой_Строкимой_СтрокиСтатья" in output
 
 
 def test_the_button_reference_names_where_buttons_go():

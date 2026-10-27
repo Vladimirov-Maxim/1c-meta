@@ -65,18 +65,18 @@ def смешанный(tmp_path):
     return repo, src
 
 
-def только_crlf(данные):
-    return b"\r\n" in данные and b"\n" not in данные.replace(b"\r\n", b"")
+def только_crlf(data):
+    return b"\r\n" in data and b"\n" not in data.replace(b"\r\n", b"")
 
 
-def принимает_git(repo, *пути):
+def принимает_git(repo, *paths):
     """Примет ли git файлы: только названные — файлы фикстуры записаны в ту же
     секунду, что и коммит, и git перепроверил бы их все («racy git»)."""
-    done = git(repo, "add", "--", *("project/src/" + path for path in пути), check=False)
+    done = git(repo, "add", "--", *("project/src/" + path for path in paths), check=False)
     return done.returncode == 0, done.stderr.decode("utf-8", "replace")
 
 
-@pytest.mark.parametrize("settings, атрибуты, ожидание", [
+@pytest.mark.parametrize("settings, xml_attrs, ожидание", [
     ({"core_autocrlf": "true"}, "", "CRLF"),
     ({"core_autocrlf": "input"}, "", "LF"),
     ({"core_autocrlf": "false"}, "", None),                      # git переводы строк не трогает
@@ -84,11 +84,11 @@ def принимает_git(repo, *пути):
     ({"core_autocrlf": "true"}, "*.bsl eol=lf\n", "LF"),
     ({"core_autocrlf": "false", "core_eol": "crlf"}, "* text=auto\n", "CRLF"),
 ])
-def test_checkout_line_endings_are_those_git_writes(tmp_path, settings, атрибуты, ожидание):
+def test_checkout_line_endings_are_those_git_writes(tmp_path, settings, xml_attrs, ожидание):
     git(tmp_path, "init", "-q")
     настроить(tmp_path, **settings)
-    if атрибуты:
-        (tmp_path / ".gitattributes").write_text(атрибуты, encoding="utf-8")
+    if xml_attrs:
+        (tmp_path / ".gitattributes").write_text(xml_attrs, encoding="utf-8")
     assert infra_git.checkout_eol(str(tmp_path), "CommonModules/Модуль/Module.bsl") == ожидание
 
 

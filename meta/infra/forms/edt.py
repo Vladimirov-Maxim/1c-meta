@@ -48,8 +48,8 @@ SATELLITES = {"extendedTooltip": "ExtendedTooltip", "contextMenu": "ContextMenu"
               "viewStatusAddition": "ViewStatusAddition", "searchControlAddition": "SearchControlAddition"}
 
 #: Слово группировки по значению EDT — обратное к словарю свойств формы.
-LAYOUT = {англ: рус for vocabulary in ("ГруппировкаПодчиненныхЭлементовФормы", "ГруппировкаКолонок")
-          for рус, англ in fp.ENUMS.get(vocabulary, {}).items()}
+LAYOUT = {en: ru for vocabulary in ("ГруппировкаПодчиненныхЭлементовФормы", "ГруппировкаКолонок")
+          for ru, en in fp.ENUMS.get(vocabulary, {}).items()}
 
 TREE = LxmlCardTree()
 
@@ -85,18 +85,18 @@ def _kind_tag(item):
     """Тег вида выгрузки для элемента EDT. Вид, равный умолчанию EMF, EDT не
     пишет (`ButtonGroup` у группы, `Picture` у декорации) — он берётся из
     метамодели."""
-    класс = item.attrs.get("xsi:type", "").partition(":")[2]
+    cls_name = item.attrs.get("xsi:type", "").partition(":")[2]
     kind = _text(item, "type")
     if kind is None:
-        f = edt_model.feature(FORM + класс, "type")
+        f = edt_model.feature(FORM + cls_name, "type")
         kind = edt_model.default_text(f) if f is not None else None
-    if класс == "Decoration":
+    if cls_name == "Decoration":
         return DECORATIONS.get(kind, kind)
-    if класс == "Button":
+    if cls_name == "Button":
         return "Button"
-    if класс == "Table":
+    if cls_name == "Table":
         return "Table"
-    return kind or класс
+    return kind or cls_name
 
 
 def _command(item):
@@ -120,8 +120,8 @@ def _layout(item):
     ext = _by_tag(item, "extInfo")
     if ext is None:
         return None
-    класс = FORM + ext.attrs.get("xsi:type", "").partition(":")[2]
-    f = edt_model.feature(класс, "group")
+    cls_name = FORM + ext.attrs.get("xsi:type", "").partition(":")[2]
+    f = edt_model.feature(cls_name, "group")
     if f is None:
         return None
     group = _text(ext, "group") or edt_model.default_text(f)
@@ -158,24 +158,24 @@ def view(root, owner, name):
     attributes, dynamic_lists, main, main_type = {}, set(), None, ""
     for attribute in (c for c in root.children if c.tag == "attributes"):
         item_name = _text(attribute, "name")
-        тип_узел = _by_tag(attribute, "valueType")
-        слова = " ".join(c.text or "" for c in тип_узел.children if c.tag == "types") if тип_узел else ""
-        if "DynamicList" in слова:
+        type_node = _by_tag(attribute, "valueType")
+        words = " ".join(c.text or "" for c in type_node.children if c.tag == "types") if type_node else ""
+        if "DynamicList" in words:
             attributes[item_name] = dm.PlatformType(fm.DYNAMIC_LIST)
             dynamic_lists.add(item_name)
         else:
-            attributes[item_name] = mdo.type_of(тип_узел) if тип_узел is not None else None
+            attributes[item_name] = mdo.type_of(type_node) if type_node is not None else None
         if _text(attribute, "main") == "true":
-            main, main_type = item_name, слова
+            main, main_type = item_name, words
     commands, actions = [], {}
     for command in (c for c in root.children if c.tag == "formCommands"):
         item_name = _text(command, "name")
         commands.append(item_name)
         action = _by_tag(command, "action")
-        обработчик = _by_tag(action, "handler") if action is not None else None
-        actions[item_name] = _text(обработчик, "name") if обработчик is not None else None
-    events = {voc.FORM_EVENTS_BACK.get(event, event): обработчик
-              for event, обработчик in ((_text(h, "event"), _text(h, "name"))
+        handler = _by_tag(action, "handler") if action is not None else None
+        actions[item_name] = _text(handler, "name") if handler is not None else None
+    events = {voc.FORM_EVENTS_BACK.get(event, event): handler
+              for event, handler in ((_text(h, "event"), _text(h, "name"))
                                           for h in root.children if h.tag == "handlers")}
     return fm.FormView(owner, name, elements, attributes, commands, events, main,
                        _assignment_of(main, main_type, name, owner), dynamic_lists, order, actions)
@@ -203,26 +203,26 @@ def designer_text(edt_text):
     `Form.form` байт в байт."""
     from .registry import for_version  # реестр знает и эту реализацию
     try:
-        дерево = edt_form.ReverseForm().form(edt_xml.parse(edt_text.encode("utf-8")))
+        tree = edt_form.ReverseForm().form(edt_xml.parse(edt_text.encode("utf-8")))
     except ValueError as problem:
         raise Refuse(f"форма EDT не перекладывается в форму выгрузки: {problem}") from problem
-    return for_version("2.21").document_text(дерево)
+    return for_version("2.21").document_text(tree)
 
 
 def edt_files(form_xml):
     """Текст `Form.xml` -> (текст `Form.form`, {путь относительно каталога формы:
     текст} — настройки динамических списков). Чего перекладка не умеет — отказ."""
-    дерево = TREE.parse(form_xml)
-    файлы = {}
-    for attribute in дерево.iter(f"{{{LOGFORM}}}Attribute"):
+    tree = TREE.parse(form_xml)
+    files = {}
+    for attribute in tree.iter(f"{{{LOGFORM}}}Attribute"):
         settings = attribute.find(f"{{{LOGFORM}}}Settings/{{{LOGFORM}}}ListSettings")
         if settings is not None:
-            файлы[f"Attributes/{attribute.get('name')}/ExtInfo/ListSettings.dcss"] = dcss_text(settings)
-    перекладка = edt_form.FormTranslation()
-    форма = перекладка.form(TREE.to_node(дерево))
-    if перекладка.problems:
-        raise Refuse("форма в формат EDT не перекладывается: " + "; ".join(перекладка.problems))
-    return edt_xml.render(форма), файлы
+            files[f"Attributes/{attribute.get('name')}/ExtInfo/ListSettings.dcss"] = dcss_text(settings)
+    translation = edt_form.FormTranslation()
+    form = translation.form(TREE.to_node(tree))
+    if translation.problems:
+        raise Refuse("форма в формат EDT не перекладывается: " + "; ".join(translation.problems))
+    return edt_xml.render(form), files
 
 
 def dcss_text(list_settings):
