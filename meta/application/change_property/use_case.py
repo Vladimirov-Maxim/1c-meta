@@ -2,9 +2,10 @@
 
 from dataclasses import dataclass
 
+from ...domain import query_text
 from ...domain.conventions import НЕЙТРАЛЬНЫЕ, Соглашения
 from ...domain.kinds import kind_of
-from ...domain.model import Finding, Host, ListEdit, Spec
+from ...domain.model import Finding, Host, ListEdit, Spec, TextEdit
 from ..dto import Result
 from ..ports import Platform
 
@@ -34,8 +35,12 @@ class ChangePropertyUseCase:
         """`changes` — пары (путь, поля). Путь: [(вид, имя), …] от объекта вглубь."""
         per_object = []
         resolved = []
+        разницы = []
         for path, fields in changes:
             fields, перечни = self._lists(path, fields)
+            fields, тексты, разница = self._texts(path, fields)
+            перечни += тексты
+            разницы += разница
             resolved.append((path, fields))
             target_kind, target_name = path[-1]
             # Хозяин — весь адрес до цели, а не только ближайшая пара: вид
@@ -54,8 +59,38 @@ class ChangePropertyUseCase:
             return Result(per_object)
 
         plan = self.platform.prepare_changes(resolved)
+        for строка in разницы:
+            plan.note(строка)
         written = plan.apply() if apply_now else []
         return Result(per_object, plan, written)
+
+    def _texts(self, path, fields):
+        """Правки полей-текстов фрагментами -> тексты целиком, сведённые с
+        записанным; беды якорей и непарные скобки — ошибки; разница — строками
+        для показа: ради неё правку фрагментом и затевают."""
+        import difflib
+
+        правки = {f: v for f, v in fields.items() if isinstance(v, TextEdit)}
+        if not правки:
+            return fields, [], []
+        записано, _ = self.platform.read_spec(path)
+        готово, находки, разница = dict(fields), [], []
+        адрес = ".".join(f"{вид}.{имя}" for вид, имя in path)
+        for field, правка in правки.items():
+            было = записано.fields.get(field) or ""
+            стало, беды = правка.applied(было)
+            находки += [Finding("ТЕКСТ-ЯКОРЬ", беда, field) for беда in беды]
+            if стало is None:
+                готово.pop(field)
+                continue
+            ошибки, предупреждения = query_text.problems(было, стало)
+            находки += [Finding("ТЕКСТ-СКОБКИ", x, field) for x in ошибки]
+            находки += [Finding("ТЕКСТ-ПАКЕТ", x, field, Finding.WARNING) for x in предупреждения]
+            готово[field] = стало
+            разница.append(f"{адрес}: «{field}» правится фрагментами ({правка}):")
+            разница += ["    " + x.rstrip("\n") for x in difflib.unified_diff(
+                было.split("\n"), стало.split("\n"), lineterm="", n=1)][2:]
+        return готово, находки, разница
 
     def _lists(self, path, fields):
         """Правки полей-перечней -> перечни целиком, сведённые с записанным.

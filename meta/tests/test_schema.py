@@ -741,3 +741,45 @@ def test_the_schema_matches_what_the_platform_wrote_back():
     finally:
         shutil.rmtree(root, ignore_errors=True)
 
+
+
+# --- правка запроса фрагментами ----------------------------------------------------------------
+
+
+def правка_фрагментом(dump, *фрагменты, apply_now=True):
+    _, поля = job_dialect.change_job_from_json({"путь": ADDRESS, "поля": {"запрос": list(фрагменты)}})
+    return change(dump, ADDRESS, поля, apply_now=apply_now)
+
+
+def test_a_query_is_edited_by_a_fragment(dump):
+    """Правка одной строки запроса без передачи всего запроса: фрагмент
+    сверяется якорями и встаёт на место, соседний набор не тронут, план
+    показывает разницу запроса."""
+    change(dump, ADDRESS, {"запрос": "ВЫБРАТЬ\n\tСсылка\nИЗ\n\tСправочник.Товары"})
+    result = правка_фрагментом(dump, {"line": 2, "lines": 1, "first_line": "\tСсылка", "last_line": "\tСсылка",
+                                      "code": "\tСсылка,\n\tКод"}, apply_now=False)
+    показ = "\n".join(result.plan.describe())
+    assert "«запрос» правится фрагментами" in показ and "+\tКод" in показ, показ
+    правка_фрагментом(dump, {"line": 2, "lines": 1, "first_line": "\tСсылка", "last_line": "\tСсылка",
+                             "code": "\tСсылка,\n\tКод"})
+    text = schema_of(dump)
+    assert "<query>ВЫБРАТЬ\n\tСсылка,\n\tКод\nИЗ\n\tСправочник.Товары</query>" in text
+    assert "<query>ВЫБРАТЬ 2</query>" in text
+
+
+def test_a_fragment_with_a_wrong_anchor_or_unbalanced_brackets_is_refused(dump):
+    change(dump, ADDRESS, {"запрос": "ВЫБРАТЬ\n\tСсылка\nИЗ\n\tСправочник.Товары"})
+    result = правка_фрагментом(dump, {"line": 2, "lines": 1, "first_line": "\tКод", "last_line": "\tКод",
+                                      "code": "\tКод"}, apply_now=False)
+    assert [f.code for _, fs in result.per_object for f in fs] == ["ТЕКСТ-ЯКОРЬ"]
+    result = правка_фрагментом(dump, {"line": 2, "lines": 1, "first_line": "\tСсылка", "last_line": "\tСсылка",
+                                      "code": "\tЕСТЬNULL(Ссылка"}, apply_now=False)
+    assert [f.code for _, fs in result.per_object for f in fs] == ["ТЕКСТ-СКОБКИ"]
+    assert "ВЫБРАТЬ\n\tСсылка\nИЗ" in schema_of(dump)                    # ничего не записано
+
+
+def test_a_new_query_in_the_batch_is_a_warning():
+    from meta.domain import query_text
+    ошибки, предупреждения = query_text.problems("ВЫБРАТЬ 1", "ВЫБРАТЬ 1\n;\nВЫБРАТЬ 2")
+    assert ошибки == [] and "число запросов пакета меняется" in предупреждения[0]
+    assert query_text.problems('ВЫБРАТЬ "(" // )', 'ВЫБРАТЬ "(" // )') == ([], [])
