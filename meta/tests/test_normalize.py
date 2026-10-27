@@ -184,3 +184,22 @@ def test_the_agent_normalizes_only_allowed_dumps(tmp_path):
     assert not прочитать(root, НОВЫЙ)[1]
     assert "ИСПРАВЛЕНО" in вызвать("normalize_apply", repo=str(root)) and прочитать(root, НОВЫЙ)[1]
     assert вызвать("normalize_apply", repo=str(tmp_path)).startswith("ОТКАЗ: выгрузка")
+
+
+def test_with_a_base_older_than_head_files_of_other_tasks_are_not_touched(tmp_path, capsys):
+    """База сверки — старая ветка: между ней и HEAD другая задача добавила в свой
+    модуль пустую строку без отступа. Нормализация задачи её не трогает — чужой
+    модуль не попадает в правки — и говорит об этом примечанием."""
+    import subprocess
+
+    root = выгрузка(tmp_path)
+    база = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], capture_output=True,
+                          text=True).stdout.strip()
+    написать(root, ТЕСТ, ["Процедура Старая() Экспорт", "", "\tЗначение = 1;", "КонецПроцедуры"])
+    зафиксировать(root, "другая задача")
+    чужой = прочитать(root, ТЕСТ)
+    написать(root, НОВЫЙ, ["Процедура Б() Экспорт", "", "\tВозврат;", "КонецПроцедуры"])
+    код, текст = нормализовать(capsys, root, "--база", база, "--apply")
+    assert прочитать(root, ТЕСТ) == чужой, текст
+    assert "база сверки — не HEAD" in текст and "1, они не трогаются" in текст
+    assert прочитать(root, НОВЫЙ)[0][1] == "\t"              # свой файл нормализован

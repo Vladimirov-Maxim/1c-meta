@@ -194,6 +194,15 @@ class GitChanges(_Layout):
             raise Refuse(f"git: {why}: {git.said(done) if done is not None else 'git не найден'}")
         return done.stdout
 
+    def against_head(self):
+        if self.rev:
+            return None
+        база = self._git("rev-parse", "--verify", "--quiet", f"{self.base}^{{commit}}", why="не могу прочитать базу")
+        голова = self._git("rev-parse", "--verify", "--quiet", "HEAD^{commit}", why="не могу прочитать HEAD")
+        if база is None or голова is None or голова.returncode != 0 or база.stdout == голова.stdout:
+            return None
+        return GitChanges(self.root, "HEAD")
+
     def describe(self):
         if self.rev:
             что = f"ревизия {self.rev} против {self.base}"

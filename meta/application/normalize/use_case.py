@@ -24,17 +24,31 @@ class NormalizeUseCase:
                  if c.status != DELETED and src.is_text(c.path) and not src.is_service(c.path)]
         _, почему = src.accepted_eol()
         notes = [почему] if почему else []
+        # База старше HEAD: правки других задач, влитые между ней и HEAD, — не
+        # наши. Пишутся только файлы, изменённые против HEAD, и строки — тоже
+        # против него: иначе пустая строка, добавленная чужой задачей, получила
+        # бы отступ, и чужой модуль попал бы в правки задачи.
+        мерило = src.against_head() or src
+        if мерило is not src:
+            тронутые = {c.path: c.status for c in мерило.changes()}
+            чужие = [c.path for c in files if c.path not in тронутые]
+            files = [c for c in files if c.path in тронутые]
+            files = [c.__class__(тронутые[c.path], c.path) for c in files]
+            if чужие:
+                notes.append(f"база сверки — не HEAD: файлов, изменённых только между базой и HEAD "
+                             f"(правки других задач), — {len(чужие)}, они не трогаются; строки "
+                             "сверяются с HEAD")
         fixes, rewrites = [], []
         for c in files:
-            data = src.data(c.path, AFTER)
+            data = мерило.data(c.path, AFTER)
             if data is None:
                 continue
-            old = src.data(c.path, BEFORE) if c.status != ADDED else None
+            old = мерило.data(c.path, BEFORE) if c.status != ADDED else None
             added = None
             if old is not None:
-                added, _ = changed_lines(src.hunks(c.path), src.lines(c.path, BEFORE) or [],
-                                         src.lines(c.path, AFTER) or [])
-            new, что = normalized(data, old, src.unchanged_pairs(c.path) if old is not None else (),
+                added, _ = changed_lines(мерило.hunks(c.path), мерило.lines(c.path, BEFORE) or [],
+                                         мерило.lines(c.path, AFTER) or [])
+            new, что = normalized(data, old, мерило.unchanged_pairs(c.path) if old is not None else (),
                                   added, src.target_eol(c.path), src.is_module(c.path),
                                   src.target_bom(c.path))
             if что:
