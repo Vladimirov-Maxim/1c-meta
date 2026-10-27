@@ -35,7 +35,7 @@ from lxml import etree
 
 from ..acl import edt_card, mapping, vocabulary
 from ..domain.model import Refuse
-from . import edt_xml, serializer
+from . import edt_schedule, edt_xml, serializer
 from .designer import PREDEFINED, DesignerDump
 from .forms import registry as form_formats
 from .layout import OBJECT_FOLDERS
@@ -52,6 +52,7 @@ RIGHTS_ROOT = ('<Rights xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '
 #: Спутник карточки выгрузки -> файл проекта EDT (относительно каталога объекта).
 SATELLITES = (
     (re.compile(r"^Ext/Rights\.xml$"), "Rights.rights"),
+    (re.compile(r"^Ext/Schedule\.xml$"), "Schedule.schedule"),
     (re.compile(r"^Ext/(\w+\.bsl)$"), r"\1"),
     (re.compile(r"^Templates/([^/]+)/Ext/Template\.xml$"), r"Templates/\1/Template.dcs"),
 )
@@ -271,6 +272,10 @@ class EdtDump(DesignerDump):
                 target = satellite_target(folder, rel_path)
                 if os.path.exists(target):
                     raise Refuse(f"файл уже существует: {target}")
+                if isinstance(content, mapping.ScheduleContent):
+                    plan.add(target, edt_schedule.render(content.fields).replace("\n", self._eol_of(target))
+                             .encode("utf-8"), True)
+                    continue
                 text = (content if isinstance(content, str)
                         else self.tree.serialize(self.tree.build(content)))
                 plan.add(target, self._encode(text, target), True)
@@ -281,6 +286,26 @@ class EdtDump(DesignerDump):
             self._register(registry, card)
         plan.add(registry_path, self._encode(self.tree.serialize(registry), registry_path), False)
         return plan
+
+    # --- расписание регламентного задания ---------------------------------
+
+    def _schedule_path(self, name):
+        return os.path.join(self.root, "ScheduledJobs", name, "Schedule.schedule")
+
+    def schedule_of(self, name):
+        путь = self._schedule_path(name)
+        if not os.path.isfile(путь):
+            return None
+        with open(путь, encoding="utf-8-sig") as файл:
+            return edt_schedule.parse(файл.read().replace("\r\n", "\n"))
+
+    def _prepare_schedule(self, plan, name, расписание):
+        путь = self._schedule_path(name)
+        if not os.path.isfile(os.path.join(self.root, "ScheduledJobs", name, name + ".mdo")):
+            raise Refuse(f"регламентного задания «{name}» в проекте нет")
+        plan.add(путь, edt_schedule.render(расписание).replace("\n", self._eol_of(путь)).encode("utf-8"),
+                 not os.path.isfile(путь))
+        plan.note(f"РегламентноеЗадание.{name}: расписание — Schedule.schedule")
 
     # --- предопределённые элементы справочника ---------------------------
 

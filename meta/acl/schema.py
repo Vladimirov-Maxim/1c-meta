@@ -663,7 +663,10 @@ SCHEMA = {
             Field("предопределённое", "Predefined", BOOLEAN, always=True),
             Field("количествоПовторов", "RestartCountOnFailure", TEXT, always=True),
             Field("интервалПовтора", "RestartIntervalOnFailure", TEXT, always=True),
-        ]),
+        ],
+        # Расписание — свой файл рядом с карточкой. Пишет его площадка проекта
+        # EDT (`Schedule.schedule`); формат выгрузки не замерен — там отказ.
+        satellites=[Satellite("Ext/Schedule.xml", "расписание", render="расписание")]),
     # Общая команда. Состав снят со всех 705 карточек конфигурации — форма одна.
     # Порождаемых типов и детей у неё не бывает.
     "ОбщаяКоманда": KindSchema(

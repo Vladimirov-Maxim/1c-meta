@@ -1819,12 +1819,19 @@ class ScheduledJobKind(Kind):
     name = "РегламентноеЗадание"
     fields = ("имя", "синоним", "комментарий", "обработчик", "наименование",
               "ключ", "использование", "предопределённое", "количествоПовторов",
-              "интервалПовтора")
+              "интервалПовтора", "расписание")
     required = ("имя", "синоним", "обработчик", "использование",
                 "предопределённое", "количествоПовторов", "интервалПовтора")
     defaults = {"комментарий": "", "наименование": "", "ключ": ""}
 
     def own_findings(self, spec, config, context=None):
+        from .schedule import problems as беды_расписания
+        расписание = [Finding("РАСПИСАНИЕ-НЕВЕРНО", беда, "расписание")
+                      for беда in (беды_расписания(spec.get("расписание"))
+                                   if spec.get("расписание") is not None else [])]
+        return расписание + self._handler_findings(spec, config)
+
+    def _handler_findings(self, spec, config):
         found = []
         handler = spec.get("обработчик") or ""
         pieces = handler.split(".")
