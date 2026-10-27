@@ -26,6 +26,7 @@ from .vocabulary import (
     CODE_TYPE,
     COLOR,
     COMPARISON,
+    DIMENSION_ROLE,
     EDIT_TYPE,
     EVENTS,
     EXTERNAL_CLASSES,
@@ -50,6 +51,7 @@ from .vocabulary import (
     REGISTER_KIND,
     REGISTER_PERIODICITY,
     REGISTER_WRITE_MODE,
+    REPEATED,
     RETURN_REUSE,
     SEARCH_MODE,
     SEQUENCE_FILLING,
@@ -1031,6 +1033,25 @@ SCHEMA = {
         attrs=(("xsi:type", "dcsset:StructureItemGroup"),)),
     # Вариант настроек. Нужен прежде всего для адресации: пункты настроек
     # лежат внутри него. Порядок снят с 1369 вариантов конфигурации.
+    # Поле набора-запроса. Самые частые формы в 922 схемах проекта EDT крупной
+    # типовой конфигурации: путь и поле (4716), с заголовком (4830), с ролью
+    # «измерение» (2231). Заголовок — многоязычный (`v8:LocalStringType` у 7612
+    # из 7667). Тип значения, оформление и ограничения правка не пишет.
+    "ПолеНабора": KindSchema(
+        "field", None, None, [
+            Field("путь", "dataPath", TEXT),
+            Field("поле", "field", TEXT),
+            Field("заголовок", "title", MULTILANG, attrs={"xsi:type": "v8:LocalStringType"}),
+            Field("измерение", "role", DIMENSION_ROLE, omit_when=False),
+        ], wrapped=False, attrs=(("xsi:type", "DataSetFieldField"),)),
+    # Ресурс схемы — итоговое поле: путь и выражение (7460 из 9138), группировки,
+    # по которым он считается, — тегом на каждую.
+    "РесурсСхемы": KindSchema(
+        "totalField", None, None, [
+            Field("путь", "dataPath", TEXT),
+            Field("выражение", "expression", TEXT),
+            Field("группировки", "group", REPEATED),
+        ], wrapped=False),
     "ВариантНастроек": KindSchema(
         "settingsVariant", None, None, [
             Field("имя", "dcsset:name", TEXT),

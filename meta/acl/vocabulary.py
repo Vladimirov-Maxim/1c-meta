@@ -21,6 +21,10 @@ NESTED = "вложенное"   # <ChoiceParameters><app:item…> — своя �
 MULTILANG = "многоязычный"  # <Synonym><v8:item><v8:lang>ru…
 
 
+DIMENSION_ROLE = "роль-измерение"  # <role><dcscom:dimension>true</dcscom:dimension></role>
+REPEATED = "повторяемое"           # <group>А</group><group>Б</group> — тег на каждое значение
+
+
 TYPES = "типы"             # <Source><v8:Type>cfg:…
 
 
@@ -723,6 +727,9 @@ SETTINGS_NAMESPACES = (
 # Вариант настроек: имя, представление, настройки — 1369 вариантов, одна форма.
 CONTAINER_ORDER = {
     "settingsVariant": ("name", "presentation", "settings"),
+    # Набор-запрос: порядок снят со всех наборов-запросов 922 схем проекта EDT
+    # крупной типовой конфигурации — без единого противоречия.
+    "dataSet": ("name", "field", "dataSource", "query", "autoFillFields", "useQueryGroupIfPossible"),
     "settings": (
         "userFields", "selection", "filter", "dataParameters", "order",
         "conditionalAppearance", "outputParameters", "item",

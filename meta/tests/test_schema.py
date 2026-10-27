@@ -30,11 +30,13 @@ from meta.jobs import dialect as job_dialect  # noqa: E402
 from meta.tests import corpus  # noqa: E402
 
 # Пространства имён — те же, что в корне настоящей схемы: `v8` объявлен
-# в корне у всех 926 схем конфигурации. Без него узел типа получал бы
+# в корне у всех 926 схем конфигурации, `dcscom` (роль поля) — у 921 (пять
+# остальных — пустые схемы). Без него узел типа получал бы
 # от библиотеки собственную приставку (`ns0:`), и фикстура показывала бы
 # то, чего в выгрузке не бывает.
 SCHEMA = """<?xml version="1.0" encoding="UTF-8"?>
 <DataCompositionSchema xmlns="http://v8.1c.ru/8.1/data-composition-system/schema"\
+ xmlns:dcscom="http://v8.1c.ru/8.1/data-composition-system/common"\
  xmlns:dcsset="http://v8.1c.ru/8.1/data-composition-system/settings"\
  xmlns:v8="http://v8.1c.ru/8.1/data/core"\
  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
@@ -290,6 +292,53 @@ def test_preview_of_addition_writes_nothing(dump):
     before = schema_of(dump)
     add(dump, SCHEMA_ADDRESS, "Параметр", {"имя": "Период"}, apply_now=False)
     assert schema_of(dump) == before
+
+
+
+def test_dataset_field_is_added_before_the_source(dump):
+    """Поле набора встаёт за именем набора, до источника и запроса — так
+    устроены все наборы-запросы корпуса. Поле запроса по умолчанию — путь."""
+    add(dump, ADDRESS, "ПолеНабора",
+        {"путь": "Сумма", "заголовок": "Сумма продаж", "измерение": True})
+    block = schema_of(dump).split("<name>Продажи</name>")[1].split("</dataSet>")[0]
+    assert '<field xsi:type="DataSetFieldField">' in block
+    assert "<dataPath>Сумма</dataPath>" in block and "<field>Сумма</field>" in block
+    assert '<title xsi:type="v8:LocalStringType">' in block
+    assert "<v8:content>Сумма продаж</v8:content>" in block
+    assert "<role>\n\t\t\t\t<dcscom:dimension>true</dcscom:dimension>\n\t\t\t</role>" in block
+    assert block.index("<field ") < block.index("<dataSource>")
+
+
+def test_dataset_field_without_role_writes_no_role(dump):
+    add(dump, ADDRESS, "ПолеНабора", {"путь": "Сумма"})
+    block = schema_of(dump).split("<name>Продажи</name>")[1].split("</dataSet>")[0]
+    assert "<role>" not in block and "<title" not in block
+
+
+def test_dataset_field_duplicate_path_is_refused(dump):
+    add(dump, ADDRESS, "ПолеНабора", {"путь": "Сумма"})
+    with pytest.raises(Refuse):
+        add(dump, ADDRESS, "ПолеНабора", {"путь": "Сумма"})
+
+
+def test_schema_resource_is_added_with_its_groupings(dump):
+    """Ресурс схемы — итоговое поле: группировка — тег на каждую."""
+    add(dump, SCHEMA_ADDRESS, "РесурсСхемы",
+        {"путь": "Сумма", "выражение": "Сумма(Сумма)",
+         "группировки": ["Контрагент", "Договор"]})
+    text = schema_of(dump)
+    block = text.split("<totalField>")[1].split("</totalField>")[0]
+    assert "<dataPath>Сумма</dataPath>" in block
+    assert "<expression>Сумма(Сумма)</expression>" in block
+    assert block.count("<group>") == 2
+    assert block.index("<group>Контрагент</group>") < block.index("<group>Договор</group>")
+    assert text.index("<totalField>") > text.index("<name>Остатки</name>")
+    assert text.index("<totalField>") < text.index("<settingsVariant>")
+
+
+def test_schema_resource_needs_an_expression(dump):
+    итог = add(dump, SCHEMA_ADDRESS, "РесурсСхемы", {"путь": "Сумма"}, apply_now=False)
+    assert [(f.code, f.field) for f in итог.findings] == [("МД-ПОЛЕ-ПУСТО", "выражение")]
 
 
 # --- создание отчёта --------------------------------------------------------
