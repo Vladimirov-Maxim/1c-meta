@@ -610,6 +610,14 @@ def _rights_target(address, configuration=None):
 # ничего.
 
 
+class ScheduleContent:
+    """Расписание регламентного задания для спутника: файл собирает площадка
+    своего формата — перекладка про него знает только поля."""
+
+    def __init__(self, fields):
+        self.fields = dict(fields)
+
+
 def render_template_card(spec, new_id):
     """Карточка макета: `Templates/<Имя>.xml` рядом с карточкой объекта."""
     name = spec.get("схема")
@@ -649,8 +657,8 @@ def translate(spec, uuid, host=None, new_id=None, configuration=None):
     satellites = []
     for satellite in schema.satellites:
         value = spec.get(satellite.domain)
-        if satellite.render in ("макет", "схема", "модуль") and not value:
-            continue                      # макет или модуль не заказан — файлов и нет
+        if satellite.render in ("макет", "схема", "модуль", "расписание") and not value:
+            continue                      # макет, модуль, расписание не заказаны — файлов и нет
         path = satellite.path.format(**{
             field: said for field, said in spec.fields.items()
             if isinstance(said, str)})
@@ -660,6 +668,8 @@ def translate(spec, uuid, host=None, new_id=None, configuration=None):
             content = render_template_card(spec, new_id)
         elif satellite.render == "схема":
             content = render_empty_schema(spec)
+        elif satellite.render == "расписание":
+            content = ScheduleContent(value)
         else:
             content = value or ""
         satellites.append((path, content))

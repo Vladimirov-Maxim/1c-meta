@@ -182,6 +182,10 @@ def _write_bytes(path, raw):
 EOL_BY_WORD = {"CRLF": "\r\n", "LF": "\n"}
 
 
+SCHEDULE_REFUSAL = ("расписание регламентного задания инструмент пока пишет только в проект EDT "
+                    "(Schedule.schedule): формат расписания выгрузки конфигуратора не замерен")
+
+
 class Repository(Configuration):
     """Выгрузка конфигурации по пути `root`."""
 
@@ -361,6 +365,10 @@ class Repository(Configuration):
             формы = mapping.forms_from_node(node)
             if формы:
                 spec.fields["формы"] = формы
+        if kind == "РегламентноеЗадание" and not rest:
+            расписание = self.schedule_of(path[0][1])
+            if расписание is not None:
+                spec.fields["расписание"] = расписание
         if kind == "Роль" and not rest:
             # Права роли — в своём файле рядом с карточкой; без него роль
             # показывалась бы пустой.
@@ -591,6 +599,8 @@ class Repository(Configuration):
             plan.add(path, self._encode(
                 serializer.card_to_text(card, self.tree), path), True)
             for rel_path, content in card.satellites:
+                if isinstance(content, mapping.ScheduleContent):
+                    raise Refuse(SCHEDULE_REFUSAL)
                 satellite = os.path.join(self._folder(card.container), card.name,
                                        *rel_path.split("/"))
                 if os.path.exists(satellite):
@@ -1311,14 +1321,33 @@ class Repository(Configuration):
             host = found
         return host
 
+    def schedule_of(self, name):
+        """Расписание регламентного задания словами задания; None — не
+        читается. Формат расписания выгрузки не замерен."""
+        return None
+
+    def _prepare_schedule(self, plan, name, расписание):
+        raise Refuse(SCHEDULE_REFUSAL)
+
     def prepare_changes(self, changes):
         """Plan на правку свойств. Ничего не пишет.
 
         Карточка каждого объекта разбирается один раз: две правки одного файла
         обязаны лечь в одно изменение, иначе вторая затрёт первую.
+
+        Расписание регламентного задания — не свойство карточки, а свой файл:
+        его пишет площадка (`_prepare_schedule`).
         """
         self._writable()
         plan = Plan()
+        прочие = []
+        for path, fields in changes:
+            if len(path) == 1 and path[0][0] == "РегламентноеЗадание" and "расписание" in fields:
+                fields = dict(fields)
+                self._prepare_schedule(plan, path[0][1], fields.pop("расписание"))
+            if fields:
+                прочие.append((path, fields))
+        changes = прочие
         opened = OrderedDict()
         собранные = Собранные("не нашлось")
         for path, fields in changes:
