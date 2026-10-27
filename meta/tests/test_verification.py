@@ -30,7 +30,7 @@ from meta.domain.conventions import Conventions  # noqa: E402
 from meta.domain.edits import Edit, Signature, edit_module  # noqa: E402
 
 COMMAND = Conventions(prefix="мой_", other_prefixes=("ОМ_мой_",))
-ВЕНДОР = ["Процедура ПередЗаписью(Отказ, РежимЗаписи, РежимПроведения)", "\tЗначение = 1;",
+VENDOR = ["Процедура ПередЗаписью(Отказ, РежимЗаписи, РежимПроведения)", "\tЗначение = 1;",
           "КонецПроцедуры"]
 
 
@@ -84,7 +84,7 @@ def test_without_a_prefix_convention_there_is_nothing_to_check():
 
 
 def test_a_vendor_edit_without_a_marker_is_found():
-    found = markers(ВЕНДОР, [ВЕНДОР[0], "\tЗначение = 42;", ВЕНДОР[2]])
+    found = markers(VENDOR, [VENDOR[0], "\tЗначение = 42;", VENDOR[2]])
     assert codes(found) == ["ПРАВКА-ВНЕ-ВСТАВКИ"]
     assert "добавленных вне вставок: 1 (стр. 2)" in found[0].message
     assert "удалённых без комментария в своей вставке: 1 (стр. 2 прежней версии)" in found[0].message
@@ -92,15 +92,15 @@ def test_a_vendor_edit_without_a_marker_is_found():
 
 
 def test_a_wrapped_edit_and_its_marker_are_accepted():
-    new = [ВЕНДОР[0], "\t// {[*](фрагмент ИЗМЕНЕН), 31.08.2026, #TEAM Автор #TASK-1", "\t",
-           "\t//Значение = 1;", "\t", "\tЗначение = 2;", "\t", "\t// } Автор, 31.08.2026", ВЕНДОР[2]]
-    assert markers(ВЕНДОР, new, task="TASK-1") == []
+    new = [VENDOR[0], "\t// {[*](фрагмент ИЗМЕНЕН), 31.08.2026, #TEAM Автор #TASK-1", "\t",
+           "\t//Значение = 1;", "\t", "\tЗначение = 2;", "\t", "\t// } Автор, 31.08.2026", VENDOR[2]]
+    assert markers(VENDOR, new, task="TASK-1") == []
 
 
-СВОЯ = "\t// {[*](фрагмент ИЗМЕНЕН), 31.08.2026, #TEAM Автор #TASK-1"
-СВОЯ_КОНЕЦ = "\t// } Автор, 31.08.2026"
-ЧУЖАЯ = "\t// {[+](фрагмент ДОБАВЛЕН), 01.01.2025, #TEAM Иванов #TASK-0"
-ЧУЖАЯ_КОНЕЦ = "\t// } Иванов, 01.01.2025"
+OWN = "\t// {[*](фрагмент ИЗМЕНЕН), 31.08.2026, #TEAM Автор #TASK-1"
+OWN_END = "\t// } Автор, 31.08.2026"
+FOREIGN = "\t// {[+](фрагмент ДОБАВЛЕН), 01.01.2025, #TEAM Иванов #TASK-0"
+FOREIGN_END = "\t// } Иванов, 01.01.2025"
 
 
 def test_old_code_removed_inside_an_own_insertion_without_a_comment_is_found():
@@ -108,21 +108,21 @@ def test_old_code_removed_inside_an_own_insertion_without_a_comment_is_found():
     Такой же комментарий в другом методе её не сохраняет."""
     old = ["Процедура А()", "\tПроверить(Запись);", "\tЗначение = 1;", "КонецПроцедуры", "",
            "Процедура Б()", "\t//Проверить(Запись);", "КонецПроцедуры"]
-    new = ["Процедура А()", СВОЯ, "\tНовое();", СВОЯ_КОНЕЦ, "\tЗначение = 1;", "КонецПроцедуры", "",
+    new = ["Процедура А()", OWN, "\tНовое();", OWN_END, "\tЗначение = 1;", "КонецПроцедуры", "",
            "Процедура Б()", "\t//Проверить(Запись);", "КонецПроцедуры"]
     found = markers(old, new, task="TASK-1")
     assert codes(found) == ["ПРАВКА-ВНЕ-ВСТАВКИ"]
     assert "удалённых без комментария в своей вставке: 1 (стр. 2 прежней версии)" in found[0].message
 
-    сохранено = new[:3] + ["\t//Проверить(Запись);"] + new[3:]
-    assert markers(old, сохранено, task="TASK-1") == []
+    saved = new[:3] + ["\t//Проверить(Запись);"] + new[3:]
+    assert markers(old, saved, task="TASK-1") == []
 
 
 def test_old_code_moved_under_an_own_marker_with_another_indent_is_not_kept():
     """Под своей ИЗМЕНЕН прежняя строка перенесена внутрь нового условия с
     другим отступом, а не закомментирована, — следа правки нет."""
     old = ["Процедура А()", "\tШаг();", "КонецПроцедуры"]
-    new = ["Процедура А()", СВОЯ, "\tЕсли Условие Тогда", "\t\tШаг();", "\tКонецЕсли;", СВОЯ_КОНЕЦ,
+    new = ["Процедура А()", OWN, "\tЕсли Условие Тогда", "\t\tШаг();", "\tКонецЕсли;", OWN_END,
            "КонецПроцедуры"]
     assert codes(markers(old, new, task="TASK-1")) == ["ПРАВКА-ВНЕ-ВСТАВКИ"]
 
@@ -130,8 +130,8 @@ def test_old_code_moved_under_an_own_marker_with_another_indent_is_not_kept():
 def test_a_whole_file_hunk_with_an_own_marker_does_not_remove_unchanged_lines():
     """Сменились переводы строк — git показывает весь файл одним участком; в
     нём и своя вставка. Строки, вернувшиеся тем же текстом, не удалены."""
-    old = ["Процедура А()", ЧУЖАЯ, "\tЧужое();", ЧУЖАЯ_КОНЕЦ, "\tШаг();", "КонецПроцедуры"]
-    new = ["Процедура А()", ЧУЖАЯ, "\tЧужое();", ЧУЖАЯ_КОНЕЦ, СВОЯ, "\t//Шаг();", "\tНовое();", СВОЯ_КОНЕЦ,
+    old = ["Процедура А()", FOREIGN, "\tЧужое();", FOREIGN_END, "\tШаг();", "КонецПроцедуры"]
+    new = ["Процедура А()", FOREIGN, "\tЧужое();", FOREIGN_END, OWN, "\t//Шаг();", "\tНовое();", OWN_END,
            "КонецПроцедуры"]
     from meta.domain.changes import Hunk as H
     found = v.marker_findings("М.bsl", old, new, [H(1, len(old), 1, len(new))], "TASK-1")
@@ -143,7 +143,7 @@ def test_a_removal_hunk_separated_from_its_insertion_by_a_blank_line_is_kept():
     комментарием начинается через пустую строку."""
     from meta.domain.changes import Hunk as H
     old = ["// Описание.", "Функция Ф(А) Экспорт", "\tВозврат А;", "КонецФункции"]
-    new = ["// Описание.", "", СВОЯ, "//Функция Ф(А) Экспорт", "Функция Ф(А, Б) Экспорт", СВОЯ_КОНЕЦ, "\tВозврат А;",
+    new = ["// Описание.", "", OWN, "//Функция Ф(А) Экспорт", "Функция Ф(А, Б) Экспорт", OWN_END, "\tВозврат А;",
            "КонецФункции"]
     found = v.marker_findings("М.bsl", old, new, [H(2, 1, 1, 0), H(3, 0, 2, 5)], "TASK-1")
     assert not any("удалённых" in f.message for f in found), found
@@ -155,23 +155,23 @@ def test_an_insertion_starting_with_the_lines_that_follow_it_is_not_an_edit_outs
     пару к добавленным вне вставки. Сняв свои вставки, получаем базу — правка
     вне вставок не найдена; настоящая правка вне вставки находится."""
     from meta.domain.changes import Hunk as H
-    добавлен = "\t// {[+](фрагмент ДОБАВЛЕН), 31.08.2026, #TEAM Автор #TASK-1"
+    is_added = "\t// {[+](фрагмент ДОБАВЛЕН), 31.08.2026, #TEAM Автор #TASK-1"
     old = ["\tТекст = \"", "\t|ВЫБРАТЬ 1", "\t|", "\t|////", "\t|ВЫБРАТЬ 2\";"]
-    new = ["\tТекст = \"", "\t|ВЫБРАТЬ 1", добавлен, "\t|", "\t|////", "\t|ВЫБРАТЬ 3", СВОЯ_КОНЕЦ,
-           "\t|", "\t|////", СВОЯ, "\t//|ВЫБРАТЬ 2\";", "\t|ВЫБРАТЬ 22\";", СВОЯ_КОНЕЦ]
+    new = ["\tТекст = \"", "\t|ВЫБРАТЬ 1", is_added, "\t|", "\t|////", "\t|ВЫБРАТЬ 3", OWN_END,
+           "\t|", "\t|////", OWN, "\t//|ВЫБРАТЬ 2\";", "\t|ВЫБРАТЬ 22\";", OWN_END]
     # так их сопоставил diff: исходная пара 3-4 — с первой парой вставки
     hunks = [H(2, 0, 3, 1), H(4, 0, 6, 4), H(5, 1, 10, 4)]
     assert "ПРАВКА-ВНЕ-ВСТАВКИ" not in codes(v.marker_findings("М.bsl", old, new, hunks, "TASK-1"))
 
-    правлено = [new[0], "\t|ВЫБРАТЬ 11"] + new[2:]
+    edited = [new[0], "\t|ВЫБРАТЬ 11"] + new[2:]
     hunks = [H(2, 1, 2, 2), H(4, 0, 6, 4), H(5, 1, 10, 4)]
-    assert "ПРАВКА-ВНЕ-ВСТАВКИ" in codes(v.marker_findings("М.bsl", old, правлено, hunks, "TASK-1"))
+    assert "ПРАВКА-ВНЕ-ВСТАВКИ" in codes(v.marker_findings("М.bsl", old, edited, hunks, "TASK-1"))
 
 
 def test_another_tasks_insertion_removed_whole_is_an_edit_outside():
     """Чужая вставка удалена целиком вместе с метками, своей вставки УДАЛЕН нет:
     след прошлой задачи пропадает — ошибка, а не молчание."""
-    old = ["Процедура А()", ЧУЖАЯ, "\tЧужое();", ЧУЖАЯ_КОНЕЦ, "\tШаг();", "КонецПроцедуры"]
+    old = ["Процедура А()", FOREIGN, "\tЧужое();", FOREIGN_END, "\tШаг();", "КонецПроцедуры"]
     new = ["Процедура А()", "\tШаг();", "КонецПроцедуры"]
     found = markers(old, new, task="TASK-1")
     assert codes(found) == ["ПРАВКА-ВНЕ-ВСТАВКИ"]
@@ -179,8 +179,8 @@ def test_another_tasks_insertion_removed_whole_is_an_edit_outside():
 
 
 def test_lines_removed_inside_another_tasks_insertion_are_a_warning():
-    old = ["Процедура А()", ЧУЖАЯ, "\tЧужое();", "\tЕщё();", ЧУЖАЯ_КОНЕЦ, "КонецПроцедуры"]
-    new = ["Процедура А()", ЧУЖАЯ, "\tЕщё();", ЧУЖАЯ_КОНЕЦ, "КонецПроцедуры"]
+    old = ["Процедура А()", FOREIGN, "\tЧужое();", "\tЕщё();", FOREIGN_END, "КонецПроцедуры"]
+    new = ["Процедура А()", FOREIGN, "\tЕщё();", FOREIGN_END, "КонецПроцедуры"]
     found = markers(old, new, task="TASK-1")
     assert codes(found) == ["ПРАВКА-В-ЧУЖОЙ-ВСТАВКЕ"]
     assert "внутри вставки другой задачи (TASK-0): удалено строк 1 (стр. 3 прежней версии)" in found[0].message
@@ -188,9 +188,9 @@ def test_lines_removed_inside_another_tasks_insertion_are_a_warning():
 
 def test_another_tasks_insertion_removed_under_an_own_removed_marker_is_accepted():
     """Удаление чужой вставки своей УДАЛЕН — по правилам: находок нет."""
-    удален = "// {[-](фрагмент УДАЛЕН), 31.08.2026, #TEAM Автор #TASK-1"
-    old = ["Процедура А()", ЧУЖАЯ, "\tЧужое();", "\tЕщё();", ЧУЖАЯ_КОНЕЦ, "КонецПроцедуры"]
-    new = ["Процедура А()", ЧУЖАЯ, удален, "\t//Чужое();", СВОЯ_КОНЕЦ, "\tЕщё();", ЧУЖАЯ_КОНЕЦ,
+    removed_one = "// {[-](фрагмент УДАЛЕН), 31.08.2026, #TEAM Автор #TASK-1"
+    old = ["Процедура А()", FOREIGN, "\tЧужое();", "\tЕщё();", FOREIGN_END, "КонецПроцедуры"]
+    new = ["Процедура А()", FOREIGN, removed_one, "\t//Чужое();", OWN_END, "\tЕщё();", FOREIGN_END,
            "КонецПроцедуры"]
     assert markers(old, new, task="TASK-1") == []
 
@@ -198,15 +198,15 @@ def test_another_tasks_insertion_removed_under_an_own_removed_marker_is_accepted
 def test_an_own_insertion_rewriting_most_of_another_one_needs_an_outer_wrapper():
     """Своя ИЗМЕНЕН внутри чужой [+] заменяет две строки кода из трёх — чужая
     вставка фактически переписана: по правилу записи нужна обёртка снаружи."""
-    old = ["Процедура А()", ЧУЖАЯ, "\tА();", "\tБ();", "\tВ();", ЧУЖАЯ_КОНЕЦ, "КонецПроцедуры"]
-    new = ["Процедура А()", ЧУЖАЯ, СВОЯ, "\t//А();", "\t//Б();", "\tНовое();", СВОЯ_КОНЕЦ, "\tВ();",
-           ЧУЖАЯ_КОНЕЦ, "КонецПроцедуры"]
+    old = ["Процедура А()", FOREIGN, "\tА();", "\tБ();", "\tВ();", FOREIGN_END, "КонецПроцедуры"]
+    new = ["Процедура А()", FOREIGN, OWN, "\t//А();", "\t//Б();", "\tНовое();", OWN_END, "\tВ();",
+           FOREIGN_END, "КонецПроцедуры"]
     found = markers(old, new, task="TASK-1")
     assert codes(found) == ["ВСТАВКА-НУЖНА-ОБЁРТКА"]
     assert "заменяют 2 строк кода из 3" in found[0].message
 
-    single_one = ["Процедура А()", ЧУЖАЯ, СВОЯ, "\t//А();", "\tНовое();", СВОЯ_КОНЕЦ, "\tБ();", "\tВ();",
-            ЧУЖАЯ_КОНЕЦ, "КонецПроцедуры"]
+    single_one = ["Процедура А()", FOREIGN, OWN, "\t//А();", "\tНовое();", OWN_END, "\tБ();", "\tВ();",
+            FOREIGN_END, "КонецПроцедуры"]
     assert markers(old, single_one, task="TASK-1") == []
 
 
@@ -214,9 +214,9 @@ def test_an_unclosed_own_marker_inside_another_insertion_with_an_undated_close_i
     """Чужая вставка закрыта меткой без даты; своя открывающая внутри неё без
     закрывающей. Разбор отдаёт чужую закрывающую нашей метке — находка всё
     равно на нашей открывающей."""
-    чужая_без_даты = "\t// } Иванов"
-    old = ["Процедура А()", ЧУЖАЯ, "\tЧужое();", чужая_без_даты, "КонецПроцедуры"]
-    new = ["Процедура А()", ЧУЖАЯ, СВОЯ, "\tНовое();", "\tЧужое();", чужая_без_даты, "КонецПроцедуры"]
+    foreign_without_date = "\t// } Иванов"
+    old = ["Процедура А()", FOREIGN, "\tЧужое();", foreign_without_date, "КонецПроцедуры"]
+    new = ["Процедура А()", FOREIGN, OWN, "\tНовое();", "\tЧужое();", foreign_without_date, "КонецПроцедуры"]
     from meta.domain.changes import changed_lines
     added_count, _ = changed_lines(hunks_between(old, new), old, new)
     found = v.structure_findings("М.bsl", new, added_count, "TASK-1")
@@ -225,7 +225,7 @@ def test_an_unclosed_own_marker_inside_another_insertion_with_an_undated_close_i
 
 def test_each_removed_line_needs_its_own_commented_copy():
     old = ["Процедура А()", "\tШаг();", "\tШаг();", "КонецПроцедуры"]
-    new = ["Процедура А()", СВОЯ, "\t//Шаг();", "\tНовое();", СВОЯ_КОНЕЦ, "КонецПроцедуры"]
+    new = ["Процедура А()", OWN, "\t//Шаг();", "\tНовое();", OWN_END, "КонецПроцедуры"]
     found = markers(old, new, task="TASK-1")
     assert codes(found) == ["ПРАВКА-ВНЕ-ВСТАВКИ"] and "удалённых без комментария в своей вставке: 1" \
         in found[0].message
@@ -235,8 +235,8 @@ def test_code_removed_under_an_own_marker_inside_another_tasks_insertion_must_be
     """Своя ИЗМЕНЕН внутри чужой вставки, а прежняя строка удалена физически:
     задача назвала правку изменением — прежнее должно быть в ней комментарием.
     Свою прежнюю вставку задача правит свободно."""
-    old = ["Процедура А()", ЧУЖАЯ, "\tЧужое();", "\tЕщё();", ЧУЖАЯ_КОНЕЦ, "КонецПроцедуры"]
-    new = ["Процедура А()", ЧУЖАЯ, СВОЯ, "\tНовое();", СВОЯ_КОНЕЦ, "\tЕщё();", ЧУЖАЯ_КОНЕЦ, "КонецПроцедуры"]
+    old = ["Процедура А()", FOREIGN, "\tЧужое();", "\tЕщё();", FOREIGN_END, "КонецПроцедуры"]
+    new = ["Процедура А()", FOREIGN, OWN, "\tНовое();", OWN_END, "\tЕщё();", FOREIGN_END, "КонецПроцедуры"]
     found = markers(old, new, task="TASK-1")
     assert "ПРАВКА-ВНЕ-ВСТАВКИ" in codes(found)
     assert "удалённых без комментария в своей вставке: 1 (стр. 3 прежней версии)" in \
@@ -247,95 +247,95 @@ def test_code_removed_under_an_own_marker_inside_another_tasks_insertion_must_be
 def test_an_edit_inside_another_tasks_insertion_without_an_own_marker_stays_a_warning():
     """Без своей метки правка в чужой вставке — предупреждение
     `ПРАВКА-В-ЧУЖОЙ-ВСТАВКЕ`, не ошибка «удалено без комментария»."""
-    old = ["Процедура А()", ЧУЖАЯ, "\tЧужое();", ЧУЖАЯ_КОНЕЦ, "КонецПроцедуры"]
-    new = ["Процедура А()", ЧУЖАЯ, "\tЧужое(1);", ЧУЖАЯ_КОНЕЦ, "КонецПроцедуры"]
+    old = ["Процедура А()", FOREIGN, "\tЧужое();", FOREIGN_END, "КонецПроцедуры"]
+    new = ["Процедура А()", FOREIGN, "\tЧужое(1);", FOREIGN_END, "КонецПроцедуры"]
     assert codes(markers(old, new, task="TASK-1")) == ["ПРАВКА-В-ЧУЖОЙ-ВСТАВКЕ"]
 
 
 def test_a_line_inside_another_tasks_insertion_with_only_whitespace_changed_is_not_removed():
     """Срезанные хвостовые пробелы у метки чужой вставки — смена пробелов, а не
     удалённый код: о ней судит своё правило."""
-    old = ["Процедура А()", ЧУЖАЯ, "	Чужое();", ЧУЖАЯ_КОНЕЦ + "		", "КонецПроцедуры"]
-    new = ["Процедура А()", ЧУЖАЯ, "	Чужое();", ЧУЖАЯ_КОНЕЦ, "КонецПроцедуры"]
+    old = ["Процедура А()", FOREIGN, "	Чужое();", FOREIGN_END + "		", "КонецПроцедуры"]
+    new = ["Процедура А()", FOREIGN, "	Чужое();", FOREIGN_END, "КонецПроцедуры"]
     assert "ПРАВКА-ВНЕ-ВСТАВКИ" not in codes(markers(old, new, task="TASK-1"))
 
 
 def test_a_marker_with_yo_or_without_date_is_found():
-    def с_меткой(marker):
-        return [ВЕНДОР[0], marker, "\tЗначение = 2;", "\t// } Автор", ВЕНДОР[1], ВЕНДОР[2]]
+    def with_marker(marker):
+        return [VENDOR[0], marker, "\tЗначение = 2;", "\t// } Автор", VENDOR[1], VENDOR[2]]
 
-    ё = markers(ВЕНДОР, с_меткой("\t// {[*](фрагмент ИЗМЕНЁН), 31.08.2026, #TEAM Автор #TASK-1"))
-    assert codes(ё) == ["ВСТАВКА-БУКВА-Ё"] and ё[0].line == 2
-    без_даты = markers(ВЕНДОР, с_меткой("\t// {[+](фрагмент ДОБАВЛЕН), #TEAM Автор #TASK-1"))
-    assert codes(без_даты) == ["ВСТАВКА-БЕЗ-ДАТЫ"]
-    без_задачи = markers(ВЕНДОР, с_меткой("\t// {[+](фрагмент ДОБАВЛЕН), 31.08.2026, #TEAM Автор"))
-    assert codes(без_задачи) == ["ВСТАВКА-БЕЗ-ЗАДАЧИ"]
-    без_типа = markers(ВЕНДОР, с_меткой("\t// {[+](фрагмент), 31.08.2026, Автор #TASK-1"))
-    assert codes(без_типа) == ["ВСТАВКА-БЕЗ-ТИПА"]
+    yo = markers(VENDOR, with_marker("\t// {[*](фрагмент ИЗМЕНЁН), 31.08.2026, #TEAM Автор #TASK-1"))
+    assert codes(yo) == ["ВСТАВКА-БУКВА-Ё"] and yo[0].line == 2
+    without_date = markers(VENDOR, with_marker("\t// {[+](фрагмент ДОБАВЛЕН), #TEAM Автор #TASK-1"))
+    assert codes(without_date) == ["ВСТАВКА-БЕЗ-ДАТЫ"]
+    without_task = markers(VENDOR, with_marker("\t// {[+](фрагмент ДОБАВЛЕН), 31.08.2026, #TEAM Автор"))
+    assert codes(without_task) == ["ВСТАВКА-БЕЗ-ЗАДАЧИ"]
+    without_type = markers(VENDOR, with_marker("\t// {[+](фрагмент), 31.08.2026, Автор #TASK-1"))
+    assert codes(without_type) == ["ВСТАВКА-БЕЗ-ТИПА"]
 
 
 def test_a_new_method_in_a_module_of_a_past_task_needs_a_marker():
     """Принадлежность модуля основанием не является: новый метод в своём модуле
     прошлой задачи оборачивается на общих основаниях."""
     old = ["Процедура ОбработкаПроведения(Отказ, РежимПроведения)", "\tЗначение = 1;", "КонецПроцедуры"]
-    голый = old + ["", "Процедура ПриЗаписи(Отказ)", "\tЗначение = 2;", "КонецПроцедуры"]
-    assert codes(markers(old, голый, path="Documents/мой_Наш/Ext/ObjectModule.bsl")) == ["ПРАВКА-ВНЕ-ВСТАВКИ"]
-    обёрнут = old + ["", "// {[+](фрагмент ДОБАВЛЕН), 31.08.2026, #TEAM Автор #TASK-1",
+    bare = old + ["", "Процедура ПриЗаписи(Отказ)", "\tЗначение = 2;", "КонецПроцедуры"]
+    assert codes(markers(old, bare, path="Documents/мой_Наш/Ext/ObjectModule.bsl")) == ["ПРАВКА-ВНЕ-ВСТАВКИ"]
+    wrapped = old + ["", "// {[+](фрагмент ДОБАВЛЕН), 31.08.2026, #TEAM Автор #TASK-1",
                      "Процедура ПриЗаписи(Отказ)", "\tЗначение = 2;",
                      "КонецПроцедуры // } Автор, 31.08.2026"]
-    assert markers(old, обёрнут, path="Documents/мой_Наш/Ext/ObjectModule.bsl") == []
+    assert markers(old, wrapped, path="Documents/мой_Наш/Ext/ObjectModule.bsl") == []
 
 
 def test_a_removed_line_kept_as_a_comment_is_not_lost():
-    new = [ВЕНДОР[0], "\t// {[-](фрагмент УДАЛЕН), 31.08.2026, Автор #TASK-1", "\t//Значение = 1;",
-           "\t// } Автор, 31.08.2026", ВЕНДОР[2]]
-    assert markers(ВЕНДОР, new) == []
+    new = [VENDOR[0], "\t// {[-](фрагмент УДАЛЕН), 31.08.2026, Автор #TASK-1", "\t//Значение = 1;",
+           "\t// } Автор, 31.08.2026", VENDOR[2]]
+    assert markers(VENDOR, new) == []
 
 
 def test_region_directives_and_blank_lines_need_no_marker():
-    new = [ВЕНДОР[0], "", ВЕНДОР[1], ВЕНДОР[2], "", "#Область Новая", "#КонецОбласти"]
-    assert markers(ВЕНДОР, new) == []
+    new = [VENDOR[0], "", VENDOR[1], VENDOR[2], "", "#Область Новая", "#КонецОбласти"]
+    assert markers(VENDOR, new) == []
 
 
 def test_an_edit_inside_another_tasks_insertion_is_a_warning_with_the_task_given():
-    old = [ВЕНДОР[0], "\t// {[+](фрагмент ДОБАВЛЕН), 01.01.2025, Автор #OLD-7", "\tА = 1;",
-           "\t// } Автор, 01.01.2025", ВЕНДОР[2]]
+    old = [VENDOR[0], "\t// {[+](фрагмент ДОБАВЛЕН), 01.01.2025, Автор #OLD-7", "\tА = 1;",
+           "\t// } Автор, 01.01.2025", VENDOR[2]]
     new = old[:3] + ["\tБ = 2;"] + old[3:]
     assert markers(old, new) == []                       # без ИД задачи правило не проверяется
     found = markers(old, new, task="TASK-1")
     assert codes(found) == ["ПРАВКА-В-ЧУЖОЙ-ВСТАВКЕ"] and found[0].level == "предупреждение"
     assert "(OLD-7)" in found[0].message
-    поверх = old[:3] + ["\t// {[+](фрагмент ДОБАВЛЕН), 31.08.2026, Автор #TASK-1", "\tБ = 2;",
+    on_top = old[:3] + ["\t// {[+](фрагмент ДОБАВЛЕН), 31.08.2026, Автор #TASK-1", "\tБ = 2;",
                         "\t// } Автор, 31.08.2026"] + old[3:]
-    assert markers(old, поверх, task="TASK-1") == []
+    assert markers(old, on_top, task="TASK-1") == []
 
 
 # --- незакрытая вставка и вставка вокруг метода ----------------------------------------------
 
 
-def структура(new, old=ВЕНДОР):
+def structure(new, old=VENDOR):
     added, _ = changed_lines(hunks_between(old, new), old, new)
     return v.structure_findings("Documents/Вендорский/Ext/ObjectModule.bsl", new, added)
 
 
 def test_an_unclosed_insertion_and_a_method_closed_on_its_own_line_are_found():
-    new = ВЕНДОР + ["",
+    new = VENDOR + ["",
                     "// {[+](фрагмент ДОБАВЛЕН), 26.09.2026, #TEAM Тест #TASK-1",
                     "Процедура мой_Первый()", "\tЗначение = 2;", "КонецПроцедуры",
                     "// } Тест, 26.09.2026",
                     "",
                     "// {[+](фрагмент ДОБАВЛЕН), 26.09.2026, #TEAM Тест #TASK-1",
                     "Процедура мой_Второй()", "\tЗначение = 3;", "КонецПроцедуры"]
-    found = структура(new)
+    found = structure(new)
     assert [(f.code, f.line) for f in found] == [("ВСТАВКА-НЕ-ЗАКРЫТА", 11),
                                                  ("ВСТАВКА-МЕТОДА-НЕ-НА-КОНЦЕ", 8)]
     assert "мой_Первый (метка на строке 5)" in found[1].message
 
 
 def test_a_method_closed_on_its_end_is_accepted():
-    new = ВЕНДОР + ["", "// {[+](фрагмент ДОБАВЛЕН), 26.09.2026, #TEAM Тест #TASK-1",
+    new = VENDOR + ["", "// {[+](фрагмент ДОБАВЛЕН), 26.09.2026, #TEAM Тест #TASK-1",
                     "Процедура мой_Первый()", "\tЗначение = 2;", "КонецПроцедуры // } Тест, 26.09.2026"]
-    assert структура(new) == []
+    assert structure(new) == []
 
 
 def test_a_compilation_directive_belongs_to_the_method():
@@ -346,14 +346,14 @@ def test_a_compilation_directive_belongs_to_the_method():
     new = old + ["", "// {[+](фрагмент ДОБАВЛЕН), 26.09.2026, #TEAM Тест #TASK-1", "&НаКлиенте",
                  "Процедура мой_Третий(Команда)", "\tЗначение = 3;", "КонецПроцедуры",
                  "// } Тест, 26.09.2026"]
-    found = структура(new, old)
+    found = structure(new, old)
     assert codes(found) == ["ВСТАВКА-МЕТОДА-НЕ-НА-КОНЦЕ"] and "мой_Третий" in found[0].message
 
 
 def test_someone_elses_unclosed_marker_is_not_the_tasks():
-    old = ВЕНДОР + ["// {[+](фрагмент ДОБАВЛЕН), 01.01.2025, Автор #OLD-7", "А = 1;"]
+    old = VENDOR + ["// {[+](фрагмент ДОБАВЛЕН), 01.01.2025, Автор #OLD-7", "А = 1;"]
     new = old + ["Б = 2;"]
-    assert структура(new, old) == []
+    assert structure(new, old) == []
 
 
 # --- состав и формат --------------------------------------------------------------------------
@@ -371,8 +371,8 @@ def test_bom_and_line_endings():
     foreign = v.format_findings("a.bsl", "﻿А\nБ\n".encode(), "CRLF")
     assert codes(foreign) == ["ФАЙЛ-ПЕРЕВОДЫ-ЧУЖИЕ"] and "LF, в репозитории приняты CRLF" in foreign[0].message
     assert v.format_findings("a.bsl", "﻿А\nБ\n".encode(), None) == []
-    смесь = v.format_findings("a.bsl", "﻿А\r\nБ\n".encode(), "CRLF")
-    assert codes(смесь) == ["ФАЙЛ-ПЕРЕВОДЫ-СМЕШАНЫ"] and смесь[0].level == "предупреждение"
+    mixture = v.format_findings("a.bsl", "﻿А\r\nБ\n".encode(), "CRLF")
+    assert codes(mixture) == ["ФАЙЛ-ПЕРЕВОДЫ-СМЕШАНЫ"] and mixture[0].level == "предупреждение"
 
 
 def test_a_marker_wrapping_only_the_declaration_is_not_a_method_insertion():
@@ -406,9 +406,9 @@ def test_a_line_moved_into_a_new_construct_of_an_own_insertion_is_not_whitespace
     """Своя ИЗМЕНЕН: прежняя строка закомментирована, та же инструкция стоит
     глубже в ветке `Иначе` новой конструкции — отступ следует из правки."""
     old = ["Процедура А()", "\tИнициализировать(Макет);", "КонецПроцедуры"]
-    new = ["Процедура А()", СВОЯ, "\t//Инициализировать(Макет);", "\tЕсли Временные Тогда",
+    new = ["Процедура А()", OWN, "\t//Инициализировать(Макет);", "\tЕсли Временные Тогда",
            "\t\tИнициализировать(Макет, Менеджер);", "\tИначе", "\t\tИнициализировать(Макет);",
-           "\tКонецЕсли;", СВОЯ_КОНЕЦ, "КонецПроцедуры"]
+           "\tКонецЕсли;", OWN_END, "КонецПроцедуры"]
     assert v.cosmetic_findings("a.bsl", old, new, hunks_between(old, new)) == []
 
 
@@ -488,8 +488,8 @@ def test_the_profile_changes_the_level_and_keeps_the_place():
 # --- главный кейс: записанное правкой вставками проверка принимает ---------------------------
 
 
-ПОДПИСЬ = Signature("TASK-1", "06.10.2026", "Автор", "#TEAM")
-МОДУЛЬ = ["#Область ПрограммныйИнтерфейс", "",
+SIGNATURE = Signature("TASK-1", "06.10.2026", "Автор", "#TEAM")
+MODULE = ["#Область ПрограммныйИнтерфейс", "",
           "Процедура Тест() Экспорт", "\tЗначение = 1;", "\tВозврат;", "КонецПроцедуры", "",
           "#КонецОбласти", "",
           "// {[+](фрагмент ДОБАВЛЕН), 01.01.2025, Автор #OLD-7",
@@ -498,7 +498,7 @@ def test_the_profile_changes_the_level_and_keeps_the_place():
 
 
 def written_as(edits):
-    new, _ = edit_module(list(МОДУЛЬ), edits, ПОДПИСЬ, new_module=False)
+    new, _ = edit_module(list(MODULE), edits, SIGNATURE, new_module=False)
     return new
 
 
@@ -518,8 +518,8 @@ def test_what_code_editing_writes_verification_accepts():
     }
     for what, edits in edit_jobs.items():
         new = written_as(edits)
-        hunks = hunks_between(МОДУЛЬ, new)
-        added, _ = changed_lines(hunks, МОДУЛЬ, new)
-        found = (v.marker_findings("CommonModules/X/Ext/Module.bsl", МОДУЛЬ, new, hunks, "TASK-1")
+        hunks = hunks_between(MODULE, new)
+        added, _ = changed_lines(hunks, MODULE, new)
+        found = (v.marker_findings("CommonModules/X/Ext/Module.bsl", MODULE, new, hunks, "TASK-1")
                  + v.structure_findings("CommonModules/X/Ext/Module.bsl", new, added))
         assert found == [], f"{what}: {found}\n" + "\n".join(new)

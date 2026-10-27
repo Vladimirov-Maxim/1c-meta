@@ -239,6 +239,46 @@ def test_domain_vocabulary_stays_russian():
     for cls in (model.ValueStorageType, model.UuidType):
         assert cls().name in vocabulary.PLATFORM_TYPES, cls().name
 
+def test_identifiers_are_latin():
+    """Имена кода — латиницей, а русскими остаются только данные.
+
+    Русский идентификатор законен в двух местах: поле модели MCP (`api/models.py`)
+    — это ключ JSON, которым говорит агент, — и именованный аргумент вызова,
+    который служит ключом данных: `dict(…, расписание=…)`, подстановка шаблона,
+    ключ задания в помощнике теста. Параметр с русским именем при этом всё
+    равно не пройдёт: его объявление — не именованный аргумент. Проверяются
+    и тесты: код без них был бы однородным только наполовину.
+    """
+    import io
+    import tokenize
+
+    cyrillic = re.compile("[А-Яа-яЁё]")
+    found = []
+    for folder, subfolders, names in os.walk(PACKAGE):
+        subfolders[:] = [d for d in subfolders if d != "__pycache__"]
+        for name in sorted(n for n in names if n.endswith(".py")):
+            path = os.path.join(folder, name)
+            models = path.endswith(os.path.join("api", "models.py"))
+            tokens = [t for t in tokenize.tokenize(io.BytesIO(open(path, "rb").read()).readline)
+                      if t.type not in (tokenize.NL, tokenize.COMMENT)]
+            brackets = []
+            for i, t in enumerate(tokens):
+                if t.type == tokenize.OP and t.string in "([{":
+                    brackets.append(t.string)
+                elif t.type == tokenize.OP and t.string in ")]}" and brackets:
+                    brackets.pop()
+                if t.type != tokenize.NAME or not cyrillic.search(t.string):
+                    continue
+                prev, nxt = tokens[i - 1], tokens[i + 1]
+                keyword = (prev.string in ("(", ",") and nxt.string == "="
+                           and brackets and brackets[-1] == "(")
+                field = models and nxt.string == ":" and prev.type in (
+                    tokenize.INDENT, tokenize.NEWLINE, tokenize.DEDENT)
+                if not keyword and not field:
+                    found.append(f"{os.path.relpath(path, ROOT)}:{t.start[0]} {t.string}")
+    assert not found, "русские имена в коде:\n" + "\n".join(found[:50])
+
+
 def test_third_party_is_locked_in_its_layer():
     """Внешняя библиотека заперта в своём слое.
 

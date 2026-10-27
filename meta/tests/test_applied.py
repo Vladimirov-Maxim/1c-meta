@@ -23,7 +23,7 @@ from meta.domain import model as dm  # noqa: E402
 from meta.domain.kinds import kind_of  # noqa: E402
 from meta.domain.model import Spec  # noqa: E402
 from meta.infra import serializer  # noqa: E402
-from meta.tests.conftest import ТЕСТ  # noqa: E402
+from meta.tests.conftest import TEST  # noqa: E402
 
 REFERENCES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "эталоны")
 
@@ -170,15 +170,15 @@ def test_prefix_required_only_in_foreign_objects():
         def taken_names(self, path):
             return []
 
-    attribute = kind_of("Реквизит", ТЕСТ)
+    attribute = kind_of("Реквизит", TEST)
     spec = attribute.fill(Spec("Реквизит", {"имя": "ТестЧисло", "синоним": "Тест",
                                             "тип": dm.NumberType(10)}))
     own_one = [f.code for f in attribute.check(spec, World(), ("Справочник", "мой_Наш"))]
-    чужой = [f.code for f in attribute.check(spec, World(), ("Справочник", "Контрагенты"))]
-    создаётся = [f.code for f in attribute.check(spec, World(), ("Справочник", None))]
+    foreign_item = [f.code for f in attribute.check(spec, World(), ("Справочник", "Контрагенты"))]
+    being_created = [f.code for f in attribute.check(spec, World(), ("Справочник", None))]
     assert "МД-ПРЕФИКС" not in own_one, own_one
-    assert "МД-ПРЕФИКС" in чужой, чужой
-    assert "МД-ПРЕФИКС" not in создаётся, создаётся
+    assert "МД-ПРЕФИКС" in foreign_item, foreign_item
+    assert "МД-ПРЕФИКС" not in being_created, being_created
 
 def test_document_matches_platform_reference():
     text, name, tag = reference("Документ")

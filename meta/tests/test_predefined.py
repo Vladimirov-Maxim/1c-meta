@@ -30,11 +30,11 @@ from meta.domain.model import Refuse  # noqa: E402
 pytestmark = pytest.mark.skipif(not _edt_model.available(), reason="таблица метамодели EDT не сгенерирована: "
                                 "py -3 tools/edt_model_from_xcore.py")
 
-ПРОФИЛЬ = {"приставка": ["мой_"]}
+PROFILE = {"приставка": ["мой_"]}
 MDCLASS = 'xmlns:mdclass="http://g5.1c.ru/v8/dt/metadata/mdclass"'
-ОБА = 'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:core="http://g5.1c.ru/v8/dt/mcore" ' + MDCLASS
+BOTH = 'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:core="http://g5.1c.ru/v8/dt/mcore" ' + MDCLASS
 
-РЕЕСТР = f"""<?xml version="1.0" encoding="UTF-8"?>
+REGISTRY = f"""<?xml version="1.0" encoding="UTF-8"?>
 <mdclass:Configuration {MDCLASS} uuid="f02dbb0b-64fd-42c8-a83c-d102640edbc0">
   <name>Конфигурация</name>
   <catalogs>Catalog.мой_Виды</catalogs>
@@ -43,8 +43,8 @@ MDCLASS = 'xmlns:mdclass="http://g5.1c.ru/v8/dt/metadata/mdclass"'
 </mdclass:Configuration>
 """
 
-ВИДЫ = f"""<?xml version="1.0" encoding="UTF-8"?>
-<mdclass:Catalog {ОБА} uuid="7d1e2824-b889-41a0-a83e-d45103c58d47">
+KINDS = f"""<?xml version="1.0" encoding="UTF-8"?>
+<mdclass:Catalog {BOTH} uuid="7d1e2824-b889-41a0-a83e-d45103c58d47">
   <name>мой_Виды</name>
   <hierarchical>true</hierarchical>
   <codeLength>9</codeLength>
@@ -70,7 +70,7 @@ MDCLASS = 'xmlns:mdclass="http://g5.1c.ru/v8/dt/metadata/mdclass"'
 </mdclass:Catalog>
 """
 
-ПУСТОЙ = f"""<?xml version="1.0" encoding="UTF-8"?>
+EMPTY = f"""<?xml version="1.0" encoding="UTF-8"?>
 <mdclass:Catalog {MDCLASS} uuid="8d1e2824-b889-41a0-a83e-d45103c58d47">
   <name>мой_Пустой</name>
   <codeLength>9</codeLength>
@@ -90,14 +90,14 @@ NUMBERS = f"""<?xml version="1.0" encoding="UTF-8"?>
 """
 
 
-def написать(src, rel, text):
+def write_file(src, rel, text):
     path = os.path.join(str(src), *rel.split("/"))
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "wb") as file:
         file.write(text.encode("utf-8"))
 
 
-def прочитать(src, rel):
+def read_file(src, rel):
     with open(os.path.join(str(src), *rel.split("/")), "rb") as file:
         return file.read().decode("utf-8")
 
@@ -107,13 +107,13 @@ def git(root, *args):
 
 
 @pytest.fixture
-def проект(tmp_path, monkeypatch):
+def project(tmp_path, monkeypatch):
     src = tmp_path / "src"
-    for rel, text in (("Configuration/Configuration.mdo", РЕЕСТР),
-                       ("Catalogs/мой_Виды/мой_Виды.mdo", ВИДЫ),
-                       ("Catalogs/мой_Пустой/мой_Пустой.mdo", ПУСТОЙ),
+    for rel, text in (("Configuration/Configuration.mdo", REGISTRY),
+                       ("Catalogs/мой_Виды/мой_Виды.mdo", KINDS),
+                       ("Catalogs/мой_Пустой/мой_Пустой.mdo", EMPTY),
                        ("Catalogs/мой_Числа/мой_Числа.mdo", NUMBERS)):
-        написать(src, rel, text)
+        write_file(src, rel, text)
     rng = random.Random(7)
     monkeypatch.setattr(uuid, "uuid4", lambda: uuid.UUID(int=rng.getrandbits(128), version=4))
     return src
@@ -124,15 +124,15 @@ def add(src, tmp_path, *items, apply=True):
         {"путь": path, "вид": "ПредопределенныйЭлемент", "поля": fields} for path, fields in items]}
     file = tmp_path / "задание.json"
     file.write_text(json.dumps(job_spec, ensure_ascii=False), encoding="utf-8")
-    профиль = tmp_path / "профиль.json"
-    профиль.write_text(json.dumps(ПРОФИЛЬ, ensure_ascii=False), encoding="utf-8")
-    return main([str(file), "--профиль", str(профиль)] + (["--apply"] if apply else []))
+    profile = tmp_path / "профиль.json"
+    profile.write_text(json.dumps(PROFILE, ensure_ascii=False), encoding="utf-8")
+    return main([str(file), "--профиль", str(profile)] + (["--apply"] if apply else []))
 
 
-def test_a_predefined_item_goes_to_the_end_of_the_block(проект, tmp_path):
-    assert add(проект, tmp_path, ("Справочник.мой_Виды", {"имя": "Новый", "наименование": "Новый вид",
+def test_a_predefined_item_goes_to_the_end_of_the_block(project, tmp_path):
+    assert add(project, tmp_path, ("Справочник.мой_Виды", {"имя": "Новый", "наименование": "Новый вид",
                                                                   "код": "000000003"})) == 0
-    text = прочитать(проект, "Catalogs/мой_Виды/мой_Виды.mdo")
+    text = read_file(project, "Catalogs/мой_Виды/мой_Виды.mdo")
     new = """    <items id="{id}">
       <name>Новый</name>
       <description>Новый вид</description>
@@ -142,12 +142,12 @@ def test_a_predefined_item_goes_to_the_end_of_the_block(проект, tmp_path):
     </items>
   </predefined>"""
     id_ = re.search(r'<items id="([0-9a-f-]{36})">\n      <name>Новый<', text).group(1)
-    assert text == ВИДЫ.replace("  </predefined>", new.format(id=id_), 1)
+    assert text == KINDS.replace("  </predefined>", new.format(id=id_), 1)
 
 
-def test_an_item_goes_into_its_parent_group(проект, tmp_path):
-    assert add(проект, tmp_path, ("Справочник.мой_Виды", {"имя": "ВГруппе", "родитель": "Группа"})) == 0
-    text = прочитать(проект, "Catalogs/мой_Виды/мой_Виды.mdo")
+def test_an_item_goes_into_its_parent_group(project, tmp_path):
+    assert add(project, tmp_path, ("Справочник.мой_Виды", {"имя": "ВГруппе", "родитель": "Группа"})) == 0
+    text = read_file(project, "Catalogs/мой_Виды/мой_Виды.mdo")
     assert """      <isFolder>true</isFolder>
       <content id=""" in text
     assert """        <name>ВГруппе</name>
@@ -159,17 +159,17 @@ def test_an_item_goes_into_its_parent_group(проект, tmp_path):
   </predefined>""" in text
 
 
-def test_the_block_is_created_in_its_place_when_there_is_none(проект, tmp_path):
-    assert add(проект, tmp_path, ("Справочник.мой_Пустой", {"имя": "Первый", "группа": True})) == 0
-    text = прочитать(проект, "Catalogs/мой_Пустой/мой_Пустой.mdo")
+def test_the_block_is_created_in_its_place_when_there_is_none(project, tmp_path):
+    assert add(project, tmp_path, ("Справочник.мой_Пустой", {"имя": "Первый", "группа": True})) == 0
+    text = read_file(project, "Catalogs/мой_Пустой/мой_Пустой.mdo")
     assert text.index("<descriptionLength>") < text.index("<predefined>") < text.index("<attributes")
     assert "<isFolder>true</isFolder>" in text and "<description>" not in text
 
 
-def test_a_number_code_is_written_as_a_number(проект, tmp_path):
-    assert add(проект, tmp_path, ("Справочник.мой_Числа", {"имя": "Один", "код": "1"})) == 0
-    assert '<code xsi:type="core:NumberValue">\n        <value>1</value>' in прочитать(
-        проект, "Catalogs/мой_Числа/мой_Числа.mdo")
+def test_a_number_code_is_written_as_a_number(project, tmp_path):
+    assert add(project, tmp_path, ("Справочник.мой_Числа", {"имя": "Один", "код": "1"})) == 0
+    assert '<code xsi:type="core:NumberValue">\n        <value>1</value>' in read_file(
+        project, "Catalogs/мой_Числа/мой_Числа.mdo")
 
 
 @pytest.mark.parametrize("path, fields, stated", [
@@ -178,32 +178,32 @@ def test_a_number_code_is_written_as_a_number(проект, tmp_path):
     ("Справочник.мой_Числа", {"имя": "Буквы", "код": "А1"}, "не число"),
     ("Справочник.мой_Числа", {"имя": "Длинный", "код": "123456"}, "длиннее кода"),
 ])
-def test_wrong_items_are_refused(проект, tmp_path, capsys, path, fields, stated):
-    before = {rel: прочитать(проект, rel) for rel in ("Catalogs/мой_Виды/мой_Виды.mdo",
+def test_wrong_items_are_refused(project, tmp_path, capsys, path, fields, stated):
+    before = {rel: read_file(project, rel) for rel in ("Catalogs/мой_Виды/мой_Виды.mdo",
                                                     "Catalogs/мой_Числа/мой_Числа.mdo")}
     try:
-        code = add(проект, tmp_path, (path, fields))
+        code = add(project, tmp_path, (path, fields))
         text = capsys.readouterr().out
     except Refuse as refusal:
         code, text = 2, str(refusal)
     assert code != 0 and stated in text, text
-    assert {rel: прочитать(проект, rel) for rel in before} == before
+    assert {rel: read_file(project, rel) for rel in before} == before
 
 
-def test_the_plan_names_new_predefined_items_and_checks_them(проект, tmp_path, capsys):
+def test_the_plan_names_new_predefined_items_and_checks_them(project, tmp_path, capsys):
     """План по факту называет новый предопределённый элемент; сверка находит
     незаявленный и принимает заявленный."""
-    git(проект, "init", "-q")
+    git(project, "init", "-q")
     for key, value in (("user.email", "t@example.local"), ("user.name", "Фикстуры"),
                            ("core.autocrlf", "false"), ("core.safecrlf", "false")):
-        git(проект, "config", key, value)
-    git(проект, "add", "-A")
-    git(проект, "commit", "-q", "-m", "база")
-    assert add(проект, tmp_path, ("Справочник.мой_Виды", {"имя": "Новый"})) == 0
+        git(project, "config", key, value)
+    git(project, "add", "-A")
+    git(project, "commit", "-q", "-m", "база")
+    assert add(project, tmp_path, ("Справочник.мой_Виды", {"имя": "Новый"})) == 0
 
     answer = tmp_path / "план.json"
     capsys.readouterr()
-    main(["--план-по-факту", str(проект), "--json", str(answer)])
+    main(["--план-по-факту", str(project), "--json", str(answer)])
     plan = json.loads(answer.read_text(encoding="utf-8"))
     assert {"вид": "Справочник", "имя": "мой_Виды", "действие": "изменить",
             "предопределенные": ["Новый"]} in plan["объекты"], plan
@@ -211,9 +211,9 @@ def test_the_plan_names_new_predefined_items_and_checks_them(проект, tmp_p
     def reconcile(obj):
         file = tmp_path / "заявлено.json"
         file.write_text(json.dumps({"объекты": [obj]}, ensure_ascii=False), encoding="utf-8")
-        отчёт = tmp_path / "сверка.json"
-        main(["--сверить-план", str(проект), "--план", str(file), "--json", str(отчёт)])
-        return [f["код"] for f in json.loads(отчёт.read_text(encoding="utf-8"))["находки"]]
+        report = tmp_path / "сверка.json"
+        main(["--сверить-план", str(project), "--план", str(file), "--json", str(report)])
+        return [f["код"] for f in json.loads(report.read_text(encoding="utf-8"))["находки"]]
 
     assert reconcile({"вид": "Справочник", "имя": "мой_Виды", "действие": "изменить"}) == ["ПЛАН-ЧЛЕН-НЕ-ЗАЯВЛЕН"]
     assert reconcile({"вид": "Справочник", "имя": "мой_Виды", "действие": "изменить",
@@ -222,8 +222,8 @@ def test_the_plan_names_new_predefined_items_and_checks_them(проект, tmp_p
 
 def test_a_configurator_dump_refuses_predefined_items(tmp_path, capsys):
     cf = tmp_path / "cf"
-    написать(cf, "Configuration.xml", '<?xml version="1.0" encoding="UTF-8"?>\n<MetaDataObject/>\n')
-    написать(cf, "Catalogs/мой_Виды.xml", '<?xml version="1.0" encoding="UTF-8"?>\n'
+    write_file(cf, "Configuration.xml", '<?xml version="1.0" encoding="UTF-8"?>\n<MetaDataObject/>\n')
+    write_file(cf, "Catalogs/мой_Виды.xml", '<?xml version="1.0" encoding="UTF-8"?>\n'
              '<MetaDataObject xmlns="http://v8.1c.ru/8.3/MDClasses" version="2.21">\n'
              '\t<Catalog uuid="7d1e2824-b889-41a0-a83e-d45103c58d47">\n'
              '\t\t<Properties>\n\t\t\t<Name>мой_Виды</Name>\n\t\t</Properties>\n'

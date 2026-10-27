@@ -20,17 +20,17 @@ from meta.add import main  # noqa: E402
 from meta.domain import schedule  # noqa: E402
 from meta.infra import edt_schedule  # noqa: E402
 
-from .test_edt_write import ПРОФИЛЬ, pytestmark, проект  # noqa: E402,F401
+from .test_edt_write import PROFILE, project, pytestmark  # noqa: E402,F401
 
-МОДУЛЬ = {"вид": "ОбщийМодуль", "поля": {"имя": "мой_Сервер", "синоним": "Сервер",
+MODULE = {"вид": "ОбщийМодуль", "поля": {"имя": "мой_Сервер", "синоним": "Сервер",
                                         "текст": "Процедура Обменяться() Экспорт\nКонецПроцедуры\n"}}
-ЗАДАНИЕ = {"вид": "РегламентноеЗадание", "поля": {
+JOB = {"вид": "РегламентноеЗадание", "поля": {
     "имя": "мой_Обмен", "синоним": "Обмен", "обработчик": "мой_Сервер.Обменяться",
     "использование": False, "предопределённое": True, "количествоПовторов": "3", "интервалПовтора": "10"}}
-РАСПИСАНИЕ = {"повторДней": 1, "времяНачала": "01:00:00", "повторВТечениеДня": 3600, "повторНедель": 1,
+SCHEDULE = {"повторДней": 1, "времяНачала": "01:00:00", "повторВТечениеДня": 3600, "повторНедель": 1,
               "дниНедели": ["Понедельник", "Пятница"], "месяцы": ["Январь", "Декабрь"],
               "расписанияДня": [{"времяНачала": "14:00:00"}]}
-ОЖИДАНИЕ = """<?xml version="1.0" encoding="UTF-8"?>
+EXPECTATION = """<?xml version="1.0" encoding="UTF-8"?>
 <schedule:Schedule xmlns:schedule="http://g5.1c.ru/v8/dt/schedule" beginDate="0001-01-01" \
 endDate="0001-01-01" daysRepeatPeriod="1" beginTime="01:00:00" endTime="00:00:00" completionTime="00:00:00" \
 repeatPeriodInDay="3600" weeksPeriod="1">
@@ -43,63 +43,63 @@ repeatPeriodInDay="3600" weeksPeriod="1">
 """
 
 
-def выполнить(src, tmp_path, **job_spec):
+def execute(src, tmp_path, **job_spec):
     path = tmp_path / "задание.json"
     path.write_text(json.dumps({"repo": str(src), **job_spec}, ensure_ascii=False), encoding="utf-8")
-    return main([str(path), "--apply", "--профиль", ПРОФИЛЬ])
+    return main([str(path), "--apply", "--профиль", PROFILE])
 
 
 def file(src):
     return os.path.join(str(src), "ScheduledJobs", "мой_Обмен", "Schedule.schedule")
 
 
-def test_a_scheduled_job_is_created_with_its_schedule(проект, tmp_path):
-    job_spec = json.loads(json.dumps(ЗАДАНИЕ))
-    job_spec["поля"]["расписание"] = РАСПИСАНИЕ
-    assert выполнить(проект, tmp_path, objects=[МОДУЛЬ]) == 0
-    assert выполнить(проект, tmp_path, objects=[job_spec]) == 0
-    assert open(file(проект), "rb").read() == ОЖИДАНИЕ.encode("utf-8")
+def test_a_scheduled_job_is_created_with_its_schedule(project, tmp_path):
+    job_spec = json.loads(json.dumps(JOB))
+    job_spec["поля"]["расписание"] = SCHEDULE
+    assert execute(project, tmp_path, objects=[MODULE]) == 0
+    assert execute(project, tmp_path, objects=[job_spec]) == 0
+    assert open(file(project), "rb").read() == EXPECTATION.encode("utf-8")
 
 
-def test_the_schedule_is_changed_and_shown(проект, tmp_path, capsys):
-    assert выполнить(проект, tmp_path, objects=[МОДУЛЬ]) == 0
-    assert выполнить(проект, tmp_path, objects=[ЗАДАНИЕ]) == 0
-    assert not os.path.exists(file(проект))                     # не заказано — файла нет
-    assert выполнить(проект, tmp_path, changes=[{"путь": "РегламентноеЗадание.мой_Обмен",
-                                                 "поля": {"расписание": РАСПИСАНИЕ}}]) == 0
-    assert open(file(проект), "rb").read() == ОЖИДАНИЕ.encode("utf-8")
+def test_the_schedule_is_changed_and_shown(project, tmp_path, capsys):
+    assert execute(project, tmp_path, objects=[MODULE]) == 0
+    assert execute(project, tmp_path, objects=[JOB]) == 0
+    assert not os.path.exists(file(project))                     # не заказано — файла нет
+    assert execute(project, tmp_path, changes=[{"путь": "РегламентноеЗадание.мой_Обмен",
+                                                 "поля": {"расписание": SCHEDULE}}]) == 0
+    assert open(file(project), "rb").read() == EXPECTATION.encode("utf-8")
     capsys.readouterr()
-    main(["--показать", str(проект), "РегламентноеЗадание.мой_Обмен"])
+    main(["--показать", str(project), "РегламентноеЗадание.мой_Обмен"])
     assert "расписание:" in capsys.readouterr().out
 
 
-def test_a_wrong_schedule_is_refused(проект, tmp_path, capsys):
-    job_spec = json.loads(json.dumps(ЗАДАНИЕ))
+def test_a_wrong_schedule_is_refused(project, tmp_path, capsys):
+    job_spec = json.loads(json.dumps(JOB))
     job_spec["поля"]["расписание"] = {"дниНедели": ["Пн"], "времяНачала": "25:00:00", "частота": 1}
-    assert выполнить(проект, tmp_path, objects=[МОДУЛЬ]) == 0
+    assert execute(project, tmp_path, objects=[MODULE]) == 0
     capsys.readouterr()
-    assert выполнить(проект, tmp_path, objects=[job_spec]) != 0
+    assert execute(project, tmp_path, objects=[job_spec]) != 0
     text = capsys.readouterr().out
     assert "РАСПИСАНИЕ-НЕВЕРНО" in text and "частота" in text and "Понедельник" in text
 
 
 def test_a_schedule_is_read_and_written_back_byte_for_byte():
-    assert edt_schedule.render(edt_schedule.parse(ОЖИДАНИЕ)) == ОЖИДАНИЕ
-    assert edt_schedule.parse(ОЖИДАНИЕ)["дниНедели"] == ["Понедельник", "Пятница"]
-    assert schedule.problems(edt_schedule.parse(ОЖИДАНИЕ)) == []
+    assert edt_schedule.render(edt_schedule.parse(EXPECTATION)) == EXPECTATION
+    assert edt_schedule.parse(EXPECTATION)["дниНедели"] == ["Понедельник", "Пятница"]
+    assert schedule.problems(edt_schedule.parse(EXPECTATION)) == []
 
 
 @pytest.mark.skipif(not os.environ.get("META_EDT_CORPUS"), reason="не задан проект EDT META_EDT_CORPUS")
 def test_every_schedule_of_the_corpus_goes_round_byte_for_byte():
-    задания = os.path.join(os.environ["META_EDT_CORPUS"], "ScheduledJobs")
-    разошлись = []
-    for name in sorted(os.listdir(задания)):
-        path = os.path.join(задания, name, "Schedule.schedule")
+    jobs = os.path.join(os.environ["META_EDT_CORPUS"], "ScheduledJobs")
+    diverged = []
+    for name in sorted(os.listdir(jobs)):
+        path = os.path.join(jobs, name, "Schedule.schedule")
         if os.path.isfile(path):
             text = open(path, encoding="utf-8").read().replace("\r\n", "\n")
             if edt_schedule.render(edt_schedule.parse(text)) != text:
-                разошлись.append(name)
-    assert разошлись == []
+                diverged.append(name)
+    assert diverged == []
 
 
 def test_a_configurator_dump_refuses_a_schedule(tmp_path):
@@ -112,9 +112,9 @@ def test_a_configurator_dump_refuses_a_schedule(tmp_path):
         'version="2.21">\n\t<Configuration uuid="f02dbb0b-64fd-42c8-a83c-d102640edbc0">\n\t\t<Properties>\n'
         "\t\t\t<Name>Конфигурация</Name>\n\t\t</Properties>\n\t\t<ChildObjects/>\n\t</Configuration>\n"
         "</MetaDataObject>\n", encoding="utf-8-sig")
-    площадка = DesignerDump(str(tmp_path))
-    fields = dict(ЗАДАНИЕ["поля"], расписание=РАСПИСАНИЕ)
-    card = площадка.translate_card(kind_of("РегламентноеЗадание").fill(Spec("РегламентноеЗадание", fields)),
+    sandbox = DesignerDump(str(tmp_path))
+    fields = dict(JOB["поля"], расписание=SCHEDULE)
+    card = sandbox.translate_card(kind_of("РегламентноеЗадание").fill(Spec("РегламентноеЗадание", fields)),
                                        "7d1e2824-b889-41a0-a83e-d45103c58d47")
     with pytest.raises(Refuse, match="только в проект EDT"):
-        площадка.prepare([card])
+        sandbox.prepare([card])

@@ -10,10 +10,10 @@ from meta.acl.form_code import quote
 from meta.domain.form_dialect import CodeProcedure, FormCodeDialect
 from meta.domain.model import Finding, Refuse
 
-ГОТОВО = "Сборка.Готово();"
+READY = "Сборка.Готово();"
 
 
-class Сборщик(FormCodeDialect):
+class Assembler(FormCodeDialect):
     name = "сборщик"
     title = "Код сборщика форм"
     creating = {"элемент": r"\.\s*Элемент", "реквизит": r"\.\s*Реквизит",
@@ -33,24 +33,24 @@ class Сборщик(FormCodeDialect):
         lines = [f"Сборка = {settings['модуль']}.Сборщик(Форма);"]
         lines += [f"Сборка.Реквизит({quote(a.name)});" for a in edits.attributes]
         lines += [f"Сборка.Элемент({quote(e.name)});" for e in edits.all_elements()]
-        lines.append(ГОТОВО)
+        lines.append(READY)
         return "\n".join(lines) + "\n"
 
     def procedure_sign(self, settings):
-        return f"нет «{ГОТОВО}»"
+        return f"нет «{READY}»"
 
     def procedure(self, lines, span, arity, settings):
         for number in range(span[0], span[1] + 1):
-            if lines[number - 1].strip() == ГОТОВО:
+            if lines[number - 1].strip() == READY:
                 return CodeProcedure(span[0], span[1], "Сборка", number)
         return None
 
     def extension_anchor(self, procedure):
-        return f"«{ГОТОВО}»"
+        return f"«{READY}»"
 
     def extension(self, lines, procedure, settings):
         return [s for s in lines if s.strip() and not s.startswith("Сборка = ")
-                and s.strip() != ГОТОВО]
+                and s.strip() != READY]
 
     def movement(self, next_):
         return f'Сборка.Перед("{next_}")'
@@ -62,4 +62,4 @@ class Сборщик(FormCodeDialect):
         return []
 
 
-DIALECT = Сборщик()
+DIALECT = Assembler()

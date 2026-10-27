@@ -28,9 +28,9 @@ pytestmark = pytest.mark.skipif(not _edt_model.available(), reason="таблиц
                                 "py -3 tools/edt_model_from_xcore.py")
 
 EDT = os.path.join(ROOT, "meta", "tests", "эталоны", "edt")
-ЗАДАНИЯ = os.path.join(EDT, "задания")
+JOBS = os.path.join(EDT, "задания")
 ORACLE_SEED = 20261007
-ПРОФИЛЬ = os.path.join(ROOT, "meta", "tests", "профиль-тестов.json")
+PROFILE = os.path.join(ROOT, "meta", "tests", "профиль-тестов.json")
 
 
 def files(root):
@@ -43,7 +43,7 @@ def files(root):
 
 
 @pytest.fixture
-def проект(tmp_path, monkeypatch):
+def project(tmp_path, monkeypatch):
     """Копия базового проекта EDT и воспроизводимые uuid."""
     src = tmp_path / "src"
     shutil.copytree(os.path.join(EDT, "база"), src)
@@ -54,52 +54,52 @@ def проект(tmp_path, monkeypatch):
 
 def apply(src, tmp_path, forms=False):
     """Задания по порядку: без форм (эталон `ожидание`) или все (`ожидание-формы`)."""
-    for name in sorted(os.listdir(ЗАДАНИЯ)):
+    for name in sorted(os.listdir(JOBS)):
         if not name.endswith(".json") or ("-форма-" in name and not forms):
             continue
-        with open(os.path.join(ЗАДАНИЯ, name), encoding="utf-8") as f:
+        with open(os.path.join(JOBS, name), encoding="utf-8") as f:
             job_spec = json.loads(f.read().replace("{repo}", str(src).replace("\\", "/")))
         path = tmp_path / name
         path.write_text(json.dumps(job_spec, ensure_ascii=False), encoding="utf-8")
-        assert main([str(path), "--apply", "--профиль", ПРОФИЛЬ]) == 0, name
+        assert main([str(path), "--apply", "--профиль", PROFILE]) == 0, name
 
 
-def test_new_objects_of_every_kind_are_written_as_edt_writes_them(проект, tmp_path):
-    apply(проект, tmp_path)
-    ожидание, after_ = files(os.path.join(EDT, "ожидание")), files(проект)
-    assert sorted(after_) == sorted(ожидание)
-    разошлись = [path for path in ожидание
-                 if open(ожидание[path], "rb").read() != open(after_[path], "rb").read()]
-    assert разошлись == []
+def test_new_objects_of_every_kind_are_written_as_edt_writes_them(project, tmp_path):
+    apply(project, tmp_path)
+    expectation, after_ = files(os.path.join(EDT, "ожидание")), files(project)
+    assert sorted(after_) == sorted(expectation)
+    diverged = [path for path in expectation
+                 if open(expectation[path], "rb").read() != open(after_[path], "rb").read()]
+    assert diverged == []
 
 
-def test_forms_are_written_as_edt_writes_them(проект, tmp_path):
+def test_forms_are_written_as_edt_writes_them(project, tmp_path):
     """Формы: новая форма объекта (запись в карточке хозяина, описание, модуль,
     настройки динамического списка) и правка существующей — те же байты, что у
     EDT после импорта выгрузки, в которой те же задания записал писатель выгрузки."""
-    apply(проект, tmp_path, forms=True)
-    ожидание, after_ = files(os.path.join(EDT, "ожидание-формы")), files(проект)
-    assert sorted(after_) == sorted(ожидание)
-    разошлись = [path for path in ожидание
-                 if open(ожидание[path], "rb").read() != open(after_[path], "rb").read()]
-    assert разошлись == []
+    apply(project, tmp_path, forms=True)
+    expectation, after_ = files(os.path.join(EDT, "ожидание-формы")), files(project)
+    assert sorted(after_) == sorted(expectation)
+    diverged = [path for path in expectation
+                 if open(expectation[path], "rb").read() != open(after_[path], "rb").read()]
+    assert diverged == []
 
 
-def test_a_new_file_is_utf8_without_bom_and_lf(проект, tmp_path):
-    apply(проект, tmp_path)
-    for path in files(проект).values():
+def test_a_new_file_is_utf8_without_bom_and_lf(project, tmp_path):
+    apply(project, tmp_path)
+    for path in files(project).values():
         data = open(path, "rb").read()
         assert not data.startswith(b"\xef\xbb\xbf") and b"\r\n" not in data, path
 
 
-def test_what_the_edt_platform_writes_verify_accepts(проект, tmp_path):
+def test_what_the_edt_platform_writes_verify_accepts(project, tmp_path):
     """Записанное площадкой EDT проверка правок принимает: формат файлов
     (BOM, переводы строк) и приставка — без находок; права названы только у
     объектов, у которых их в заданиях нет."""
     import subprocess
 
     def git(*args):
-        subprocess.run(["git", "-C", str(проект), *args], check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(project), *args], check=True, capture_output=True)
 
     git("init", "-q")
     for key, value in (("user.email", "t@example.local"), ("user.name", "Фикстуры"),
@@ -107,9 +107,9 @@ def test_what_the_edt_platform_writes_verify_accepts(проект, tmp_path):
         git("config", key, value)
     git("add", "-A")
     git("commit", "-q", "-m", "база")
-    apply(проект, tmp_path)
+    apply(project, tmp_path)
     answer = tmp_path / "ответ.json"
-    main(["--проверить", str(проект), "--задача", "ОРАКУЛ-1", "--профиль", ПРОФИЛЬ, "--json", str(answer)])
+    main(["--проверить", str(project), "--задача", "ОРАКУЛ-1", "--профиль", PROFILE, "--json", str(answer)])
     data = json.loads(answer.read_text(encoding="utf-8"))
     codes = {f["код"] for f in data["находки"]}
     assert codes <= {"ПРАВА-НЕ-ВЫДАНЫ"}, data["находки"]
@@ -131,18 +131,18 @@ def test_a_form_read_from_edt_is_the_same_form_as_in_the_dump(tmp_path, monkeypa
     edt_oracle.base_dump(str(cf))
     edt_oracle.apply_jobs(str(cf), main)
     forms = os.path.join(EDT, "ожидание-формы", "Documents", "мой_Заявка", "Forms")
-    сверено = 0
+    reconciled = 0
     for name in sorted(os.listdir(forms)):
         edt_text = open(os.path.join(forms, name, "Form.form"), encoding="utf-8").read()
         xml = open(cf / "Documents" / "мой_Заявка" / "Forms" / name / "Ext" / "Form.xml",
                    encoding="utf-8-sig").read().replace("\r\n", "\n")
         owner = ("Документ", "мой_Заявка")
-        выгрузка = for_text(xml).view(for_text(xml).load(xml), owner, name)
+        dump_dir = for_text(xml).view(for_text(xml).load(xml), owner, name)
         edt = for_text(edt_text).view(for_text(edt_text).load(edt_text), owner, name)
         for field in ("elements", "commands", "events", "main", "assignment",
                      "dynamic_lists", "commands_actions"):
-            assert getattr(edt, field) == getattr(выгрузка, field), (name, field)
+            assert getattr(edt, field) == getattr(dump_dir, field), (name, field)
         # типы домена сравниваются записью: равенства по значению у них нет
-        assert {k: str(v) for k, v in edt.attributes.items()}             == {k: str(v) for k, v in выгрузка.attributes.items()}, name
-        сверено += 1
-    assert сверено >= 5
+        assert {k: str(v) for k, v in edt.attributes.items()}             == {k: str(v) for k, v in dump_dir.attributes.items()}, name
+        reconciled += 1
+    assert reconciled >= 5

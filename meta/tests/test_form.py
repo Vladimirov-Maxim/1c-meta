@@ -25,7 +25,7 @@ from meta.acl import form  # noqa: E402
 from meta.infra.tree_lxml import LxmlCardTree  # noqa: E402
 from meta.tests import corpus  # noqa: E402
 
-ФОРМА = """<?xml version="1.0" encoding="UTF-8"?>
+FORM = """<?xml version="1.0" encoding="UTF-8"?>
 <Form xmlns="http://v8.1c.ru/8.3/xcf/logform"\
  xmlns:v8="http://v8.1c.ru/8.1/data/core" version="2.21">
 \t<WindowOpeningMode>LockOwner</WindowOpeningMode>
@@ -72,11 +72,11 @@ from meta.tests import corpus  # noqa: E402
 @pytest.fixture
 def node():
     tree = LxmlCardTree()
-    return tree.to_node(tree.parse(ФОРМА))
+    return tree.to_node(tree.parse(FORM))
 
 
 @pytest.fixture(scope="module")
-def корпус_форм():
+def form_corpus():
     """Один обход по 392 МБ форм на весь модуль, а не по обходу на утверждение.
 
     Если бы четыре корпусных проверки ходили по конфигурации каждая своим
@@ -94,44 +94,44 @@ def корпус_форм():
         if os.path.basename(directory) != "Ext" or "Form.xml" not in files:
             continue
         path = os.path.join(directory, "Form.xml")
-        исходник = open(path, encoding="utf-8-sig").read().replace("\r\n", "\n")
+        source_text = open(path, encoding="utf-8-sig").read().replace("\r\n", "\n")
         result["форм"] += 1
 
-        разобранное = tree.parse(исходник)
-        if tree.serialize(разобранное) == исходник:
+        parsed_value = tree.parse(source_text)
+        if tree.serialize(parsed_value) == source_text:
             result["побайтно"] += 1
         elif len(result["разошлись"]) < 5:
             result["разошлись"].append(os.path.relpath(path, corpus.CORPUS))
 
-        node = tree.to_node(разобранное)
+        node = tree.to_node(parsed_value)
         result["чужие_виды"] |= form.kinds_of(node) - set(form.ELEMENTS)
 
-        for узел_xml in разобранное.iter():
-            if not isinstance(узел_xml.tag, str):
+        for xml_node in parsed_value.iter():
+            if not isinstance(xml_node.tag, str):
                 continue
-            if etree.QName(узел_xml).localname not in form.SATELLITES:
+            if etree.QName(xml_node).localname not in form.SATELLITES:
                 continue
             result["спутников"] += 1
-            parent = узел_xml.getparent().get("name") or ""
-            is_own = узел_xml.get("name") or ""
+            parent = xml_node.getparent().get("name") or ""
+            is_own = xml_node.get("name") or ""
             if parent and is_own.startswith(parent):
                 result["спутники_выводятся"] += 1
 
-        numbers = [int(н) for н in re.findall(r' id="(\d+)"', исходник)]
+        numbers = [int(nn) for nn in re.findall(r' id="(\d+)"', source_text)]
         if numbers and sorted(numbers) == list(range(1, len(numbers) + 1)):
             result["номера_подряд"] += 1
     return result
 
 
-def test_every_form_of_the_configuration_survives_the_round_trip(корпус_форм):
+def test_every_form_of_the_configuration_survives_the_round_trip(form_corpus):
     """Разбор и сборка обратно — байт в байт, на всех 11 042 формах замеренной
     конфигурации.
 
     Это фундамент: пока разбор теряет хоть что-то, язык описания формы
     строить не на чем — потеря всплывёт испорченной формой в конфигурации.
     """
-    assert корпус_форм["форм"] > 10000, корпус_форм["форм"]
-    assert корпус_форм["побайтно"] == корпус_форм["форм"], корпус_форм["разошлись"]
+    assert form_corpus["форм"] > 10000, form_corpus["форм"]
+    assert form_corpus["побайтно"] == form_corpus["форм"], form_corpus["разошлись"]
 
 
 def test_the_view_keeps_the_tree_and_the_bindings(node):
@@ -145,8 +145,8 @@ def test_the_view_keeps_the_tree_and_the_bindings(node):
     # поле лежит внутри группы, а не рядом с ней
     group = html.index('data-рамка="StrongSeparation"')
     field = html.index('data-путь="СкладОтбор"')
-    закрытие = html.index("</div>", group)
-    assert group < field < закрытие
+    closing_line = html.index("</div>", group)
+    assert group < field < closing_line
 
 
 def test_a_caption_comes_from_the_form_attribute(node):
@@ -165,8 +165,8 @@ def test_a_hidden_caption_stays_hidden(node):
     """`TitleLocation = None` — подписи нет вовсе, так у 6534 полей замеренной
     конфигурации."""
     html = form.html_from_node(node)
-    кусок = html[html.index('data-путь="Объект.Ответственный"'):]
-    assert "Ответственный</span>" not in кусок.split("</label>")[0]
+    piece = html[html.index('data-путь="Объект.Ответственный"'):]
+    assert "Ответственный</span>" not in piece.split("</label>")[0]
 
 
 def test_a_group_title_shows_unless_it_is_switched_off(node):
@@ -194,39 +194,39 @@ def test_satellites_are_dropped(node):
 def test_an_unknown_kind_is_shown_and_not_dropped():
     """Незнакомый вид остаётся видимым — молча потерять элемент хуже."""
     tree = LxmlCardTree()
-    подменённая = ФОРМА.replace("<InputField name=\"Скрытое\" id=\"15\">",
+    substituted_one = FORM.replace("<InputField name=\"Скрытое\" id=\"15\">",
                                 "<НовыйВидПоля name=\"Скрытое\" id=\"15\">")
-    подменённая = подменённая.replace("</InputField>\n\t\t\t</ChildItems>",
+    substituted_one = substituted_one.replace("</InputField>\n\t\t\t</ChildItems>",
                                       "</НовыйВидПоля>\n\t\t\t</ChildItems>")
-    html = form.html_from_node(tree.to_node(tree.parse(подменённая)))
+    html = form.html_from_node(tree.to_node(tree.parse(substituted_one)))
     assert 'data-вид="НовыйВидПоля"' in html
     assert "неизвестный" in html
 
 
-def test_every_element_kind_of_the_configuration_is_known(корпус_форм):
+def test_every_element_kind_of_the_configuration_is_known(form_corpus):
     """Видов элементов 31, и все они названы: «не знаю» на корпусе быть не должно."""
-    assert not корпус_форм["чужие_виды"], sorted(корпус_форм["чужие_виды"])
+    assert not form_corpus["чужие_виды"], sorted(form_corpus["чужие_виды"])
 
 
-def test_satellite_names_are_derived_from_the_parent(корпус_форм):
+def test_satellite_names_are_derived_from_the_parent(form_corpus):
     """Спутники выводимы: в замеренной конфигурации 595 591 имя из 597 296 —
     имя родителя плюс суффикс.
 
     Отсюда следует, что язык описания формы может их не хранить, а это
     больше половины элементов файла.
     """
-    доля = корпус_форм["спутники_выводятся"] / корпус_форм["спутников"]
-    print(f"спутников: {корпус_форм['спутников']}, выводится {доля:.2%}")
-    assert доля > 0.99, доля
+    share = form_corpus["спутники_выводятся"] / form_corpus["спутников"]
+    print(f"спутников: {form_corpus['спутников']}, выводится {share:.2%}")
+    assert share > 0.99, share
 
 
-def test_the_element_numbers_are_not_derivable(корпус_форм):
+def test_the_element_numbers_are_not_derivable(form_corpus):
     """А номера элементов нести придётся: в замеренной конфигурации подряд они
     лишь у 112 форм из 11 042.
 
     Это записано тестом, потому что соблазн «пронумеруем сами» велик,
     а побайтный круг он ломает.
     """
-    доля = корпус_форм["номера_подряд"] / корпус_форм["форм"]
-    print(f"форм с номерами подряд: {корпус_форм['номера_подряд']}")
-    assert доля < 0.05, доля
+    share = form_corpus["номера_подряд"] / form_corpus["форм"]
+    print(f"форм с номерами подряд: {form_corpus['номера_подряд']}")
+    assert share < 0.05, share

@@ -13,8 +13,8 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, ROOT)
 
-ПРОФИЛЬ = os.path.join(os.path.dirname(os.path.abspath(__file__)), "профиль-тестов.json")
-os.environ["META_PROFILE"] = ПРОФИЛЬ
+PROFILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "профиль-тестов.json")
+os.environ["META_PROFILE"] = PROFILE
 
 # Фикстуры коммитят во временные репозитории git. Настройки git разработчика —
 # подпись коммитов, свои хуки — роняли бы их на чужой машине, поэтому тесты
@@ -23,19 +23,19 @@ os.environ["META_PROFILE"] = ПРОФИЛЬ
 # писали бы во внешний репозиторий.
 os.environ["GIT_CONFIG_GLOBAL"] = os.devnull
 os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
-for _переменная in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY",
+for _variable in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY",
                     "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_CONFIG_PARAMETERS",
                     "GIT_CONFIG_COUNT", "GIT_PREFIX"):
-    os.environ.pop(_переменная, None)
+    os.environ.pop(_variable, None)
 
 
-def _тест():
+def _test():
     import json
 
     from meta.jobs.profile import conventions
-    with open(ПРОФИЛЬ, encoding="utf-8") as file:
+    with open(PROFILE, encoding="utf-8") as file:
         return conventions(json.load(file), "профиль тестов")
 
 
 #: Соглашения тестовой команды — для тестов, которые зовут домен напрямую.
-ТЕСТ = _тест()
+TEST = _test()

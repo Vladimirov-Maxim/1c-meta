@@ -99,23 +99,23 @@ def test_defaults_and_xml_attributes():
 
 
 def test_a_card_written_by_edt_obeys_the_table():
-    module, расхождения = _checker(), {}
+    module, mismatches = _checker(), {}
     root = etree.fromstring(CATALOG.encode("utf-8"))
     from collections import defaultdict
-    расхождения = defaultdict(list)
-    module.check(root, module.class_of_element(root), "образец", расхождения)
-    assert dict(расхождения) == {}
+    mismatches = defaultdict(list)
+    module.check(root, module.class_of_element(root), "образец", mismatches)
+    assert dict(mismatches) == {}
 
 
 def test_a_card_out_of_order_is_caught():
     module = _checker()
     from collections import defaultdict
-    расхождения = defaultdict(list)
-    испорчена = CATALOG.replace("  <levelCount>2</levelCount>\n", "").replace(
+    mismatches = defaultdict(list)
+    corrupted = CATALOG.replace("  <levelCount>2</levelCount>\n", "").replace(
         "  <attributes uuid=", "  <levelCount>2</levelCount>\n  <attributes uuid=", 1)
-    root = etree.fromstring(испорчена.encode("utf-8"))
-    module.check(root, module.class_of_element(root), "образец", расхождения)
-    assert any(what == "порядок" for what, _ in расхождения)
+    root = etree.fromstring(corrupted.encode("utf-8"))
+    module.check(root, module.class_of_element(root), "образец", mismatches)
+    assert any(what == "порядок" for what, _ in mismatches)
 
 
 @pytest.mark.skipif(not os.environ.get("META_EDT_CORPUS"), reason="не задан проект EDT META_EDT_CORPUS")

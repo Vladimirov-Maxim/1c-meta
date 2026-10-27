@@ -795,8 +795,8 @@ def test_the_schema_matches_what_the_platform_wrote_back():
 # --- правка запроса фрагментами ----------------------------------------------------------------
 
 
-def правка_фрагментом(dump, *фрагменты, apply_now=True):
-    _, fields = job_dialect.change_job_from_json({"путь": ADDRESS, "поля": {"запрос": list(фрагменты)}})
+def fragment_edit(dump, *fragments, apply_now=True):
+    _, fields = job_dialect.change_job_from_json({"путь": ADDRESS, "поля": {"запрос": list(fragments)}})
     return change(dump, ADDRESS, fields, apply_now=apply_now)
 
 
@@ -805,11 +805,11 @@ def test_a_query_is_edited_by_a_fragment(dump):
     сверяется якорями и встаёт на место, соседний набор не тронут, план
     показывает разницу запроса."""
     change(dump, ADDRESS, {"запрос": "ВЫБРАТЬ\n\tСсылка\nИЗ\n\tСправочник.Товары"})
-    result = правка_фрагментом(dump, {"line": 2, "lines": 1, "first_line": "\tСсылка", "last_line": "\tСсылка",
+    result = fragment_edit(dump, {"line": 2, "lines": 1, "first_line": "\tСсылка", "last_line": "\tСсылка",
                                       "code": "\tСсылка,\n\tКод"}, apply_now=False)
     shown = "\n".join(result.plan.describe())
     assert "«запрос» правится фрагментами" in shown and "+\tКод" in shown, shown
-    правка_фрагментом(dump, {"line": 2, "lines": 1, "first_line": "\tСсылка", "last_line": "\tСсылка",
+    fragment_edit(dump, {"line": 2, "lines": 1, "first_line": "\tСсылка", "last_line": "\tСсылка",
                              "code": "\tСсылка,\n\tКод"})
     text = schema_of(dump)
     assert "<query>ВЫБРАТЬ\n\tСсылка,\n\tКод\nИЗ\n\tСправочник.Товары</query>" in text
@@ -818,10 +818,10 @@ def test_a_query_is_edited_by_a_fragment(dump):
 
 def test_a_fragment_with_a_wrong_anchor_or_unbalanced_brackets_is_refused(dump):
     change(dump, ADDRESS, {"запрос": "ВЫБРАТЬ\n\tСсылка\nИЗ\n\tСправочник.Товары"})
-    result = правка_фрагментом(dump, {"line": 2, "lines": 1, "first_line": "\tКод", "last_line": "\tКод",
+    result = fragment_edit(dump, {"line": 2, "lines": 1, "first_line": "\tКод", "last_line": "\tКод",
                                       "code": "\tКод"}, apply_now=False)
     assert [f.code for _, fs in result.per_object for f in fs] == ["ТЕКСТ-ЯКОРЬ"]
-    result = правка_фрагментом(dump, {"line": 2, "lines": 1, "first_line": "\tСсылка", "last_line": "\tСсылка",
+    result = fragment_edit(dump, {"line": 2, "lines": 1, "first_line": "\tСсылка", "last_line": "\tСсылка",
                                       "code": "\tЕСТЬNULL(Ссылка"}, apply_now=False)
     assert [f.code for _, fs in result.per_object for f in fs] == ["ТЕКСТ-СКОБКИ"]
     assert "ВЫБРАТЬ\n\tСсылка\nИЗ" in schema_of(dump)                    # ничего не записано

@@ -191,15 +191,15 @@ def test_every_operation_uses_the_injected_tree(tmp_path):
     from meta.infra.tree_lxml import LxmlCardTree
     from meta.jobs import dialect as job_dialect
 
-    считано = []
+    read_count = []
 
-    class Счётчик(LxmlCardTree):
+    class Counter(LxmlCardTree):
         def build(self, node):
-            считано.append("build")
+            read_count.append("build")
             return LxmlCardTree.build(self, node)
 
         def serialize(self, tree):
-            считано.append("serialize")
+            read_count.append("serialize")
             return LxmlCardTree.serialize(self, tree)
 
     root = str(tmp_path)
@@ -209,11 +209,11 @@ def test_every_operation_uses_the_injected_tree(tmp_path):
         "\t<Configuration>\n\t\t<ChildObjects/>\n"
         "\t</Configuration>\n</MetaDataObject>")
 
-    platform = DesignerDump(root, tree=Счётчик())
+    platform = DesignerDump(root, tree=Counter())
     AddObjectUseCase(platform).execute(
         [job_dialect.spec_from_json({"вид": "ОбщийМодуль", "поля": {
             "имя": "мой_Проба", "синоним": "Проба"}})], apply_now=True)
 
-    assert "build" in считано, (
+    assert "build" in read_count, (
         "создание объекта собрало карточку не переданной реализацией")
 

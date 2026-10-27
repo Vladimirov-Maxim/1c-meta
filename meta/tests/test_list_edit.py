@@ -20,22 +20,22 @@ from meta.add import main  # noqa: E402
 from meta.domain.model import ListEdit, Refuse  # noqa: E402
 from meta.jobs import dialect  # noqa: E402
 
-ЭТАЛОНЫ = os.path.join(ROOT, "meta", "tests", "эталоны")
-ПРОФИЛЬ = os.path.join(ROOT, "meta", "tests", "профиль-тестов.json")
+GOLDEN = os.path.join(ROOT, "meta", "tests", "эталоны")
+PROFILE = os.path.join(ROOT, "meta", "tests", "профиль-тестов.json")
 
 
 def job_spec(tmp_path, data):
     path = tmp_path / "задание.json"
     path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
-    return [str(path), "--apply", "--профиль", ПРОФИЛЬ]
+    return [str(path), "--apply", "--профиль", PROFILE]
 
 
 @pytest.fixture
-def выгрузка(tmp_path):
+def dump_dir(tmp_path):
     """Пустая конфигурация, два справочника и подсистема с одним из них."""
     root = tmp_path / "cf"
     (root / "Languages").mkdir(parents=True)
-    shutil.copy(os.path.join(ЭТАЛОНЫ, "формы", "Configuration.xml"), root)
+    shutil.copy(os.path.join(GOLDEN, "формы", "Configuration.xml"), root)
     sys.path.insert(0, os.path.join(ROOT, "tools"))
     import edt_oracle
     (root / "Languages" / "Русский.xml").write_text(edt_oracle.LANGUAGE, encoding="utf-8-sig")
@@ -57,51 +57,51 @@ def edit_job(root, field):
     return {"repo": str(root), "changes": [{"путь": "Подсистема.мой_Раздел", "поля": {"состав": field}}]}
 
 
-def test_a_bare_list_in_a_change_is_refused(выгрузка, tmp_path):
+def test_a_bare_list_in_a_change_is_refused(dump_dir, tmp_path):
     """Голый список — отказ с подсказкой режимов; файл не тронут."""
-    before = composition(выгрузка)
+    before = composition(dump_dir)
     with pytest.raises(Refuse, match="голый список заменил бы перечень целиком"):
-        main(job_spec(tmp_path, edit_job(выгрузка, ["Справочник.мой_В"])))
-    assert composition(выгрузка) == before
+        main(job_spec(tmp_path, edit_job(dump_dir, ["Справочник.мой_В"])))
+    assert composition(dump_dir) == before
 
 
-def test_add_keeps_what_was_there(выгрузка, tmp_path):
+def test_add_keeps_what_was_there(dump_dir, tmp_path):
     """«добавить» дописывает в конец; прежние объекты на месте."""
-    assert main(job_spec(tmp_path, edit_job(выгрузка, {"добавить": ["Справочник.мой_В"]}))) == 0
-    assert [x.split(">")[1].split("<")[0] for x in composition(выгрузка)] == [
+    assert main(job_spec(tmp_path, edit_job(dump_dir, {"добавить": ["Справочник.мой_В"]}))) == 0
+    assert [x.split(">")[1].split("<")[0] for x in composition(dump_dir)] == [
         "Catalog.мой_А", "Catalog.мой_Б", "Catalog.мой_В"]
 
 
-def test_remove_drops_only_what_is_named(выгрузка, tmp_path):
-    assert main(job_spec(tmp_path, edit_job(выгрузка, {"убрать": ["Справочник.мой_А"]}))) == 0
-    assert [x.split(">")[1].split("<")[0] for x in composition(выгрузка)] == ["Catalog.мой_Б"]
+def test_remove_drops_only_what_is_named(dump_dir, tmp_path):
+    assert main(job_spec(tmp_path, edit_job(dump_dir, {"убрать": ["Справочник.мой_А"]}))) == 0
+    assert [x.split(">")[1].split("<")[0] for x in composition(dump_dir)] == ["Catalog.мой_Б"]
 
 
-def test_removing_what_is_absent_is_an_error(выгрузка, tmp_path, capsys):
-    before = composition(выгрузка)
-    assert main(job_spec(tmp_path, edit_job(выгрузка, {"убрать": ["Справочник.мой_В"]}))) != 0
+def test_removing_what_is_absent_is_an_error(dump_dir, tmp_path, capsys):
+    before = composition(dump_dir)
+    assert main(job_spec(tmp_path, edit_job(dump_dir, {"убрать": ["Справочник.мой_В"]}))) != 0
     assert "ПЕРЕЧЕНЬ-УБРАТЬ-НЕТ" in capsys.readouterr().out
-    assert composition(выгрузка) == before
+    assert composition(dump_dir) == before
 
 
-def test_an_added_object_must_exist(выгрузка, tmp_path, capsys):
+def test_an_added_object_must_exist(dump_dir, tmp_path, capsys):
     """Добавляемое проверяется, как при создании: несуществующего — нельзя."""
-    assert main(job_spec(tmp_path, edit_job(выгрузка, {"добавить": ["Справочник.мой_Нет"]}))) != 0
+    assert main(job_spec(tmp_path, edit_job(dump_dir, {"добавить": ["Справочник.мой_Нет"]}))) != 0
     assert "ПОДСИСТЕМА-СОСТАВ-НЕТ" in capsys.readouterr().out
 
 
-def test_adding_what_is_there_is_a_warning_not_a_duplicate(выгрузка, tmp_path, capsys):
-    before = composition(выгрузка)
-    assert main(job_spec(tmp_path, edit_job(выгрузка, {"добавить": ["Справочник.мой_А"]}))) == 0
+def test_adding_what_is_there_is_a_warning_not_a_duplicate(dump_dir, tmp_path, capsys):
+    before = composition(dump_dir)
+    assert main(job_spec(tmp_path, edit_job(dump_dir, {"добавить": ["Справочник.мой_А"]}))) == 0
     assert "ПЕРЕЧЕНЬ-УЖЕ-ЕСТЬ" in capsys.readouterr().out
-    assert composition(выгрузка) == before
+    assert composition(dump_dir) == before
 
 
-def test_replace_is_explicit_and_names_what_leaves(выгрузка, tmp_path, capsys):
+def test_replace_is_explicit_and_names_what_leaves(dump_dir, tmp_path, capsys):
     """«заменить» — можно, но ответ называет, что уходит."""
-    assert main(job_spec(tmp_path, edit_job(выгрузка, {"заменить": ["Справочник.мой_В"]}))) == 0
+    assert main(job_spec(tmp_path, edit_job(dump_dir, {"заменить": ["Справочник.мой_В"]}))) == 0
     assert "уходит 2: Справочник.мой_А, Справочник.мой_Б" in capsys.readouterr().out
-    assert [x.split(">")[1].split("<")[0] for x in composition(выгрузка)] == ["Catalog.мой_В"]
+    assert [x.split(">")[1].split("<")[0] for x in composition(dump_dir)] == ["Catalog.мой_В"]
 
 
 @pytest.mark.parametrize("value, words", [
@@ -122,5 +122,5 @@ def test_creation_still_takes_a_plain_list():
 
 
 def test_list_edit_order_and_duplicates():
-    правка_ = ListEdit(add=["В", "А"], remove=["Б"])
-    assert правка_.applied(["А", "Б"]) == (["А", "В"], ["А"], [])
+    edit_ = ListEdit(add=["В", "А"], remove=["Б"])
+    assert edit_.applied(["А", "Б"]) == (["А", "В"], ["А"], [])

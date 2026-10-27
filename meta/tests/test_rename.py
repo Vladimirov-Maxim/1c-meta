@@ -20,7 +20,7 @@ from meta.application.rename.use_case import RenameUseCase  # noqa: E402
 from meta.domain.model import Refuse  # noqa: E402
 from meta.infra.designer import DesignerDump  # noqa: E402
 from meta.jobs import dialect as job_dialect  # noqa: E402
-from meta.tests.conftest import ТЕСТ  # noqa: E402
+from meta.tests.conftest import TEST  # noqa: E402
 
 CATALOG = """<?xml version="1.0" encoding="UTF-8"?>
 <MetaDataObject xmlns="http://v8.1c.ru/8.3/MDClasses" xmlns:xr="http://v8.1c.ru/8.3/xcf/readable" version="2.21">
@@ -89,7 +89,7 @@ def text_of(root, *parts):
 
 
 def rename(root, address, new_name, apply_now=True):
-    return RenameUseCase(DesignerDump(root), ТЕСТ).execute(
+    return RenameUseCase(DesignerDump(root), TEST).execute(
         [job_dialect.rename_job_from_json({"путь": address, "имя": new_name})],
         apply_now=apply_now)
 
@@ -134,7 +134,7 @@ SCHEMA_WITH_QUERY = (
     "</DataCompositionSchema>")
 
 
-def положить_схему(root):
+def put_schema(root):
     """Схема, где объект назван ТОЛЬКО в тексте запроса."""
     folder = os.path.join(root, "Documents", "мой_Держатель",
                           "Templates", "Отчёт", "Ext")
@@ -152,9 +152,9 @@ def test_a_name_used_only_in_a_query_is_reported(dump):
     хотя бы один объект назван только так: без предупреждения переименование
     ответило бы «ссылок — 0» и оставило бы отчёт сломанным.
     """
-    path = положить_схему(dump)
-    результат = rename(dump, "Справочник.мой_Старое", "мой_Новое")
-    stated = "\n".join(результат.plan.describe())
+    path = put_schema(dump)
+    outcome = rename(dump, "Справочник.мой_Старое", "мой_Новое")
+    stated = "\n".join(outcome.plan.describe())
     assert "в текстах запросов" in stated, stated
     assert "макет Отчёт" in stated, stated
     # и сам текст запроса остался прежним: язык запросов инструмент не правит
@@ -163,9 +163,9 @@ def test_a_name_used_only_in_a_query_is_reported(dump):
 
 def test_a_query_mention_of_another_object_is_not_reported(dump):
     """Совпадение по имени соседа не считается: обозначение полное."""
-    положить_схему(dump)
-    результат = rename(dump, "Справочник.мой_Занято", "мой_Свободно")
-    assert "в текстах запросов" not in "\n".join(результат.plan.describe())
+    put_schema(dump)
+    outcome = rename(dump, "Справочник.мой_Занято", "мой_Свободно")
+    assert "в текстах запросов" not in "\n".join(outcome.plan.describe())
 
 
 def test_satellite_folder_moves_too(dump):
@@ -271,7 +271,7 @@ def test_batch_rename_does_not_lose_the_first(tmp_path):
                        "cfg:CatalogRef.мой_А</v8:Type>\n"
                        "\t\t\t\t<v8:Type>cfg:CatalogRef.мой_Б"))
 
-    RenameUseCase(DesignerDump(root), ТЕСТ).execute([
+    RenameUseCase(DesignerDump(root), TEST).execute([
         (job_dialect.path_from_json("Справочник.мой_А"), "мой_А2"),
         (job_dialect.path_from_json("Справочник.мой_Б"), "мой_Б2"),
     ], apply_now=True)
@@ -305,7 +305,7 @@ def test_rename_of_an_object_that_references_another_renamed_one(tmp_path):
          encoding="utf-8-sig", newline="").write(
         HOLDER.replace("мой_Держатель", "мой_Б").replace("мой_Старое", "мой_А"))
 
-    RenameUseCase(DesignerDump(root), ТЕСТ).execute([
+    RenameUseCase(DesignerDump(root), TEST).execute([
         (job_dialect.path_from_json("Справочник.мой_А"), "мой_А2"),
         (job_dialect.path_from_json("Документ.мой_Б"), "мой_Б2"),
     ], apply_now=True)
