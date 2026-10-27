@@ -492,7 +492,11 @@ def build(controller, соглашения=НЕЙТРАЛЬНЫЕ):
     @server.tool(structured_output=False)
     @словами
     def plan_check(objects: ОбъектыПлана, repo: ВыгрузкаПодGit = None, base: База = "HEAD",
-                   rev: Ревизия = None, baseline: Эталон = None, target: Копия = None) -> str:
+                   rev: Ревизия = None, baseline: Эталон = None, target: Копия = None,
+                   only_declared: Annotated[bool, Field(description="сверять только объекты плана: "
+                                                                     "тронутые, но не заявленные — "
+                                                                     "к сведению, не находкой")] = False
+                   ) -> str:
         """Сверка плана изменений с фактом задачи — только чтение.
 
         План — намерение: объекты, которые задача создаёт, меняет или удаляет,
@@ -503,7 +507,7 @@ def build(controller, соглашения=НЕЙТРАЛЬНЫЕ):
         вне плана — предупреждения. Уровни правил — из профиля команды.
         """
         result = controller.plan_check(objects, repo=repo, base=base, rev=rev, baseline=baseline,
-                                       target=target)
+                                       target=target, only_declared=only_declared)
         return текст(plan_check_lines(result))
 
     @server.tool(structured_output=False)
