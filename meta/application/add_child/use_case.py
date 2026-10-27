@@ -54,7 +54,9 @@ class AddChildUseCase:
             with при(f"{адрес} → {spec.kind} «{представление(spec)}»"):
                 node = self.platform.translate_node_for(
                     spec, new_uuid(), host_kind, host_name, new_uuid)
-            prepared.append((path, node, spec.get("имя"), spec.kind,
+            # Различим ребёнок по имени, а поле набора и ресурс схемы — по
+            # пути к данным: имени у них нет, и повтор пути — тот же повтор.
+            prepared.append((path, node, spec.get(kind_of(spec.kind).identity), spec.kind,
                              представление(spec)))
         plan = self.platform.prepare_addition(prepared)
         written = plan.apply() if apply_now else []

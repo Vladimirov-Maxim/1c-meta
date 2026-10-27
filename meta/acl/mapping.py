@@ -42,6 +42,7 @@ from .vocabulary import (
     BOOLEAN,
     CARD_ORDER,
     DATE_PARTS,
+    DIMENSION_ROLE,
     FACETS,
     FACETS_BACK,
     FIELDS,
@@ -62,6 +63,7 @@ from .vocabulary import (
     QUALIFIER_ORDER,
     READ_ONLY_TYPES_BACK,
     REORDER,
+    REPEATED,
     RIGHTS,
     RIGHTS_HOSTS,
     RIGHTS_ORDER,
@@ -308,8 +310,14 @@ def _value(field, value):
                     text=(field.prefix + value) if value else "")
     if field.value_kind == MULTILANG:
         # Пустая многоязычная строка — это `<Synonym/>`, а не узел с пустым
-        # содержимым: так записаны модули без синонима.
-        return Node(field.tag, children=multilang(value) if value else [])
+        # содержимым: так записаны модули без синонима. В схеме компоновки
+        # у многоязычной строки объявлен тип (`v8:LocalStringType`) — это
+        # постоянный атрибут поля.
+        return Node(field.tag, attrs=field.attrs, children=multilang(value) if value else [])
+    if field.value_kind == DIMENSION_ROLE:
+        return Node(field.tag, children=[Node("dcscom:dimension", text="true")])
+    if field.value_kind == REPEATED:
+        return [Node(field.tag, text=x) for x in value]
     if field.value_kind == TYPES:
         children = []
         for vtype in value if isinstance(value, list) else [value]:
@@ -362,7 +370,8 @@ def _properties(schema, spec, host=None):
         if not value and not field.always and field.omit_when is Field.OMIT_NOTHING:
             continue
         try:
-            properties.append(_value(field, value))
+            узел = _value(field, value)
+            properties.extend(узел if isinstance(узел, list) else [узел])
         except Refuse as отказ:
             непонятые.добавить(str(отказ))
     непонятые.предъявить()
@@ -1165,6 +1174,8 @@ def _значение_поля(field, node):
         return назад.get(текст, текст)
     if field.value_kind == BOOLEAN:
         return текст == "true"
+    if field.value_kind == DIMENSION_ROLE:
+        return any(ребёнок.tag.endswith("dimension") and ребёнок.text == "true" for ребёнок in node.children)
     if field.value_kind == MULTILANG:
         return _многоязычное(node)
     if field.value_kind in (VALUE_TYPE, TYPES):
