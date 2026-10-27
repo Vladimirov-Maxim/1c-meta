@@ -168,6 +168,48 @@ def test_an_insertion_starting_with_the_lines_that_follow_it_is_not_an_edit_outs
     assert "ПРАВКА-ВНЕ-ВСТАВКИ" in коды(v.marker_findings("М.bsl", old, правлено, hunks, "TASK-1"))
 
 
+def test_another_tasks_insertion_removed_whole_is_an_edit_outside():
+    """Чужая вставка удалена целиком вместе с метками, своей вставки УДАЛЕН нет:
+    след прошлой задачи пропадает — ошибка, а не молчание."""
+    old = ["Процедура А()", ЧУЖАЯ, "\tЧужое();", ЧУЖАЯ_КОНЕЦ, "\tШаг();", "КонецПроцедуры"]
+    new = ["Процедура А()", "\tШаг();", "КонецПроцедуры"]
+    found = метки(old, new, task="TASK-1")
+    assert коды(found) == ["ПРАВКА-ВНЕ-ВСТАВКИ"]
+    assert "удалена вставка другой задачи TASK-0 (стр. 2–4 прежней версии)" in found[0].message
+
+
+def test_lines_removed_inside_another_tasks_insertion_are_a_warning():
+    old = ["Процедура А()", ЧУЖАЯ, "\tЧужое();", "\tЕщё();", ЧУЖАЯ_КОНЕЦ, "КонецПроцедуры"]
+    new = ["Процедура А()", ЧУЖАЯ, "\tЕщё();", ЧУЖАЯ_КОНЕЦ, "КонецПроцедуры"]
+    found = метки(old, new, task="TASK-1")
+    assert коды(found) == ["ПРАВКА-В-ЧУЖОЙ-ВСТАВКЕ"]
+    assert "внутри вставки другой задачи (TASK-0): удалено строк 1 (стр. 3 прежней версии)" in found[0].message
+
+
+def test_another_tasks_insertion_removed_under_an_own_removed_marker_is_accepted():
+    """Удаление чужой вставки своей УДАЛЕН — по правилам: находок нет."""
+    удален = "// {[-](фрагмент УДАЛЕН), 31.08.2026, #TEAM Автор #TASK-1"
+    old = ["Процедура А()", ЧУЖАЯ, "\tЧужое();", "\tЕщё();", ЧУЖАЯ_КОНЕЦ, "КонецПроцедуры"]
+    new = ["Процедура А()", ЧУЖАЯ, удален, "\t//Чужое();", СВОЯ_КОНЕЦ, "\tЕщё();", ЧУЖАЯ_КОНЕЦ,
+           "КонецПроцедуры"]
+    assert метки(old, new, task="TASK-1") == []
+
+
+def test_an_own_insertion_rewriting_most_of_another_one_needs_an_outer_wrapper():
+    """Своя ИЗМЕНЕН внутри чужой [+] заменяет две строки кода из трёх — чужая
+    вставка фактически переписана: по правилу записи нужна обёртка снаружи."""
+    old = ["Процедура А()", ЧУЖАЯ, "\tА();", "\tБ();", "\tВ();", ЧУЖАЯ_КОНЕЦ, "КонецПроцедуры"]
+    new = ["Процедура А()", ЧУЖАЯ, СВОЯ, "\t//А();", "\t//Б();", "\tНовое();", СВОЯ_КОНЕЦ, "\tВ();",
+           ЧУЖАЯ_КОНЕЦ, "КонецПроцедуры"]
+    found = метки(old, new, task="TASK-1")
+    assert коды(found) == ["ВСТАВКА-НУЖНА-ОБЁРТКА"]
+    assert "заменяют 2 строк кода из 3" in found[0].message
+
+    одна = ["Процедура А()", ЧУЖАЯ, СВОЯ, "\t//А();", "\tНовое();", СВОЯ_КОНЕЦ, "\tБ();", "\tВ();",
+            ЧУЖАЯ_КОНЕЦ, "КонецПроцедуры"]
+    assert метки(old, одна, task="TASK-1") == []
+
+
 def test_each_removed_line_needs_its_own_commented_copy():
     old = ["Процедура А()", "\tШаг();", "\tШаг();", "КонецПроцедуры"]
     new = ["Процедура А()", СВОЯ, "\t//Шаг();", "\tНовое();", СВОЯ_КОНЕЦ, "КонецПроцедуры"]
@@ -345,6 +387,31 @@ def test_a_line_replaced_by_itself_with_other_whitespace():
     found = v.cosmetic_findings("a.bsl", old, new, hunks_between(old, new))
     assert [(f.code, f.line) for f in found] == [("ПРАВКА-ТОЛЬКО-ПРОБЕЛЫ", 2)]
     assert "«Значение=1;»" in found[0].message
+
+
+def test_a_line_moved_into_a_new_construct_of_an_own_insertion_is_not_whitespace_only():
+    """Своя ИЗМЕНЕН: прежняя строка закомментирована, та же инструкция стоит
+    глубже в ветке `Иначе` новой конструкции — отступ следует из правки."""
+    old = ["Процедура А()", "\tИнициализировать(Макет);", "КонецПроцедуры"]
+    new = ["Процедура А()", СВОЯ, "\t//Инициализировать(Макет);", "\tЕсли Временные Тогда",
+           "\t\tИнициализировать(Макет, Менеджер);", "\tИначе", "\t\tИнициализировать(Макет);",
+           "\tКонецЕсли;", СВОЯ_КОНЕЦ, "КонецПроцедуры"]
+    assert v.cosmetic_findings("a.bsl", old, new, hunks_between(old, new)) == []
+
+
+def test_a_line_moved_into_a_subquery_is_not_whitespace_only():
+    """Схема СКД: строка `ИЗ` уехала внутрь нового подзапроса — без меток, но
+    участок меняет запрос по существу."""
+    old = ["\tВЫБРАТЬ", "\t\tТ.Сумма", "\tИЗ", "\t\tВтРасчет КАК Т"]
+    new = ["\tВЫБРАТЬ", "\t\tТ.Сумма", "\tИЗ", "\t\t(ВЫБРАТЬ", "\t\t\tВтРасчет.Сумма КАК Сумма", "\t\tИЗ",
+           "\t\t\tВтРасчет КАК Т", "\t\t) КАК Т"]
+    assert v.cosmetic_findings("Template.dcs", old, new, hunks_between(old, new)) == []
+
+
+def test_an_indent_changed_without_a_change_of_meaning_is_still_found():
+    old = ["Процедура А()", "\tЗначение = 1;", "\tДругое = 2;", "КонецПроцедуры"]
+    new = ["Процедура А()", "\t\tЗначение = 1;", "\tДругое = 2;", "КонецПроцедуры"]
+    assert коды(v.cosmetic_findings("a.bsl", old, new, hunks_between(old, new))) == ["ПРАВКА-ТОЛЬКО-ПРОБЕЛЫ"]
 
 
 def test_a_neighbouring_xml_block_is_not_whitespace_only():

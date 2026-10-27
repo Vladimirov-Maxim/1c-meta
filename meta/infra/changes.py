@@ -33,7 +33,7 @@ from ..domain.changes import (
 from ..domain.model import Refuse
 from ..domain.modules import COMMAND_MARK, CONFIGURATION, FORM_MARK, ModuleAddress
 from ..domain.plan import Состав
-from . import git, layout
+from . import form_bindings, git, layout
 from .repository import Plan
 from .tree_lxml import LxmlCardTree
 
@@ -109,6 +109,14 @@ class _Layout(ChangeSource):
 
     def is_module(self, path):
         return self.layout.is_module(path)
+
+    def form_bindings(self, path):
+        описание = form_bindings.form_file(path)
+        данные = self.data(описание, AFTER) if описание else None
+        if данные is None:
+            return None
+        привязаны, элементы = form_bindings.bindings(данные.decode("utf-8-sig", "replace"))
+        return привязаны, элементы, form_bindings.FORM_EVENT_NAMES
 
     def is_text(self, path):
         return self.layout.is_text(path)
@@ -193,6 +201,15 @@ class GitChanges(_Layout):
         if done is None or done.returncode != 0:
             raise Refuse(f"git: {why}: {git.said(done) if done is not None else 'git не найден'}")
         return done.stdout
+
+    def against_head(self):
+        if self.rev:
+            return None
+        база = self._git("rev-parse", "--verify", "--quiet", f"{self.base}^{{commit}}", why="не могу прочитать базу")
+        голова = self._git("rev-parse", "--verify", "--quiet", "HEAD^{commit}", why="не могу прочитать HEAD")
+        if база is None or голова is None or голова.returncode != 0 or база.stdout == голова.stdout:
+            return None
+        return GitChanges(self.root, "HEAD")
 
     def describe(self):
         if self.rev:

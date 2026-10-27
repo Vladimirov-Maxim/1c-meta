@@ -20,11 +20,16 @@ from .edits import (
     DECLARATION,
     METHOD_END,
     code_part,
+    declared_names,
+    insertion_code,
     marker_kind,
     marker_ranges,
+    outer_reason,
+    replaced_code,
     revert_task,
     unclosed_markers,
 )
+from .form_events import unbound_handlers, unbound_message
 from .model import Finding, Refuse, TypeRef
 
 # --- коды правил ---------------------------------------------------------------
@@ -50,6 +55,8 @@ from .model import Finding, Refuse, TypeRef
 ПРАВА_В_ЧУЖОЙ_РОЛИ = "ПРАВА-ТОЛЬКО-В-ЧУЖОЙ-РОЛИ"
 ПРАВА_НЕ_ВЫДАНЫ = "ПРАВА-НЕ-ВЫДАНЫ"
 СОСТАВ_ТИПОВ_УЖЕ = "СОСТАВ-ТИПОВ-УЖЕ"
+НУЖНА_ОБЁРТКА = "ВСТАВКА-НУЖНА-ОБЁРТКА"
+НЕ_ПРИВЯЗАН = "ФОРМА-ОБРАБОТЧИК-НЕ-ПРИВЯЗАН"
 
 ОШИБКА, ПРЕДУПРЕЖДЕНИЕ = Finding.ERROR, Finding.WARNING
 
@@ -75,6 +82,10 @@ from .model import Finding, Refuse, TypeRef
     ПРАВА_В_ЧУЖОЙ_РОЛИ: (ОШИБКА, "права на новый объект выданы в своей роли, а не только в чужой"),
     ПРАВА_НЕ_ВЫДАНЫ: (ОШИБКА, "новый объект входит в роль с включённым правом"),
     СОСТАВ_ТИПОВ_УЖЕ: (ПРЕДУПРЕЖДЕНИЕ, "у похожих составных членов задачи — один состав ссылочных типов"),
+    НУЖНА_ОБЁРТКА: (ПРЕДУПРЕЖДЕНИЕ, "правка, переписывающая больше половины чужой вставки, — обёрткой "
+                                   "снаружи, а не вложенной вставкой"),
+    НЕ_ПРИВЯЗАН: (ПРЕДУПРЕЖДЕНИЕ, "новая процедура модуля формы с именем события привязана в описании "
+                                 "формы"),
 }
 
 
@@ -164,17 +175,46 @@ def marker_findings(path, old, new, hunks, task=None):
 
     вне = [n for n in added if not _внутри(n, new_ranges)]
     стёрто = _стёртые(old, new, hunks, set(removed), set(added), old_ranges, свои_старые, new_ranges)
-    if (вне or стёрто) and task and _сходится_без_вставок(old, new, task):
+    # Удалённое из чужой вставки: строки, которые освободило правило выше (лежат
+    # в прежней вставке), но которые не сохранены и своей вставкой. Без этого
+    # чужая вставка, удалённая целиком, проходила молча: правило «в чужой
+    # вставке» считает только добавленные строки.
+    чужие_старые = [r for r in old_ranges if task and r["task"] != task]
+    из_чужих = [] if not чужие_старые else [
+        n for n in _стёртые(old, new, hunks, set(removed), set(added), свои_старые, свои_старые, new_ranges)
+        if n not in стёрто and _внутри(n, чужие_старые) and not _внутри(n, свои_старые)]
+    if (вне or стёрто or из_чужих) and task and _сходится_без_вставок(old, new, task):
         # выравнивание diff ошиблось, а не правка: сняв свои вставки, получаем базу
-        вне, стёрто = [], []
-    if вне or стёрто:
+        вне, стёрто, из_чужих = [], [], []
+    удалены_целиком = [r for r in чужие_старые if r["start"] in из_чужих]
+    if вне or стёрто or удалены_целиком:
         части = []
         if вне:
             части.append(f"добавленных вне вставок: {len(вне)} (стр. {_номера(вне)})")
         if стёрто:
             части.append(f"удалённых без комментария в своей вставке: {len(стёрто)} "
                          f"(стр. {_номера(стёрто)} прежней версии)")
+        for r in удалены_целиком:
+            части.append(f"удалена вставка другой задачи {r['task'] or 'без ИД'} (стр. {r['start']}–{r['end']} "
+                         "прежней версии) без своей вставки УДАЛЕН")
         found.append(FileFinding(ВНЕ_ВСТАВКИ, "; ".join(части), path))
+    несохранённые = set(стёрто) | set(из_чужих)
+    из_чужих = [n for n in из_чужих if not _внутри(n, удалены_целиком)]
+    # Вложенная своя вставка, которая заменяет больше половины кода чужой, —
+    # чужая вставка фактически переписана: по правилу записи это обёртка
+    # снаружи (`needs_outer`). Заменённое — удалённые строки чужой вставки,
+    # сохранённые своей вставкой.
+    for r in чужие_старые:
+        # метка чужой вставки сохранена в своей — это и есть обёртка снаружи
+        if r in удалены_целиком or r["start"] in removed:
+            continue
+        заменено = [n for n in removed if r["start"] < n < r["end"] and n not in несохранённые]
+        группа = _подряд(заменено)
+        if группа and 2 * replaced_code(группа, old) > insertion_code(old, r):
+            found.append(FileFinding(
+                НУЖНА_ОБЁРТКА, f"вставка другой задачи {r['task'] or 'без ИД'} (стр. {r['start']}–{r['end']} "
+                               f"прежней версии): {outer_reason(группа, r, old)} — оформить обёрткой снаружи, "
+                               "а не вложенной вставкой", path))
 
     if task:
         чужие = []
@@ -182,11 +222,17 @@ def marker_findings(path, old, new, hunks, task=None):
             вокруг = [r for r in new_ranges if r["start"] <= n <= r["end"]]
             if вокруг and not any(r["task"] == task for r in вокруг):
                 чужие.append((n, max(вокруг, key=lambda r: r["start"])["task"]))
-        if чужие:
+        if чужие or из_чужих:
+            чья = (чужие[0][1] if чужие
+                   else next(r["task"] for r in чужие_старые if _внутри(из_чужих[0], [r])))
+            части = []
+            if чужие:
+                части.append(f"строк {len(чужие)} (стр. {_номера([n for n, _ in чужие])})")
+            if из_чужих:
+                части.append(f"удалено строк {len(из_чужих)} (стр. {_номера(из_чужих)} прежней версии)")
             found.append(FileFinding(
-                В_ЧУЖОЙ_ВСТАВКЕ, f"строк внутри вставки другой задачи ({чужие[0][1] or 'без ИД'}): "
-                                 f"{len(чужие)} (стр. {_номера([n for n, _ in чужие])}) — нужна своя "
-                                 "вставка поверх", path))
+                В_ЧУЖОЙ_ВСТАВКЕ, f"внутри вставки другой задачи ({чья or 'без ИД'}): " + "; ".join(части)
+                                 + " — нужна своя вставка поверх", path))
     return found
 
 
@@ -207,6 +253,23 @@ def _сходится_без_вставок(old, new, task):
     def суть(lines):
         return [line.rstrip() for line in lines if line.strip()]
     return суть(без_вставок) == суть(old)
+
+
+def _подряд(numbers):
+    """Номера строк -> группы подряд идущих, как их видит правило записи:
+    [{"first", "last", "count"}]."""
+    группы = []
+    for n in sorted(numbers):
+        if группы and группы[-1]["last"] == n - 1:
+            группы[-1]["last"] = n
+            группы[-1]["count"] += 1
+        else:
+            группы.append({"first": n, "last": n, "count": 1})
+    return группы
+
+
+def _отступ(line):
+    return line[:len(line) - len(line.lstrip())]
 
 
 def _внутри(n, ranges):
@@ -271,6 +334,19 @@ def _стёртые(old, new, hunks, removed, added, old_ranges, own_old, new_ra
             else:
                 стёрто.append(n)
     return стёрто
+
+
+def unbound_findings(path, old, new, привязки):
+    """Новые процедуры модуля формы, названные как событие формы или элемента,
+    без привязки в описании формы: платформа их не вызовет. `привязки` —
+    (привязанные процедуры, имена элементов, события формы)."""
+    было = set(declared_names(old))
+    новые = [имя for имя in declared_names(new) if имя not in было]
+    строки = {имя: n for n, имя in ((n, m.group(1)) for n, m in
+                                    ((n, DECLARATION.match(code_part(line))) for n, line in enumerate(new, 1))
+                                    if m)}
+    return [FileFinding(НЕ_ПРИВЯЗАН, unbound_message(имя, чьё), path, строки.get(имя))
+            for имя, чьё in unbound_handlers(новые, *привязки)]
 
 
 def structure_findings(path, new, added):
@@ -393,22 +469,33 @@ def cosmetic_findings(path, old, new, hunks):
     `<field>` «находил пару» в добавленном с другим отступом совсем в другом
     месте, и вставка соседнего блока XML давала россыпь ложных находок.
     Строка, точная копия которой есть среди добавленных участка, не
-    изменилась — она лишь сдвинулась."""
+    изменилась — она лишь сдвинулась.
+
+    Не находка и перенос внутрь новой конструкции: прежняя строка сохранена в
+    участке комментарием (своя ИЗМЕНЕН), или у строки сменился отступ, а
+    участок меняет код и по существу — строка вошла в новый `Если`/`Попытка`
+    или подзапрос, отступ — следствие. Смена одних хвостовых пробелов и
+    отступ, сменившийся без смысловой правки рядом, — находка."""
     found = []
     for hunk in hunks:
         было = [old[o - 1] for o in hunk.old_lines if o <= len(old)]
         стало = [(n, new[n - 1]) for n in hunk.new_lines if n <= len(new)]
         копии = Counter(text for _, text in стало)
+        сохранены = {_закомментировано(text) for _, text in стало} - {None}
         суть_было = [re.sub(r"\s+", "", text) for text in было]
         суть_стало = [re.sub(r"\s+", "", text) for _, text in стало]
         matcher = difflib.SequenceMatcher(None, суть_было, суть_стало, autojunk=False)
+        по_существу = any(tag in ("insert", "replace") and any(суть_стало[j] for j in range(j1, j2))
+                          for tag, _, _, j1, j2 in matcher.get_opcodes())
         for tag, i1, i2, j1, _ in matcher.get_opcodes():
             if tag != "equal":
                 continue
             for k in range(i2 - i1):
                 text, (n, a) = было[i1 + k], стало[j1 + k]
                 суть = суть_было[i1 + k]
-                if not суть or a == text or копии[text]:
+                if not суть or a == text or копии[text] or text.strip() in сохранены:
+                    continue
+                if по_существу and _отступ(a) != _отступ(text):
                     continue
                 показ = суть if len(суть) <= 60 else суть[:60] + "…"
                 found.append(FileFinding(ТОЛЬКО_ПРОБЕЛЫ, f"строка отличается от прежней только пробелами: «{показ}»",

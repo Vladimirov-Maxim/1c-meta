@@ -68,6 +68,9 @@ class VerifyUseCase:
                 findings += rules.marker_findings(c.path, до, после, hunks, task)
             добавлено, _ = changed_lines(hunks, до or [], после)
             findings += rules.structure_findings(c.path, после, добавлено)
+            привязки = src.form_bindings(c.path)
+            if привязки is not None:
+                findings += rules.unbound_findings(c.path, до or [], после, привязки)
         if not task:
             skipped.append((rules.В_ЧУЖОЙ_ВСТАВКЕ, "не задан ИД задачи"))
 

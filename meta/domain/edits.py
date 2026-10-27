@@ -1222,6 +1222,11 @@ def marked(item, lines, meta, nested_in=None):
 DECLARATION = re.compile(r"^\s*(?:Асинх\s+)?(?:Процедура|Функция)\s+([^\s(]+)", re.IGNORECASE)
 
 
+def declared_names(lines):
+    """Имена процедур и функций, объявленных в строках модуля, по порядку."""
+    return [m.group(1) for m in (DECLARATION.match(code_part(line)) for line in lines) if m]
+
+
 def repeated(item, lines, ranges, task):
     """Правка уже внесена — текст отказа или None.
 

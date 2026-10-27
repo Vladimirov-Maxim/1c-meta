@@ -28,7 +28,7 @@ from ..acl import modules as vocabulary
 from ..application.ports import Modules
 from ..domain.model import Refuse
 from ..domain.modules import MODULES_OF_KIND
-from . import git, layout
+from . import form_bindings, git, layout
 from .paths import check_relative, within
 from .repository import Plan
 
@@ -142,6 +142,16 @@ class DumpModules(Modules):
                 self._converted[path] = своё
         self._format[path] = (bom, eol, final_eol)
         return re.split(r"\r\n|\n|\r", text) if text else []
+
+    def form_bindings(self, ref):
+        """(привязанные процедуры, элементы, события формы) по описанию формы
+        рядом с модулем; не модуль формы или описания нет — None."""
+        описание = form_bindings.form_file(self.full_path(ref))
+        if описание is None or not os.path.isfile(описание):
+            return None
+        with open(описание, encoding="utf-8-sig") as файл:
+            привязаны, элементы = form_bindings.bindings(файл.read())
+        return привязаны, элементы, form_bindings.FORM_EVENT_NAMES
 
     def file_format(self, ref):
         known = self._format.get(self.full_path(ref))

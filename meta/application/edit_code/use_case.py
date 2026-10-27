@@ -3,7 +3,7 @@
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 
-from ...domain import edits
+from ...domain import edits, form_events
 from ...domain.conventions import НЕЙТРАЛЬНЫЕ, Соглашения
 from ...domain.edits import Edit, ModuleJob
 from ...domain.model import Refuse
@@ -39,6 +39,7 @@ class EditCodeUseCase:
         # База сверки — общая на всё задание: «создан задачей» и сверка отката
         # спрашивают одну и ту же ревизию до задачи.
         self._base = job.base
+        self._внимание = []
         entries = list(job.modules)
         # Отказы — по всем модулям сразу: по первому видна была бы одна ошибка,
         # следующая — только после исправления. Отказ переноса — один из них.
@@ -66,7 +67,7 @@ class EditCodeUseCase:
         дата = edits.date_note(signature.date, self.today() if self.today else None)
         форматы = {str(ref): self.modules.file_format(ref) for ref, _, _ in prepared}
         return CodeResult(signature, [(ref, decisions) for ref, _, decisions in prepared],
-                          plan, written, [дата] if дата else [],
+                          plan, written, ([дата] if дата else []) + self._внимание,
                           {ref: формат for ref, формат in форматы.items() if формат})
 
     def _prepare(self, entry, signature):
@@ -84,7 +85,21 @@ class EditCodeUseCase:
         new_lines, decisions = edits.edit_module(lines, work, signature,
                                                  self.modules.is_new(entry.ref, self._base), notes,
                                                  markers=self.соглашения.метки)
+        self._внимание += self._unbound(entry.ref, lines, new_lines)
         return entry.ref, new_lines, decisions
+
+    def _unbound(self, ref, lines, new_lines):
+        """Новые процедуры модуля формы, названные как событие, но не
+        привязанные в описании формы, — предупреждения: код компилируется,
+        а обработчик платформа не вызовет."""
+        новые = [имя for имя in edits.declared_names(new_lines) if имя not in set(edits.declared_names(lines))]
+        if not новые:
+            return []
+        привязки = self.modules.form_bindings(ref)
+        if привязки is None:
+            return []
+        return [f"ВНИМАНИЕ: {ref}: " + form_events.unbound_message(имя, чьё)
+                for имя, чьё in form_events.unbound_handlers(новые, *привязки)]
 
     def _expand_move(self, move):
         """Перенос метода: удаление в источнике и добавление в приёмнике — один
