@@ -60,36 +60,36 @@ def _prefixes(node, found):
             found.add(name.partition(":")[0])
         if name == "xsi:type" and ":" in value:
             found.add(value.partition(":")[0])
-    for ребёнок in node.children:
-        _prefixes(ребёнок, found)
+    for child in node.children:
+        _prefixes(child, found)
 
 
 def declarations(node):
     """Объявления пространств имён корня: `xsi` первым, остальные по алфавиту."""
     found = set()
     _prefixes(node, found)
-    порядок = (["xsi"] if "xsi" in found else []) + sorted(found - {"xsi"})
-    return [(pt, NAMESPACES[pt]) for pt in порядок]
+    order = (["xsi"] if "xsi" in found else []) + sorted(found - {"xsi"})
+    return [(pt, NAMESPACES[pt]) for pt in order]
 
 
 def _open(node, extra=()):
-    атрибуты = [f'xmlns:{pt}="{uri}"' for pt, uri in extra]
-    атрибуты += [f'{name}="{escape_attribute(value)}"' for name, value in node.attrs.items()]
-    return node.tag + "".join(" " + a for a in атрибуты)
+    xml_attrs = [f'xmlns:{pt}="{uri}"' for pt, uri in extra]
+    xml_attrs += [f'{name}="{escape_attribute(value)}"' for name, value in node.attrs.items()]
+    return node.tag + "".join(" " + a for a in xml_attrs)
 
 
 def _lines(node, level, out, extra=()):
     indent = INDENT * level
-    голова = _open(node, extra)
+    head = _open(node, extra)
     if node.children:
-        out.append(f"{indent}<{голова}>")
-        for ребёнок in node.children:
-            _lines(ребёнок, level + 1, out)
+        out.append(f"{indent}<{head}>")
+        for child in node.children:
+            _lines(child, level + 1, out)
         out.append(f"{indent}</{node.tag}>")
     elif node.text is not None:                     # пустая строка — тоже значение: <x></x>
-        out.append(f"{indent}<{голова}>{escape(node.text)}</{node.tag}>")
+        out.append(f"{indent}<{head}>{escape(node.text)}</{node.tag}>")
     else:
-        out.append(f"{indent}<{голова}/>")
+        out.append(f"{indent}<{head}/>")
 
 
 def render(node):
@@ -111,8 +111,8 @@ def _declared_order(data, nsmap):
     """Объявления корня в том порядке, в каком они стоят в файле: lxml отдаёт
     их словарём, а не последовательностью."""
     start = data.find(b"<", data.find(b"?>") + 2)
-    голова = data[start:data.find(b">", start) + 1].decode("utf-8", "replace")
-    found = sorted((голова.find(f'xmlns:{pt}="'), pt, uri) for pt, uri in nsmap.items() if pt)
+    head = data[start:data.find(b">", start) + 1].decode("utf-8", "replace")
+    found = sorted((head.find(f'xmlns:{pt}="'), pt, uri) for pt, uri in nsmap.items() if pt)
     return [(pt, uri) for _, pt, uri in found]
 
 
@@ -128,43 +128,43 @@ def parse(data):
     from ..acl import edt_model
     from ..acl.mapping import Node
 
-    корень = etree.fromstring(data)
+    root = etree.fromstring(data)
 
-    def класс_элемента(element, declared):
-        явный = element.get(XSI_TYPE)
-        if явный:
-            prefix, _, name = явный.rpartition(":")
+    def element_class(element, declared):
+        explicit = element.get(XSI_TYPE)
+        if explicit:
+            prefix, _, name = explicit.rpartition(":")
             return edt_model.class_of(element.nsmap.get(prefix or None), name)
         if declared:
             return declared
         uri, _, name = element.tag[1:].partition("}")
         return edt_model.class_of(uri, name)
 
-    def узел(element, класс):
+    def node(element, cls_name):
         uri, _, name = element.tag[1:].partition("}") if element.tag.startswith("{") else ("", "", element.tag)
         prefixes = {v: k for k, v in element.nsmap.items() if k}
-        атрибуты = {}
-        if element is корень:
-            тег = f"{prefixes[uri]}:{name}" if uri in prefixes else name
-            атрибуты.update({f"xmlns:{pt}": u for pt, u in _declared_order(data, element.nsmap)})
+        xml_attrs = {}
+        if element is root:
+            tag = f"{prefixes[uri]}:{name}" if uri in prefixes else name
+            xml_attrs.update({f"xmlns:{pt}": u for pt, u in _declared_order(data, element.nsmap)})
         else:
-            тег = name
+            tag = name
         for key, value in element.attrib.items():
             if key.startswith("{"):
-                a_uri, _, a_имя = key[1:].partition("}")
-                key = f"{prefixes.get(a_uri, '')}:{a_имя}"
-            атрибуты[key] = value
-        дети = []
-        for ребёнок in element:
-            if not isinstance(ребёнок.tag, str):
+                a_uri, _, a_name = key[1:].partition("}")
+                key = f"{prefixes.get(a_uri, '')}:{a_name}"
+            xml_attrs[key] = value
+        children = []
+        for child in element:
+            if not isinstance(child.tag, str):
                 continue
-            f = edt_model.feature(класс, etree.QName(ребёнок).localname) if класс else None
-            под = класс_элемента(ребёнок, f.type) if f is not None and f.kind == "contains" else None
-            n = узел(ребёнок, под)
+            f = edt_model.feature(cls_name, etree.QName(child).localname) if cls_name else None
+            sub = element_class(child, f.type) if f is not None and f.kind == "contains" else None
+            n = node(child, sub)
             if f is not None and f.kind != "contains" and n.text is None and not n.children:
                 n.text = ""
-            дети.append(n)
-        text = element.text if not дети else None
-        return Node(тег, text=text, attrs=атрибуты, children=дети)
+            children.append(n)
+        text = element.text if not children else None
+        return Node(tag, text=text, attrs=xml_attrs, children=children)
 
-    return узел(корень, класс_элемента(корень, None))
+    return node(root, element_class(root, None))

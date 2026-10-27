@@ -131,11 +131,11 @@ def задание(tmp_path, name):
     (выгрузка / "Configuration.xml").write_text(
         open(os.path.join(os.path.dirname(__file__), "эталоны", "формы", "Configuration.xml"),
              encoding="utf-8-sig").read(), encoding="utf-8")
-    файл = tmp_path / "задание.json"
-    файл.write_text(json.dumps({"repo": str(выгрузка), "objects": [
+    file = tmp_path / "задание.json"
+    file.write_text(json.dumps({"repo": str(выгрузка), "objects": [
         {"вид": "Справочник", "поля": {"имя": name, "синоним": "Проба"}}]}, ensure_ascii=False),
         encoding="utf-8")
-    return str(файл)
+    return str(file)
 
 
 def test_the_terminal_key_wins_over_the_environment(tmp_path):
@@ -143,25 +143,25 @@ def test_the_terminal_key_wins_over_the_environment(tmp_path):
     профиль переменной, а ключ его перекрывает."""
     другой = tmp_path / "другой.json"
     другой.write_text('{"приставка": "их_"}', encoding="utf-8")
-    файл = задание(tmp_path, "мой_Проба")
-    assert "МД-ПРЕФИКС" not in через_терминал([файл])
-    assert "МД-ПРЕФИКС" in через_терминал([файл, "--профиль", str(другой)])
-    assert "после ключа нужен путь" in через_терминал([файл, "--профиль"])
+    file = задание(tmp_path, "мой_Проба")
+    assert "МД-ПРЕФИКС" not in через_терминал([file])
+    assert "МД-ПРЕФИКС" in через_терминал([file, "--профиль", str(другой)])
+    assert "после ключа нужен путь" in через_терминал([file, "--профиль"])
 
 
 def test_the_mcp_server_takes_the_profile_from_its_environment(tmp_path, monkeypatch):
     """Сервер читает профиль из `META_PROFILE`; явные соглашения — важнее."""
     import asyncio
 
-    файл = задание(tmp_path, "Проба")
-    with open(файл, encoding="utf-8") as f:
+    file = задание(tmp_path, "Проба")
+    with open(file, encoding="utf-8") as f:
         job = json.load(f)
 
     def check(сервер):
         ответ = asyncio.run(сервер.call_tool("metadata_check", {
             "repo": job["repo"], "objects": job["objects"]}))
         ответ = ответ[0] if isinstance(ответ, tuple) else ответ
-        return "\n".join(блок.text for блок in ответ)
+        return "\n".join(block.text for block in ответ)
 
     roots = [job["repo"]]
     assert "МД-ПРЕФИКС" in check(mcp_server(roots=roots))

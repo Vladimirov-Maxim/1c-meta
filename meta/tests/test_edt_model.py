@@ -81,8 +81,8 @@ def test_produced_types_go_first_then_emf_order():
 def test_the_order_of_a_member_depends_on_its_class():
     """Реквизит справочника пишет историю данных после полнотекстового поиска,
     реквизит табличной части — до: у классов разные суперклассы."""
-    def before_(класс, a, b):
-        return edt_model.position(MDCLASS + класс, a) < edt_model.position(MDCLASS + класс, b)
+    def before_(cls_name, a, b):
+        return edt_model.position(MDCLASS + cls_name, a) < edt_model.position(MDCLASS + cls_name, b)
 
     assert before_("CatalogAttribute", "fullTextSearch", "dataHistory")
     assert before_("TabularSectionAttribute", "dataHistory", "fullTextSearch")
@@ -100,10 +100,10 @@ def test_defaults_and_xml_attributes():
 
 def test_a_card_written_by_edt_obeys_the_table():
     module, расхождения = _checker(), {}
-    корень = etree.fromstring(CATALOG.encode("utf-8"))
+    root = etree.fromstring(CATALOG.encode("utf-8"))
     from collections import defaultdict
     расхождения = defaultdict(list)
-    module.check(корень, module.class_of_element(корень), "образец", расхождения)
+    module.check(root, module.class_of_element(root), "образец", расхождения)
     assert dict(расхождения) == {}
 
 
@@ -113,8 +113,8 @@ def test_a_card_out_of_order_is_caught():
     расхождения = defaultdict(list)
     испорчена = CATALOG.replace("  <levelCount>2</levelCount>\n", "").replace(
         "  <attributes uuid=", "  <levelCount>2</levelCount>\n  <attributes uuid=", 1)
-    корень = etree.fromstring(испорчена.encode("utf-8"))
-    module.check(корень, module.class_of_element(корень), "образец", расхождения)
+    root = etree.fromstring(испорчена.encode("utf-8"))
+    module.check(root, module.class_of_element(root), "образец", расхождения)
     assert any(what == "порядок" for what, _ in расхождения)
 
 
@@ -124,5 +124,5 @@ def test_every_card_and_form_of_the_project_obeys_the_table(capsys):
     os.environ["EDT_SUFFIXES"] = ".mdo,.form"
     module.SUFFIXES = (".mdo", ".form")
     module.main([os.environ["META_EDT_CORPUS"]])
-    вывод = capsys.readouterr().out
-    assert "видов расхождений: 0" in вывод, вывод
+    output = capsys.readouterr().out
+    assert "видов расхождений: 0" in output, output

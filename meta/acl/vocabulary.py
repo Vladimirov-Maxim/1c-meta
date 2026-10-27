@@ -736,12 +736,12 @@ CONTAINER_ORDER = {
         "additionalProperties", "itemsViewMode", "userSettingID",
         "itemsUserSettingID"),
 }
-for _контейнер in ("selection", "filter", "order", "conditionalAppearance",
+for _container in ("selection", "filter", "order", "conditionalAppearance",
                    "dataParameters", "outputParameters", "appearance",
                    "groupItems", "userFields"):
-    CONTAINER_ORDER[_контейнер] = ("item", "viewMode", "userSettingID",
+    CONTAINER_ORDER[_container] = ("item", "viewMode", "userSettingID",
                                    "userSettingPresentation")
-del _контейнер
+del _container
 
 # Виды, чьё русское имя служит обозначением в языке запросов. Замерено по
 # 926 схемам компоновки реальной выгрузки: «Справочник.» встречается в 515,

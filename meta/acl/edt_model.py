@@ -96,8 +96,8 @@ def package_of(uri):
 
 def class_of(uri, local):
     """Полное имя класса по пространству имён и имени элемента или `xsi:type`."""
-    пакет = package_of(uri)
-    return f"{пакет}.{local}" if пакет else None
+    package = package_of(uri)
+    return f"{package}.{local}" if package else None
 
 
 @functools.cache
@@ -106,23 +106,23 @@ def features(cls):
     all_items = classes()
     if cls not in all_items:
         return None
-    собрано, names = [], set()
+    collected, names = [], set()
 
-    def обойти(name, виденные):
-        if name in виденные or name not in all_items:
+    def walk(name, seen):
+        if name in seen or name not in all_items:
             return
-        виденные.add(name)
-        for супер in all_items[name]["supers"]:
-            обойти(супер, виденные)
+        seen.add(name)
+        for super_node in all_items[name]["supers"]:
+            walk(super_node, seen)
         for f in all_items[name]["features"]:
             if f["name"] not in names and not f["service"]:
                 names.add(f["name"])
-                собрано.append(Feature(f["name"], f["type"], f["kind"], f["many"], f["required"],
+                collected.append(Feature(f["name"], f["type"], f["kind"], f["many"], f["required"],
                                        f["default"], f["unsettable"], f["id"]))
 
-    обойти(cls, set())
-    первые = [f for name in FIRST for f in собрано if f.name == name]
-    return tuple(первые + [f for f in собрано if f.name not in FIRST])
+    walk(cls, set())
+    first_ones = [f for name in FIRST for f in collected if f.name == name]
+    return tuple(first_ones + [f for f in collected if f.name not in FIRST])
 
 
 @functools.cache
@@ -153,9 +153,9 @@ def default_text(f):
         return f.default
     if f.type in PRIMITIVE_DEFAULTS:
         return PRIMITIVE_DEFAULTS[f.type]
-    литералы = enums().get(f.type)
-    if литералы:
-        return литералы[0]
+    literals = enums().get(f.type)
+    if literals:
+        return literals[0]
     return None
 
 
@@ -164,8 +164,8 @@ def is_default(f, text, cls=None):
     класс, у которого свойство пишется и при умолчании (`WRITTEN_AT_DEFAULT`)."""
     if f.unsettable or f.many or (cls, f.name) in WRITTEN_AT_DEFAULT:
         return False
-    умолчание = default_text(f)
-    return умолчание is not None and text == умолчание
+    default = default_text(f)
+    return default is not None and text == default
 
 
 def is_abstract(cls):

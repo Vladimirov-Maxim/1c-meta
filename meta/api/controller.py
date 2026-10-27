@@ -33,9 +33,9 @@ class Controller:
         self.plan_check_case = plan_check
         self.plan_emit_case = plan_emit
 
-    def forms(self, repo, формы, apply_now=False):
+    def forms(self, repo, forms, apply_now=False):
         """Задание на формы моделями -> результат сценария."""
-        return self._execute({"repo": repo, "forms": в_язык_заданий(формы)}, apply_now)
+        return self._execute({"repo": repo, "forms": в_язык_заданий(forms)}, apply_now)
 
     def code(self, repo, task, date, author, modules, перенос=None, apply_now=False, base=None):
         """Задание на код моделями -> результат сценария правки вставками."""
@@ -71,8 +71,8 @@ class Controller:
             owner, name = dialect.form_address(address)
             view, form_file, module_file, своя = self.show_form(repo).execute(owner, name)
             return "форма", view, name, form_file, module_file, своя
-        spec, файл = self.show_object(repo).execute(dialect.path_from_json(address))
-        return "объект", spec, файл
+        spec, file = self.show_object(repo).execute(dialect.path_from_json(address))
+        return "объект", spec, file
 
     def verify(self, repo=None, base="HEAD", rev=None, baseline=None, target=None, task=None,
                only=None, paths=None):

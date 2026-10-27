@@ -78,7 +78,7 @@ KINDS = {
     "PDFDocumentField": ("FormField", "PDFDocumentField"),
 }
 #: (класс EDT, вид) -> вид элемента выгрузки (обратное `KINDS`; кнопка — отдельно).
-KINDS_BACK = {kind: тег for тег, kind in KINDS.items() if kind[1] is not None}
+KINDS_BACK = {kind: tag for tag, kind in KINDS.items() if kind[1] is not None}
 
 #: Вид элемента выгрузки -> класс `extInfo` (замер — все формы корпуса: однозначно).
 EXT_INFO = {
@@ -109,7 +109,7 @@ SATELLITES = {
     "ViewStatusAddition": ("viewStatusAddition", "ViewStatusAddition"),
     "SearchControlAddition": ("searchControlAddition", "SearchControlAddition"),
 }
-SATELLITES_BACK = {свойство: тег for тег, (свойство, _) in SATELLITES.items()}
+SATELLITES_BACK = {prop: tag for tag, (prop, _) in SATELLITES.items()}
 
 #: Свойство выгрузки -> имя свойства EDT там, где оно не «то же с маленькой буквы».
 RENAMED = {"Events": "handlers", "Autofill": "autoFill", "Hiperlink": "hyperlink",
@@ -122,7 +122,7 @@ RENAMED = {"Events": "handlers", "Autofill": "autoFill", "Hiperlink": "hyperlink
            "EqualItemsWidth": "equalElementsWidth"}
 #: Обратное: имя EDT -> тег выгрузки (у неоднозначных — любой из тегов, прямая
 #: перекладка вернёт то же свойство).
-RENAMED_BACK = {edt: тег for тег, edt in RENAMED.items()
+RENAMED_BACK = {edt: tag for tag, edt in RENAMED.items()
                 if edt not in ("handlers", "source", "horizontalAlign")}
 
 #: Где EDT держит обработчик события: у формы и таблицы — в самом элементе,
@@ -141,7 +141,7 @@ OWN_EVENTS = {"FormField": {"OnChange"}}
 
 #: Настройка реквизита выгрузки -> свойство `extInfo` EDT, где имя другое.
 ATTRIBUTE_SETTINGS = {"ManualQuery": "customQuery"}
-ATTRIBUTE_SETTINGS_BACK = {edt: тег for тег, edt in ATTRIBUTE_SETTINGS.items()}
+ATTRIBUTE_SETTINGS_BACK = {edt: tag for tag, edt in ATTRIBUTE_SETTINGS.items()}
 
 #: Тип основного реквизита -> класс `extInfo` формы (замер — все формы корпуса).
 FORM_EXT_INFO = {
@@ -157,7 +157,7 @@ FORM_EXT_INFO = {
 
 #: Приставка ссылки выгрузки -> приставка EDT (цвет, шрифт, рамка).
 REF_PREFIXES = {"style": "Style", "web": "Web", "win": "Windows", "sys": "System"}
-REF_PREFIXES_BACK = {edt: выгр for выгр, edt in REF_PREFIXES.items()}
+REF_PREFIXES_BACK = {edt: dump for dump, edt in REF_PREFIXES.items()}
 
 #: Командный интерфейс формы, которого выгрузка не задала (замер — все формы корпуса).
 EMPTY_COMMAND_INTERFACE = Node("commandInterface", children=[Node("navigationPanel"), Node("commandBar")])
@@ -188,8 +188,8 @@ def feature_names(tag):
     """Кандидаты имени свойства EDT по тегу выгрузки: то же с маленькой буквы,
     затем переименованное (`HorizontalLocation` — у дополнения так и есть,
     у командной панели — `horizontalAlign`)."""
-    прямое = tag[:1].lower() + tag[1:]
-    return [прямое] + ([RENAMED[tag]] if tag in RENAMED and RENAMED[tag] != прямое else [])
+    direct = tag[:1].lower() + tag[1:]
+    return [direct] + ([RENAMED[tag]] if tag in RENAMED and RENAMED[tag] != direct else [])
 
 
 def designer_tag(name):
@@ -225,12 +225,12 @@ def default_node(name, text):
     """Запись таблицы умолчаний -> узел EDT."""
     if not text.startswith("@"):
         return Node(name, text=text)
-    класс, _, fields = text[1:].partition("|")
-    узел = Node(name, attrs={"xsi:type": класс} if класс else {})
+    cls_name, _, fields = text[1:].partition("|")
+    node = Node(name, attrs={"xsi:type": cls_name} if cls_name else {})
     for pair in filter(None, fields.split(";")):
         attr_name, _, value = pair.partition("=")
-        узел.children.append(Node(attr_name, text=value))
-    return узел
+        node.children.append(Node(attr_name, text=value))
+    return node
 
 
 def same(a, b):
@@ -298,39 +298,39 @@ class FormTranslation(Translation):
         self.dynamic_lists = set()
 
     def form(self, root):
-        реквизиты = _by_tag(root, "Attributes")
-        self.dynamic_lists = {a.attrs.get("name") for a in (реквизиты.children if реквизиты else ())
+        attributes = _by_tag(root, "Attributes")
+        self.dynamic_lists = {a.attrs.get("name") for a in (attributes.children if attributes else ())
                               if self._attribute_ext(a) == "DynamicListExtInfo"}
-        основной = self._main_type(root)
-        сб = Assembly("form:Form", {}, FORM + "Form", FORM_EXT_INFO.get(основной))
+        main_one = self._main_type(root)
+        sb = Assembly("form:Form", {}, FORM + "Form", FORM_EXT_INFO.get(main_one))
         for part in root.children:
             if part.tag == "ChildItems":
-                сб.add("items", self.items(part, "Form"))
+                sb.add("items", self.items(part, "Form"))
             elif part.tag == "Attributes":
-                сб.add("attributes", [self.attribute(a) for a in part.children])
+                sb.add("attributes", [self.attribute(a) for a in part.children])
             elif part.tag == "Commands":
-                сб.add("formCommands", [self.command(c) for c in part.children])
+                sb.add("formCommands", [self.command(c) for c in part.children])
             elif part.tag == "Parameters":
-                сб.add("parameters", [self.parameter(p) for p in part.children])
+                sb.add("parameters", [self.parameter(p) for p in part.children])
             elif part.tag in SATELLITES and _is_satellite(part):
-                self.satellite_node(part, сб)
+                self.satellite_node(part, sb)
             elif part.tag == "Events":
-                self.events(part, "Form", сб)
+                self.events(part, "Form", sb)
             elif part.tag == "CommandInterface":
-                сб.specified.add("commandInterface")
+                sb.specified.add("commandInterface")
                 self.problem("Form.CommandInterface", "командный интерфейс формы не перекладывается")
             else:
-                self.property(part, сб, "Form")
-        if not сб.has("commandInterface"):
-            сб.add("commandInterface", [Node("commandInterface", children=[Node("navigationPanel"),
+                self.property(part, sb, "Form")
+        if not sb.has("commandInterface"):
+            sb.add("commandInterface", [Node("commandInterface", children=[Node("navigationPanel"),
                                                                             Node("commandBar")])])
-        self.specified_by_id["Form"] = set(сб.specified)
-        return сб.node("Form|")
+        self.specified_by_id["Form"] = set(sb.specified)
+        return sb.node("Form|")
 
     @staticmethod
     def _main_type(root):
-        реквизиты = _by_tag(root, "Attributes")
-        for a in реквизиты.children if реквизиты else ():
+        attributes = _by_tag(root, "Attributes")
+        for a in attributes.children if attributes else ():
             main = _by_tag(a, "MainAttribute")
             if main is not None and main.text == "true":
                 type_ = _by_tag(a, "Type")
@@ -341,26 +341,26 @@ class FormTranslation(Translation):
     # --- элементы ---
 
     def items(self, child_items, where):
-        узлы = []
-        for ребёнок in child_items.children:
-            if ребёнок.tag == RAW:                      # элемент вида, которого выгрузка не пишет
-                узлы += [restore_raw(n) for n in ребёнок.children]
+        nodes = []
+        for child in child_items.children:
+            if child.tag == RAW:                      # элемент вида, которого выгрузка не пишет
+                nodes += [restore_raw(n) for n in child.children]
                 continue
-            узел = self.item(ребёнок, where)
-            if узел is not None:
-                узлы.append(узел)
-        return узлы
+            node = self.item(child, where)
+            if node is not None:
+                nodes.append(node)
+        return nodes
 
     def item(self, x, where):
         kind = KINDS.get(x.tag)
         if kind is None:
             self.problem(where, f"вид элемента «{x.tag}» не перекладывается")
             return None
-        класс, type_ = kind
+        cls_name, type_ = kind
         if type_ is None and x.tag == "Button":
             tk = _by_tag(x, "Type")
             type_ = tk.text if tk is not None else "CommandBarButton"
-        return self.element(x, "items", класс, type_, x.tag, xsi=True)
+        return self.element(x, "items", cls_name, type_, x.tag, xsi=True)
 
     def satellite_node(self, x, owner):
         name, type_ = SATELLITES[x.tag]
@@ -370,36 +370,36 @@ class FormTranslation(Translation):
             return
         owner.add(name, [self.element(x, name, f.type.rsplit(".", 1)[-1], type_, x.tag, xsi=False)])
 
-    def element(self, x, tag, класс, type_, kind, xsi):
-        cls = FORM + класс
+    def element(self, x, tag, cls_name, type_, kind, xsi):
+        cls = FORM + cls_name
         where = f"{kind} «{x.attrs.get('name', '')}»"
         ext_name = EXT_INFO.get(kind)
         if kind == "Table" and self._data_path_root(x) in self.dynamic_lists:
             ext_name = "DynamicListTableExtInfo"
-        сб = Assembly(tag, {"xsi:type": "form:" + класс} if xsi else {}, cls, ext_name)
-        сб.add("name", [Node("name", text=x.attrs.get("name", ""))])
-        сб.add("id", [Node("id", text=x.attrs.get("id", ""))])
-        записанный = None
+        sb = Assembly(tag, {"xsi:type": "form:" + cls_name} if xsi else {}, cls, ext_name)
+        sb.add("name", [Node("name", text=x.attrs.get("name", ""))])
+        sb.add("id", [Node("id", text=x.attrs.get("id", ""))])
+        written = None
         f = edt_model.feature(cls, "type") if type_ is not None else None
         if f is not None and not edt_model.is_default(f, type_, cls):
-            записанный = type_
-            сб.add("type", [Node("type", text=type_)])
+            written = type_
+            sb.add("type", [Node("type", text=type_)])
         for c in x.children:
             if c.tag == "ChildItems":
-                сб.add("items", self.items(c, where))
+                sb.add("items", self.items(c, where))
             elif c.tag in SATELLITES and _is_satellite(c):
-                self.satellite_node(c, сб)
+                self.satellite_node(c, sb)
             elif c.tag == "Type" and kind == "Button":
                 continue
             elif c.tag == "Events":
-                self.events(c, класс, сб)
+                self.events(c, cls_name, sb)
             else:
-                self.property(c, сб, where)
-        if сб.auto_edit:
-            сб.parts = [pair for pair in сб.parts if pair[1].tag != "editMode"]
-            сб.add("editMode", [Node("editMode", text="Auto")])
-        self.specified_by_id[x.attrs.get("id", "")] = set(сб.specified)
-        return сб.node(_key(класс if xsi else tag, записанный))
+                self.property(c, sb, where)
+        if sb.auto_edit:
+            sb.parts = [pair for pair in sb.parts if pair[1].tag != "editMode"]
+            sb.add("editMode", [Node("editMode", text="Auto")])
+        self.specified_by_id[x.attrs.get("id", "")] = set(sb.specified)
+        return sb.node(_key(cls_name if xsi else tag, written))
 
     @staticmethod
     def _data_path_root(x):
@@ -408,312 +408,312 @@ class FormTranslation(Translation):
 
     # --- свойства ---
 
-    def property(self, свойство, сб, where):
+    def property(self, prop, sb, where):
         """Свойство выгрузки -> узлы в сборке `сб` (свойство вида — в `extInfo`)."""
-        if свойство.tag == RAW:
-            self.raw_property(свойство, сб)
+        if prop.tag == RAW:
+            self.raw_property(prop, sb)
             return
-        if self.special(свойство, сб):
+        if self.special(prop, sb):
             return
-        for name in feature_names(свойство.tag):
-            f = edt_model.feature(сб.cls, name)
+        for name in feature_names(prop.tag):
+            f = edt_model.feature(sb.cls, name)
             if f is not None:
-                сб.specified.add(name)
-                сб.add(name, self.form_value(свойство, f, сб.cls, f"{where}.{свойство.tag}"))
+                sb.specified.add(name)
+                sb.add(name, self.form_value(prop, f, sb.cls, f"{where}.{prop.tag}"))
                 return
-            f = edt_model.feature(сб.ext_cls, name) if сб.ext_cls is not None else None
+            f = edt_model.feature(sb.ext_cls, name) if sb.ext_cls is not None else None
             if f is not None:
-                сб.specified.add("extInfo/" + name)
-                сб.add_ext(name, self.form_value(свойство, f, сб.ext_cls, f"{where}.{свойство.tag}"))
+                sb.specified.add("extInfo/" + name)
+                sb.add_ext(name, self.form_value(prop, f, sb.ext_cls, f"{where}.{prop.tag}"))
                 return
-        сб.specified.add(feature_name(свойство.tag))
-        if not self._empty(свойство):
-            self.problem(where, f"свойства «{свойство.tag}» нет у {сб.cls.rsplit('.', 1)[-1]}")
+        sb.specified.add(feature_name(prop.tag))
+        if not self._empty(prop):
+            self.problem(where, f"свойства «{prop.tag}» нет у {sb.cls.rsplit('.', 1)[-1]}")
 
     @staticmethod
-    def raw_property(свойство, сб):
+    def raw_property(prop, sb):
         """Переходник обратной перекладки: узлы EDT — на своё место как были."""
-        address = свойство.attrs.get("feature", "")
-        узлы = [restore_raw(n) for n in свойство.children]
+        address = prop.attrs.get("feature", "")
+        nodes = [restore_raw(n) for n in prop.children]
         if address == ALL:
-            сб.all = True
+            sb.all = True
         elif address == "extInfo":
-            сб.raw_ext = узлы
+            sb.raw_ext = nodes
         elif address.startswith("extInfo/"):
-            сб.specified.add(address)
-            if узлы:
-                сб.add_ext(address[len("extInfo/"):], узлы)
+            sb.specified.add(address)
+            if nodes:
+                sb.add_ext(address[len("extInfo/"):], nodes)
         else:
-            сб.specified.add(address)
-            if узлы:
-                сб.add(address, узлы)
+            sb.specified.add(address)
+            if nodes:
+                sb.add(address, nodes)
 
-    def special(self, свойство, сб):
+    def special(self, prop, sb):
         """Свойства, которые ложатся в EDT не по имени; True — обработано."""
-        if свойство.tag == "AutoEditMode":
+        if prop.tag == "AutoEditMode":
             # режим «автоматически» — в выгрузке флагом при режиме, в EDT — значением режима
-            сб.specified.add("editMode")
-            сб.auto_edit = сб.auto_edit or свойство.text == "true"
+            sb.specified.add("editMode")
+            sb.auto_edit = sb.auto_edit or prop.text == "true"
             return True
-        if свойство.tag == "ShowCommandBar" and свойство.text == "auto" and сб.cls == FORM + "Table":
-            сб.specified.add("showCommandBar")
-            сб.add("showCommandBarNeedDereferenced", [Node("showCommandBarNeedDereferenced", text="true")])
+        if prop.tag == "ShowCommandBar" and prop.text == "auto" and sb.cls == FORM + "Table":
+            sb.specified.add("showCommandBar")
+            sb.add("showCommandBarNeedDereferenced", [Node("showCommandBarNeedDereferenced", text="true")])
             return True
         return False
 
-    def form_value(self, свойство, f, cls, where):
+    def form_value(self, prop, f, cls, where):
         """Значение свойства выгрузки -> узлы EDT."""
         if f.type == ADJUSTABLE:
-            return [self.adjustable(свойство, f.name, where)]
+            return [self.adjustable(prop, f.name, where)]
         if f.type.endswith("AbstractDataPath"):
-            if not (свойство.text or "").strip():
+            if not (prop.text or "").strip():
                 return []
             return [Node(f.name, attrs={"xsi:type": "form:DataPath"},
-                         children=[Node("segments", text=свойство.text)])]
-        if f.name == "source" and свойство.tag == "AdditionSource":
-            element = _by_tag(свойство, "Item")
+                         children=[Node("segments", text=prop.text)])]
+        if f.name == "source" and prop.tag == "AdditionSource":
+            element = _by_tag(prop, "Item")
             return [Node("source", text=element.text)] if element is not None and element.text else []
         type_ = f.type.rsplit(".", 1)[-1]
         if f.type == MCORE + "Color":
-            return self.color(свойство, f.name, where)
+            return self.color(prop, f.name, where)
         if f.type == MCORE + "Font":
-            return self.font(свойство, f.name, where)
+            return self.font(prop, f.name, where)
         if f.type == MCORE + "Picture":
-            return self.picture(свойство, f.name, where)
+            return self.picture(prop, f.name, where)
         if f.type == MCORE + "Border":
-            return self.border(свойство, f.name)
+            return self.border(prop, f.name)
         if f.type == MCORE + "StandardPeriod":
-            return [self.period(свойство, f.name)]
+            return [self.period(prop, f.name)]
         if type_ == "FormChoiceListDesTimeValue":
-            return self.choice_list(свойство, f.name, where)
-        return self.value_nodes(свойство, f, cls, where)
+            return self.choice_list(prop, f.name, where)
+        return self.value_nodes(prop, f, cls, where)
 
     # --- значения оформления ---
 
-    def color(self, свойство, name, where):
-        text = (свойство.text or "").strip()
+    def color(self, prop, name, where):
+        text = (prop.text or "").strip()
         if text in ("", "auto"):
             return []
         if text.startswith("#") and len(text) == 7:
-            узел = Node(name, attrs={"xsi:type": "core:ColorDef"})
+            node = Node(name, attrs={"xsi:type": "core:ColorDef"})
             for channel, part in (("red", text[1:3]), ("green", text[3:5]), ("blue", text[5:7])):
                 if int(part, 16):
-                    узел.children.append(Node(channel, text=str(int(part, 16))))
-            return [узел]
+                    node.children.append(Node(channel, text=str(int(part, 16))))
+            return [node]
         word = ref_word(text)
         if word is None:
             self.problem(where, f"незнакомый цвет «{text}»")
             return []
         return [Node(name, attrs={"xsi:type": "core:ColorRef"}, children=[Node("color", text=word)])]
 
-    def font(self, свойство, name, where):
-        kind = свойство.attrs.get("kind")
+    def font(self, prop, name, where):
+        kind = prop.attrs.get("kind")
         if kind == "AutoFont":
-            узел = Node(name, attrs={"xsi:type": "core:AutoFont"})
-        elif kind in ("StyleItem", "WindowsFont") and ref_word(свойство.attrs.get("ref")):
-            узел = Node(name, attrs={"xsi:type": "core:FontRef"},
-                        children=[Node("font", text=ref_word(свойство.attrs["ref"]))])
+            node = Node(name, attrs={"xsi:type": "core:AutoFont"})
+        elif kind in ("StyleItem", "WindowsFont") and ref_word(prop.attrs.get("ref")):
+            node = Node(name, attrs={"xsi:type": "core:FontRef"},
+                        children=[Node("font", text=ref_word(prop.attrs["ref"]))])
         else:
             self.problem(where, f"незнакомый шрифт вида «{kind}»")
             return []
         for attr_name in FONT_ATTRIBUTES:
-            if attr_name in свойство.attrs:
-                value = свойство.attrs[attr_name]
+            if attr_name in prop.attrs:
+                value = prop.attrs[attr_name]
                 if attr_name == "height" and "." not in value:
                     value += ".0"
-                узел.children.append(Node(attr_name, text=value))
-        return [узел]
+                node.children.append(Node(attr_name, text=value))
+        return [node]
 
-    def picture(self, свойство, name, where):
-        ссылка = _by_tag(свойство, "Ref")
-        if ссылка is not None and ссылка.text:
-            return [Node(name, attrs={"xsi:type": "core:PictureRef"}, children=[Node("picture", text=ссылка.text)])]
-        if self._empty(свойство):
+    def picture(self, prop, name, where):
+        ref = _by_tag(prop, "Ref")
+        if ref is not None and ref.text:
+            return [Node(name, attrs={"xsi:type": "core:PictureRef"}, children=[Node("picture", text=ref.text)])]
+        if self._empty(prop):
             return []
         self.problem(where, "картинка не из библиотеки не перекладывается")
         return []
 
     @staticmethod
-    def border(свойство, name):
-        узел = Node(name, attrs={"xsi:type": "core:BorderDef"})
-        стиль = _by_tag(свойство, "style")
-        if стиль is not None and стиль.text:
-            узел.children.append(Node("style", text=стиль.text))
-        if свойство.attrs.get("width") not in (None, "0"):
-            узел.children.append(Node("width", text=свойство.attrs["width"]))
-        return [узел]
+    def border(prop, name):
+        node = Node(name, attrs={"xsi:type": "core:BorderDef"})
+        style = _by_tag(prop, "style")
+        if style is not None and style.text:
+            node.children.append(Node("style", text=style.text))
+        if prop.attrs.get("width") not in (None, "0"):
+            node.children.append(Node("width", text=prop.attrs["width"]))
+        return [node]
 
     @staticmethod
-    def period(свойство, name):
-        узел = Node(name)
-        вариант = _by_tag(свойство, "variant")
-        if вариант is not None and вариант.text and вариант.text != "Custom":
-            узел.children.append(Node("variant", text=вариант.text))
+    def period(prop, name):
+        node = Node(name)
+        variant = _by_tag(prop, "variant")
+        if variant is not None and variant.text and variant.text != "Custom":
+            node.children.append(Node("variant", text=variant.text))
         for tag in ("startDate", "endDate"):
-            part = _by_tag(свойство, tag)
+            part = _by_tag(prop, tag)
             if part is not None and part.text:
-                узел.children.append(Node(tag, text=part.text))
-        return узел
+                node.children.append(Node(tag, text=part.text))
+        return node
 
-    def choice_list(self, свойство, name, where):
-        узлы = []
-        for element in свойство.children:
+    def choice_list(self, prop, name, where):
+        nodes = []
+        for element in prop.children:
             value = _by_tag(element, "Value")
             if value is None or value.attrs.get("type") != "FormChoiceListDesTimeValue":
                 self.problem(where, "незнакомый элемент списка выбора")
                 continue
-            узел = Node(name)
+            node = Node(name)
             presentation = _by_tag(value, "Presentation")
             if presentation is not None:
-                узел.children += [Node("presentation", children=[Node("key", text=item_part(i, "lang")),
+                node.children += [Node("presentation", children=[Node("key", text=item_part(i, "lang")),
                                                                  Node("value", text=item_part(i, "content"))])
                                   for i in presentation.children if i.tag == "item"]
             inside = _by_tag(value, "Value")
             if inside is not None:
                 v = self.value(inside, "value", where)
                 if v is not None:
-                    узел.children.append(v)
-            узлы.append(узел)
-        return узлы
+                    node.children.append(v)
+            nodes.append(node)
+        return nodes
 
-    def events(self, events, класс, сб):
+    def events(self, events, cls_name, sb):
         """События элемента -> обработчики: в самом элементе или в `extInfo` вида."""
         for e in events.children:
             if e.tag != "Event":
                 continue
             event = e.attrs.get("name", "")
-            узел = Node("handlers", children=[Node("event", text=event), Node("name", text=e.text or "")])
-            if класс in EXT_EVENTS:
-                сам = event not in EXT_EVENTS[класс]
+            node = Node("handlers", children=[Node("event", text=event), Node("name", text=e.text or "")])
+            if cls_name in EXT_EVENTS:
+                self_node = event not in EXT_EVENTS[cls_name]
             else:
-                сам = event in OWN_EVENTS.get(класс, ())
-            if not сам and (сб.ext_cls is None or edt_model.feature(сб.ext_cls, "handlers") is None):
-                сам = True
-            if сам:
-                сб.add("handlers", [узел])
+                self_node = event in OWN_EVENTS.get(cls_name, ())
+            if not self_node and (sb.ext_cls is None or edt_model.feature(sb.ext_cls, "handlers") is None):
+                self_node = True
+            if self_node:
+                sb.add("handlers", [node])
             else:
-                сб.add_ext("handlers", [узел])
+                sb.add_ext("handlers", [node])
 
-    def adjustable(self, свойство, name, where):
-        узел = Node(name)
-        общий = _by_tag(свойство, "Common")
-        if общий is not None and общий.text == "true":
-            узел.children.append(Node("common", text="true"))
-        if any(value.tag == "Value" for value in свойство.children):
+    def adjustable(self, prop, name, where):
+        node = Node(name)
+        common = _by_tag(prop, "Common")
+        if common is not None and common.text == "true":
+            node.children.append(Node("common", text="true"))
+        if any(value.tag == "Value" for value in prop.children):
             self.problem(where, "значение по ролям не перекладывается")
-        return узел
+        return node
 
     # --- реквизиты, команды, параметры ---
 
     def attribute(self, a):
-        имя_реквизита = a.attrs.get("name", "")
-        where = f"Attribute «{имя_реквизита}»"
+        attribute_name = a.attrs.get("name", "")
+        where = f"Attribute «{attribute_name}»"
         ext_name = self._attribute_ext(a)
-        сб = Assembly("attributes", {}, FORM + "FormAttribute", ext_name)
-        сб.add("name", [Node("name", text=имя_реквизита)])
-        сб.add("id", [Node("id", text=a.attrs.get("id", ""))])
+        sb = Assembly("attributes", {}, FORM + "FormAttribute", ext_name)
+        sb.add("name", [Node("name", text=attribute_name)])
+        sb.add("id", [Node("id", text=a.attrs.get("id", ""))])
         for c in a.children:
             if c.tag == "Type":
-                сб.specified.add("valueType")
-                сб.add("valueType", [self.type_description(c, "valueType", where)])
+                sb.specified.add("valueType")
+                sb.add("valueType", [self.type_description(c, "valueType", where)])
             elif c.tag == "MainAttribute":
-                сб.specified.add("main")
+                sb.specified.add("main")
                 if c.text == "true":
-                    сб.add("main", [Node("main", text="true")])
+                    sb.add("main", [Node("main", text="true")])
             elif c.tag == "SavedData":
-                сб.specified.add("savedData")
+                sb.specified.add("savedData")
                 if c.text == "true":
-                    сб.add("savedData", [Node("savedData", text="true")])
+                    sb.add("savedData", [Node("savedData", text="true")])
             elif c.tag in ("UseAlways", "Save"):
                 name = "notDefaultUseAlwaysAttributes" if c.tag == "UseAlways" else "settingsSavedData"
-                сб.specified.add(name)
-                сб.add(name, [Node(name, attrs={"xsi:type": "form:DataPath"}, children=[Node("segments", text=pt.text)])
+                sb.specified.add(name)
+                sb.add(name, [Node(name, attrs={"xsi:type": "form:DataPath"}, children=[Node("segments", text=pt.text)])
                              for pt in c.children if pt.text])
             elif c.tag == "Columns":
-                сб.add("columns", [self.column(к, where) for к in c.children if к.tag == "Column"])
+                sb.add("columns", [self.column(kk, where) for kk in c.children if kk.tag == "Column"])
             elif c.tag == "Settings":
-                self.settings(c, сб, where)
+                self.settings(c, sb, where)
             else:
-                self.property(c, сб, where)
-        self.specified_by_id["attributes:" + имя_реквизита] = set(сб.specified)
-        return сб.node(_key("attributes", ext_name))
+                self.property(c, sb, where)
+        self.specified_by_id["attributes:" + attribute_name] = set(sb.specified)
+        return sb.node(_key("attributes", ext_name))
 
-    def settings(self, settings, сб, where):
-        if сб.ext_cls is None:
+    def settings(self, settings, sb, where):
+        if sb.ext_cls is None:
             self.problem(where, "настройки реквизита этого типа не перекладываются")
             return
         for part in settings.children:
             if part.tag == "ListSettings":
                 continue                                  # отдельным файлом ListSettings.dcss — площадка
             if part.tag == RAW:
-                self.raw_property(part, сб)
+                self.raw_property(part, sb)
                 continue
             name = ATTRIBUTE_SETTINGS.get(part.tag) or feature_name(part.tag)
-            f = edt_model.feature(сб.ext_cls, name)
-            сб.specified.add("extInfo/" + name)
+            f = edt_model.feature(sb.ext_cls, name)
+            sb.specified.add("extInfo/" + name)
             if f is None:
                 if not self._empty(part):
-                    self.problem(where, f"настройки «{part.tag}» нет у {сб.ext_name}")
+                    self.problem(where, f"настройки «{part.tag}» нет у {sb.ext_name}")
                 continue
-            сб.add_ext(name, self.form_value(part, f, сб.ext_cls, f"{where}.{part.tag}"))
+            sb.add_ext(name, self.form_value(part, f, sb.ext_cls, f"{where}.{part.tag}"))
 
     @staticmethod
     def _attribute_ext(a):
         """Класс `extInfo` реквизита — по типу (замер — все формы корпуса)."""
         type_ = _by_tag(a, "Type")
-        слова = [c.text or "" for c in type_.children] if type_ is not None else []
+        words = [c.text or "" for c in type_.children] if type_ is not None else []
         settings = _by_tag(a, "Settings")
-        if any(с.partition(":")[2] == "DynamicList" for с in слова):
+        if any(ss.partition(":")[2] == "DynamicList" for ss in words):
             return "DynamicListExtInfo"
-        if any(с.endswith(":SpreadsheetDocument") for с in слова):
+        if any(ss.endswith(":SpreadsheetDocument") for ss in words):
             return "SpreadsheetDocumentExtInfo"
-        if any(с.partition(":")[2] == "ValueListType" for с in слова) and settings is not None:
+        if any(ss.partition(":")[2] == "ValueListType" for ss in words) and settings is not None:
             return "ValueListExtInfo"
-        if any(с.endswith(":FlowchartContextType") for с in слова):
+        if any(ss.endswith(":FlowchartContextType") for ss in words):
             return "GraphicalSchemeExtInfo"
         return None
 
-    def column(self, к, where):
-        key = f"columns:{where}.{к.attrs.get('name', '')}"
-        where = f"{where}.Column «{к.attrs.get('name', '')}»"
-        сб = Assembly("columns", {}, FORM + "FormAttributeColumn")
-        сб.add("name", [Node("name", text=к.attrs.get("name", ""))])
-        сб.add("id", [Node("id", text=к.attrs.get("id", ""))])
-        for c in к.children:
+    def column(self, kk, where):
+        key = f"columns:{where}.{kk.attrs.get('name', '')}"
+        where = f"{where}.Column «{kk.attrs.get('name', '')}»"
+        sb = Assembly("columns", {}, FORM + "FormAttributeColumn")
+        sb.add("name", [Node("name", text=kk.attrs.get("name", ""))])
+        sb.add("id", [Node("id", text=kk.attrs.get("id", ""))])
+        for c in kk.children:
             if c.tag == "Type":
-                сб.specified.add("valueType")
-                сб.add("valueType", [self.type_description(c, "valueType", where)])
+                sb.specified.add("valueType")
+                sb.add("valueType", [self.type_description(c, "valueType", where)])
             else:
-                self.property(c, сб, where)
-        self.specified_by_id[key] = set(сб.specified)
-        return сб.node("columns|")
+                self.property(c, sb, where)
+        self.specified_by_id[key] = set(sb.specified)
+        return sb.node("columns|")
 
-    def command(self, к):
-        where = f"Command «{к.attrs.get('name', '')}»"
-        сб = Assembly("formCommands", {}, FORM + "FormCommand")
-        сб.add("name", [Node("name", text=к.attrs.get("name", ""))])
-        сб.add("id", [Node("id", text=к.attrs.get("id", ""))])
-        for c in к.children:
+    def command(self, kk):
+        where = f"Command «{kk.attrs.get('name', '')}»"
+        sb = Assembly("formCommands", {}, FORM + "FormCommand")
+        sb.add("name", [Node("name", text=kk.attrs.get("name", ""))])
+        sb.add("id", [Node("id", text=kk.attrs.get("id", ""))])
+        for c in kk.children:
             if c.tag == "Action":
-                сб.specified.add("action")
-                сб.add("action", [Node("action", attrs={"xsi:type": "form:FormCommandHandlerContainer"},
+                sb.specified.add("action")
+                sb.add("action", [Node("action", attrs={"xsi:type": "form:FormCommandHandlerContainer"},
                                        children=[Node("handler", children=[Node("name", text=c.text or "")])])])
             else:
-                self.property(c, сб, where)
-        self.specified_by_id["formCommands:" + к.attrs.get("name", "")] = set(сб.specified)
-        return сб.node("formCommands|")
+                self.property(c, sb, where)
+        self.specified_by_id["formCommands:" + kk.attrs.get("name", "")] = set(sb.specified)
+        return sb.node("formCommands|")
 
     def parameter(self, pt):
         where = f"Parameter «{pt.attrs.get('name', '')}»"
-        сб = Assembly("parameters", {}, FORM + "FormParameter")
-        сб.add("name", [Node("name", text=pt.attrs.get("name", ""))])
+        sb = Assembly("parameters", {}, FORM + "FormParameter")
+        sb.add("name", [Node("name", text=pt.attrs.get("name", ""))])
         for c in pt.children:
             if c.tag == "Type":
-                сб.specified.add("valueType")
-                сб.add("valueType", [self.type_description(c, "valueType", where)])
+                sb.specified.add("valueType")
+                sb.add("valueType", [self.type_description(c, "valueType", where)])
             else:
-                self.property(c, сб, where)
-        return сб.node("parameters|")
+                self.property(c, sb, where)
+        return sb.node("parameters|")
 
 
 # --- обратная перекладка -------------------------------------------------------------------
@@ -734,11 +734,11 @@ def _v8(node):
 def _groups(node):
     """Дети узла EDT, собранные по свойству подряд: [(имя, [узлы])]."""
     groups = []
-    for ребёнок in node.children:
-        if groups and groups[-1][0] == ребёнок.tag:
-            groups[-1][1].append(ребёнок)
+    for child in node.children:
+        if groups and groups[-1][0] == child.tag:
+            groups[-1][1].append(child)
         else:
-            groups.append((ребёнок.tag, [ребёнок]))
+            groups.append((child.tag, [child]))
     return groups
 
 
@@ -751,16 +751,16 @@ def as_parsed(node):
                 children=[as_parsed(c) for c in node.children])
 
 
-def _merge_events(дети):
+def _merge_events(children):
     """Обработчики элемента и его `extInfo` -> одни `Events`, как в выгрузке
     (прямая перекладка разложит их обратно по тем же правилам)."""
-    events = [c for c in дети if c.tag == "Events"]
+    events = [c for c in children if c.tag == "Events"]
     if len(events) < 2:
-        return дети
-    общий = Node("Events", children=[e for c in events for e in c.children])
-    первый = дети.index(events[0])
-    остальные = [c for c in дети if c.tag != "Events"]
-    return остальные[:первый] + [общий] + остальные[первый:]
+        return children
+    common = Node("Events", children=[e for c in events for e in c.children])
+    first_one = children.index(events[0])
+    remaining = [c for c in children if c.tag != "Events"]
+    return remaining[:first_one] + [common] + remaining[first_one:]
 
 
 class ReverseForm:
@@ -774,25 +774,25 @@ class ReverseForm:
         self.skeletons = []
 
     def form(self, root):
-        реквизиты = [n for n in root.children if n.tag == "attributes"]
-        self.forward.dynamic_lists = {self._name(a) for a in реквизиты
+        attributes = [n for n in root.children if n.tag == "attributes"]
+        self.forward.dynamic_lists = {self._name(a) for a in attributes
                                       if self._ext_class(a) == "DynamicListExtInfo"}
-        богатое = self._form(root, rich=True)
-        if self._forward_form(богатое, root):
-            return богатое
-        скелет = self._form(root, rich=False)
+        rich_node = self._form(root, rich=True)
+        if self._forward_form(rich_node, root):
+            return rich_node
+        skeleton = self._form(root, rich=False)
         self.skeletons.append(("Form", ""))
-        if self._forward_form(скелет, root):
-            return скелет
+        if self._forward_form(skeleton, root):
+            return skeleton
         raise ValueError("форма EDT не проходит круг перекладки даже скелетом")
 
     def _forward_form(self, designer, root):
         try:
             after_ = FormTranslation().form(as_parsed(designer))
             # объявления пространств имён корня текст вычисляет сам — их не сравнивать
-            корень = Node(root.tag, attrs={k: v for k, v in root.attrs.items() if not k.startswith("xmlns:")},
+            clean_root = Node(root.tag, attrs={k: v for k, v in root.attrs.items() if not k.startswith("xmlns:")},
                           children=root.children)
-            return same(after_, корень)
+            return same(after_, clean_root)
         except Exception:                               # noqa: BLE001 — не сошлось, значит скелет
             return False
 
@@ -813,49 +813,49 @@ class ReverseForm:
                 types = _by_tag(a, "valueType")
                 word = _by_tag(types, "types") if types is not None else None
                 expected = FORM_EXT_INFO.get((word.text or "").split(".")[0]) if word is not None else None
-        дети = []
-        for name, узлы in _groups(root):
+        children = []
+        for name, nodes in _groups(root):
             if name == "items":
-                дети.append(Node("ChildItems", children=[self.item(n) for n in узлы]))
+                children.append(Node("ChildItems", children=[self.item(n) for n in nodes]))
             elif name == "attributes":
-                дети.append(Node("Attributes", children=[self.attribute(n) for n in узлы]))
+                children.append(Node("Attributes", children=[self.attribute(n) for n in nodes]))
             elif name == "formCommands":
-                дети.append(Node("Commands", children=[self.command(n) for n in узлы]))
+                children.append(Node("Commands", children=[self.command(n) for n in nodes]))
             elif name == "parameters":
-                дети.append(Node("Parameters", children=[self.parameter(n) for n in узлы]))
+                children.append(Node("Parameters", children=[self.parameter(n) for n in nodes]))
             elif name == "autoCommandBar":
-                дети.append(self.satellite(узлы[0], cls, name))
+                children.append(self.satellite(nodes[0], cls, name))
             elif name == "commandInterface":
-                if not (len(узлы) == 1 and same(узлы[0], EMPTY_COMMAND_INTERFACE)):
-                    дети.append(raw(name, узлы))
+                if not (len(nodes) == 1 and same(nodes[0], EMPTY_COMMAND_INTERFACE)):
+                    children.append(raw(name, nodes))
             elif rich:
-                дети += self.feature(cls, expected, name, узлы)
+                children += self.feature(cls, expected, name, nodes)
             else:
-                дети.append(raw(name, узлы))
+                children.append(raw(name, nodes))
         if rich:
-            дети = self.normalize(дети, root, cls, expected, "Form|")
+            children = self.normalize(children, root, cls, expected, "Form|")
         else:
-            дети.append(raw(ALL, []))
+            children.append(raw(ALL, []))
             if not any(n.tag == "commandInterface" for n in root.children):
-                дети.append(raw("commandInterface", []))
+                children.append(raw("commandInterface", []))
             if expected is not None and _by_tag(root, "extInfo") is None:
-                дети.append(raw("extInfo", []))
+                children.append(raw("extInfo", []))
         if rich and not any(n.tag == "commandInterface" for n in root.children):
-            дети.append(raw("commandInterface", []))
-        return Node("Form", children=_merge_events(дети))
+            children.append(raw("commandInterface", []))
+        return Node("Form", children=_merge_events(children))
 
     # --- элементы ---
 
     def item(self, n):
-        класс = n.attrs.get("xsi:type", "").partition(":")[2]
-        type_ = self._type(n, FORM + класс)
-        if класс in ("Button", "Table"):              # вид в теге не различается: поле `type` — свойство
-            тег = класс
+        cls_name = n.attrs.get("xsi:type", "").partition(":")[2]
+        type_ = self._type(n, FORM + cls_name)
+        if cls_name in ("Button", "Table"):              # вид в теге не различается: поле `type` — свойство
+            tag = cls_name
         else:
-            тег = KINDS_BACK.get((класс, type_))
-        if тег is None:
+            tag = KINDS_BACK.get((cls_name, type_))
+        if tag is None:
             return raw("items", [n])                    # вид, которого выгрузка не пишет, — переходником
-        return self.element(n, тег, класс, "items", type_)
+        return self.element(n, tag, cls_name, "items", type_)
 
     @staticmethod
     def _type(n, cls):
@@ -867,167 +867,167 @@ class ReverseForm:
 
     def satellite(self, n, owner_cls, feature):
         f = edt_model.feature(owner_cls, feature)
-        класс = f.type.rsplit(".", 1)[-1]
-        return self.element(n, SATELLITES_BACK[feature], класс, feature, self._type(n, FORM + класс))
+        cls_name = f.type.rsplit(".", 1)[-1]
+        return self.element(n, SATELLITES_BACK[feature], cls_name, feature, self._type(n, FORM + cls_name))
 
-    def element(self, n, тег, класс, feature, type_):
-        богатое = self._element(n, тег, класс, type_, feature, rich=True)
-        if self._forward_element(богатое, тег, класс, feature, n):
-            return богатое
-        скелет = self._element(n, тег, класс, type_, feature, rich=False)
-        self.skeletons.append((тег, self._name(n)))
-        if self._forward_element(скелет, тег, класс, feature, n):
-            return скелет
+    def element(self, n, tag, cls_name, feature, type_):
+        rich_node = self._element(n, tag, cls_name, type_, feature, rich=True)
+        if self._forward_element(rich_node, tag, cls_name, feature, n):
+            return rich_node
+        skeleton = self._element(n, tag, cls_name, type_, feature, rich=False)
+        self.skeletons.append((tag, self._name(n)))
+        if self._forward_element(skeleton, tag, cls_name, feature, n):
+            return skeleton
         raise ValueError(f"элемент «{self._name(n)}» не проходит круг перекладки даже скелетом")
 
-    def _forward_element(self, designer, тег, класс, feature, n):
-        вперёд = FormTranslation()
-        вперёд.dynamic_lists = self.forward.dynamic_lists
+    def _forward_element(self, designer, tag, cls_name, feature, n):
+        forward = FormTranslation()
+        forward.dynamic_lists = self.forward.dynamic_lists
         try:
             if feature == "items":
-                узел = вперёд.item(as_parsed(designer), "")
+                node = forward.item(as_parsed(designer), "")
             else:
-                type_ = SATELLITES[тег][1]
-                узел = вперёд.element(as_parsed(designer), feature, класс, type_, тег, xsi=False)
+                type_ = SATELLITES[tag][1]
+                node = forward.element(as_parsed(designer), feature, cls_name, type_, tag, xsi=False)
         except Exception:                               # noqa: BLE001 — не сошлось, значит скелет
             return False
-        return узел is not None and not вперёд.problems and same(узел, n)
+        return node is not None and not forward.problems and same(node, n)
 
-    def _element(self, n, тег, класс, type_, feature, rich):
-        cls = FORM + класс
-        if тег == "Table":
+    def _element(self, n, tag, cls_name, type_, feature, rich):
+        cls = FORM + cls_name
+        if tag == "Table":
             path = _by_tag(n, "dataPath")
-            сегмент = _by_tag(path, "segments") if path is not None else None
-            корень = (сегмент.text or "").split(".")[0] if сегмент is not None else None
-            expected = "DynamicListTableExtInfo" if корень in self.forward.dynamic_lists else None
+            segment = _by_tag(path, "segments") if path is not None else None
+            root = (segment.text or "").split(".")[0] if segment is not None else None
+            expected = "DynamicListTableExtInfo" if root in self.forward.dynamic_lists else None
         else:
-            expected = EXT_INFO.get(тег)
+            expected = EXT_INFO.get(tag)
         attrs = {"name": self._name(n), "id": next((c.text for c in n.children if c.tag == "id"), "") or ""}
-        дети, детей, спутники = [], [], []
-        if тег == "Button" and type_ != "CommandBarButton":
-            дети.append(Node("Type", text=type_))
-        for name, узлы in _groups(n):
+        children, children_count, satellites = [], [], []
+        if tag == "Button" and type_ != "CommandBarButton":
+            children.append(Node("Type", text=type_))
+        for name, nodes in _groups(n):
             if name in ("name", "id", "type"):
                 continue
             if name == "items":
-                детей += [self.item(c) for c in узлы]
+                children_count += [self.item(c) for c in nodes]
             elif name in SATELLITES_BACK and edt_model.feature(cls, name) is not None \
                     and edt_model.feature(cls, name).kind == "contains" and not edt_model.feature(cls, name).many:
-                спутники.append(self.satellite(узлы[0], cls, name))
+                satellites.append(self.satellite(nodes[0], cls, name))
             elif rich:
-                дети += self.feature(cls, expected, name, узлы)
-            elif name == "dataPath" and self._plain_path(узлы):
-                дети.append(Node("DataPath", text=_by_tag(узлы[0], "segments").text))
+                children += self.feature(cls, expected, name, nodes)
+            elif name == "dataPath" and self._plain_path(nodes):
+                children.append(Node("DataPath", text=_by_tag(nodes[0], "segments").text))
             else:
-                дети.append(raw(name, узлы))
-        записанный = type_ if _by_tag(n, "type") is not None else None
+                children.append(raw(name, nodes))
+        written = type_ if _by_tag(n, "type") is not None else None
         if rich:
-            дети = self.normalize(дети, n, cls, expected, _key(класс if feature == "items" else feature,
-                                                                 записанный))
+            children = self.normalize(children, n, cls, expected, _key(cls_name if feature == "items" else feature,
+                                                                 written))
         else:
-            дети.append(raw(ALL, []))
+            children.append(raw(ALL, []))
             if expected is not None and _by_tag(n, "extInfo") is None:
-                дети.append(raw("extInfo", []))
-        if детей:
-            дети.append(Node("ChildItems", children=детей))
-        return Node(тег, attrs=attrs, children=_merge_events(дети) + спутники)
+                children.append(raw("extInfo", []))
+        if children_count:
+            children.append(Node("ChildItems", children=children_count))
+        return Node(tag, attrs=attrs, children=_merge_events(children) + satellites)
 
     @staticmethod
-    def _plain_path(узлы):
-        if len(узлы) != 1 or узлы[0].attrs.get("xsi:type") != "form:DataPath" or len(узлы[0].children) != 1:
+    def _plain_path(nodes):
+        if len(nodes) != 1 or nodes[0].attrs.get("xsi:type") != "form:DataPath" or len(nodes[0].children) != 1:
             return False
-        сегмент = _by_tag(узлы[0], "segments")
-        return сегмент is not None and plain(сегмент.text) and not сегмент.children
+        segment = _by_tag(nodes[0], "segments")
+        return segment is not None and plain(segment.text) and not segment.children
 
     # --- свойства ---
 
-    def feature(self, cls, expected_ext, name, узлы):
+    def feature(self, cls, expected_ext, name, nodes):
         """Свойство EDT -> свойства выгрузки (непонятное — переходником)."""
         if name == "extInfo":
-            ext = узлы[0]
-            класс = ext.attrs.get("xsi:type", "").partition(":")[2]
-            if len(узлы) != 1 or класс != expected_ext:
-                return [raw("extInfo", узлы)]
-            ext_cls = FORM + класс
+            ext = nodes[0]
+            cls_name = ext.attrs.get("xsi:type", "").partition(":")[2]
+            if len(nodes) != 1 or cls_name != expected_ext:
+                return [raw("extInfo", nodes)]
+            ext_cls = FORM + cls_name
             out = []
-            for имя_ext, узлы_ext in _groups(ext):
-                f = edt_model.feature(ext_cls, имя_ext)
+            for name_ext, nodes_ext in _groups(ext):
+                f = edt_model.feature(ext_cls, name_ext)
                 if f is None:
-                    out.append(raw("extInfo/" + имя_ext, узлы_ext))
-                elif имя_ext == "handlers":
-                    out.append(self.events(узлы_ext))
+                    out.append(raw("extInfo/" + name_ext, nodes_ext))
+                elif name_ext == "handlers":
+                    out.append(self.events(nodes_ext))
                 else:
-                    out += self.value(f, узлы_ext, "extInfo/")
+                    out += self.value(f, nodes_ext, "extInfo/")
             return out
         f = edt_model.feature(cls, name)
         if f is None:
-            return [raw(name, узлы)]
+            return [raw(name, nodes)]
         if name == "handlers":
-            return [self.events(узлы)]
-        return self.value(f, узлы, "")
+            return [self.events(nodes)]
+        return self.value(f, nodes, "")
 
-    def events(self, узлы):
+    def events(self, nodes):
         events = []
-        for h in узлы:
+        for h in nodes:
             fields = {c.tag: c.text for c in h.children}
             if set(fields) != {"event", "name"} or not plain(fields["event"]) or not plain(fields["name"] or "x"):
-                return raw("handlers", узлы)
+                return raw("handlers", nodes)
             events.append(Node("Event", attrs={"name": fields["event"]}, text=fields["name"]))
         return Node("Events", children=events)
 
-    def value(self, f, узлы, address):
+    def value(self, f, nodes, address):
         """Узлы EDT свойства `f` -> свойства выгрузки."""
-        тег = designer_tag(f.name)
-        переходник = [raw(address + f.name, узлы)]
-        один = узлы[0] if len(узлы) == 1 else None
+        tag = designer_tag(f.name)
+        adapter = [raw(address + f.name, nodes)]
+        single = nodes[0] if len(nodes) == 1 else None
         if f.type == LOCAL_STRING:
             items = []
-            for n in узлы:
+            for n in nodes:
                 fields = {c.tag: c for c in n.children}
                 if set(fields) != {"key", "value"} or any(c.children or c.attrs for c in n.children) \
                         or not all(plain(c.text) for c in n.children):
-                    return переходник
+                    return adapter
                 items.append(Node("v8:item", children=[Node("v8:lang", text=fields["key"].text),
                                                        Node("v8:content", text=fields["value"].text)]))
-            return [Node(тег, children=items)]
-        if один is None and not f.many:
-            return переходник
+            return [Node(tag, children=items)]
+        if single is None and not f.many:
+            return adapter
         if f.type == ADJUSTABLE:
-            if один.attrs or any(c.tag != "common" or c.text != "true" for c in один.children):
-                return переходник
-            value = "true" if один.children else "false"
-            return [Node(тег, children=[Node("xr:Common", text=value)])]
+            if single.attrs or any(c.tag != "common" or c.text != "true" for c in single.children):
+                return adapter
+            value = "true" if single.children else "false"
+            return [Node(tag, children=[Node("xr:Common", text=value)])]
         if f.type.endswith("AbstractDataPath") and not f.many:
-            if not self._plain_path(узлы):
-                return переходник
-            return [Node(тег, text=_by_tag(один, "segments").text)]
+            if not self._plain_path(nodes):
+                return adapter
+            return [Node(tag, text=_by_tag(single, "segments").text)]
         if f.type == TYPE_DESCRIPTION:
-            type_ = self.type_description(один, тег)
-            return [type_] if type_ is not None else переходник
+            type_ = self.type_description(single, tag)
+            return [type_] if type_ is not None else adapter
         if f.type == VALUE:
-            value = self.reverse_values.value(один, тег)
+            value = self.reverse_values.value(single, tag)
             if value is None:
-                return переходник
-            return [Node(тег, text=value.text,
+                return adapter
+            return [Node(tag, text=value.text,
                          attrs={("xsi:" + k): v for k, v in value.attrs.items()})]
         if f.type == MCORE + "Color":
-            return self.color(один, тег) or переходник
+            return self.color(single, tag) or adapter
         if f.type == MCORE + "Font":
-            return self.font(один, тег) or переходник
+            return self.font(single, tag) or adapter
         if f.type == MCORE + "Picture":
-            return self.picture(один, тег) or переходник
+            return self.picture(single, tag) or adapter
         if f.type == MCORE + "Border":
-            return self.border(один, тег) or переходник
+            return self.border(single, tag) or adapter
         if f.kind in ("refers", "attribute"):
-            if any(n.children or n.attrs or not plain(n.text) for n in узлы):
-                return переходник
+            if any(n.children or n.attrs or not plain(n.text) for n in nodes):
+                return adapter
             if f.many:
-                return [Node(тег, children=[Node("Item", text=n.text) for n in узлы])]
-            return [Node(тег, text=один.text)]
-        return переходник
+                return [Node(tag, children=[Node("Item", text=n.text) for n in nodes])]
+            return [Node(tag, text=single.text)]
+        return adapter
 
-    def type_description(self, узел, тег):
-        type_ = self.reverse_values.type_description(узел, тег)
+    def type_description(self, node, tag):
+        type_ = self.reverse_values.type_description(node, tag)
         if type_ is None:
             return None
         # прямая перекладка возьмёт из описания то же, что дал обратный ход;
@@ -1035,41 +1035,41 @@ class ReverseForm:
         for c in type_.children:
             if c.text is not None and not plain(c.text):
                 return None
-        return Node(тег, children=[_v8(c) for c in type_.children])
+        return Node(tag, children=[_v8(c) for c in type_.children])
 
     @staticmethod
-    def color(n, тег):
-        класс = n.attrs.get("xsi:type", "")
-        if класс == "core:ColorRef" and len(n.children) == 1 and n.children[0].tag == "color":
+    def color(n, tag):
+        cls_name = n.attrs.get("xsi:type", "")
+        if cls_name == "core:ColorRef" and len(n.children) == 1 and n.children[0].tag == "color":
             word = ref_back(n.children[0].text)
-            return [Node(тег, text=word)] if word else None
-        if класс == "core:ColorDef" and all(c.tag in ("red", "green", "blue") and not c.children
+            return [Node(tag, text=word)] if word else None
+        if cls_name == "core:ColorDef" and all(c.tag in ("red", "green", "blue") and not c.children
                                             for c in n.children):
             parts = {c.tag: int(c.text or "0") for c in n.children}
-            if [c.tag for c in n.children] != [и for и in ("red", "green", "blue") if и in parts]:
+            if [c.tag for c in n.children] != [ii for ii in ("red", "green", "blue") if ii in parts]:
                 return None
             if any(not 0 < v < 256 for v in parts.values()):
                 return None
-            return [Node(тег, text="#" + "".join(f"{parts.get(и, 0):02X}" for и in ("red", "green", "blue")))]
+            return [Node(tag, text="#" + "".join(f"{parts.get(ii, 0):02X}" for ii in ("red", "green", "blue")))]
         return None
 
     @staticmethod
-    def font(n, тег):
-        класс = n.attrs.get("xsi:type", "")
+    def font(n, tag):
+        cls_name = n.attrs.get("xsi:type", "")
         attrs = {}
         fields = list(n.children)
-        if класс == "core:FontRef":
+        if cls_name == "core:FontRef":
             if not fields or fields[0].tag != "font":
                 return None
-            ссылка = ref_back(fields[0].text)
-            if ссылка is None or not ссылка.startswith(("style:", "sys:")):
+            ref = ref_back(fields[0].text)
+            if ref is None or not ref.startswith(("style:", "sys:")):
                 return None
-            attrs["ref"] = ссылка
+            attrs["ref"] = ref
             fields = fields[1:]
-        elif класс != "core:AutoFont":
+        elif cls_name != "core:AutoFont":
             return None
-        порядок = [c.tag for c in fields]
-        if порядок != [и for и in FONT_ATTRIBUTES if и in порядок] or any(c.children for c in fields):
+        order = [c.tag for c in fields]
+        if order != [ii for ii in FONT_ATTRIBUTES if ii in order] or any(c.children for c in fields):
             return None
         for c in fields:
             text = c.text or ""
@@ -1078,56 +1078,56 @@ class ReverseForm:
                     return None
                 text = text[:-2]
             attrs[c.tag] = text
-        if класс == "core:AutoFont":
+        if cls_name == "core:AutoFont":
             attrs["kind"] = "AutoFont"
         else:
             attrs["kind"] = "StyleItem" if attrs["ref"].startswith("style:") else "WindowsFont"
-        return [Node(тег, attrs=attrs)]
+        return [Node(tag, attrs=attrs)]
 
     @staticmethod
-    def picture(n, тег):
+    def picture(n, tag):
         if n.attrs.get("xsi:type") == "core:PictureRef" and len(n.children) == 1 \
                 and n.children[0].tag == "picture" and plain(n.children[0].text):
-            return [Node(тег, children=[Node("xr:Ref", text=n.children[0].text),
+            return [Node(tag, children=[Node("xr:Ref", text=n.children[0].text),
                                         Node("xr:LoadTransparent", text="true")])]
         return None
 
     @staticmethod
-    def border(n, тег):
+    def border(n, tag):
         if n.attrs.get("xsi:type") != "core:BorderDef":
             return None
         fields = {c.tag: c.text for c in n.children}
         if [c.tag for c in n.children] not in (["style", "width"], ["style"], ["width"], []):
             return None
         attrs = {"width": fields["width"]} if "width" in fields else {}
-        дети = [Node("v8ui:style", attrs={"xsi:type": "v8ui:ControlBorderType"}, text=fields["style"])] \
+        children = [Node("v8ui:style", attrs={"xsi:type": "v8ui:ControlBorderType"}, text=fields["style"])] \
             if "style" in fields else []
-        return [Node(тег, attrs=attrs, children=дети)]
+        return [Node(tag, attrs=attrs, children=children)]
 
     # --- умолчания ---
 
-    def normalize(self, дети, n, cls, expected_ext, key):
+    def normalize(self, children, n, cls, expected_ext, key):
         """Свойства, совпавшие с умолчанием платформы, не пишутся (прямая
         перекладка их допишет); отсутствующее в EDT, но имеющее умолчание —
         переходником без узлов: «задано, писать нечего»."""
-        умолчания = DEFAULTS.get(key, {})
-        if not умолчания:
-            return дети
+        defaults = DEFAULTS.get(key, {})
+        if not defaults:
+            return children
         ext = _by_tag(n, "extInfo")
         ext_ok = ext is not None and ext.attrs.get("xsi:type", "").partition(":")[2] == expected_ext
-        for path, text in умолчания.items():
+        for path, text in defaults.items():
             if path.startswith("extInfo/"):
                 if not ext_ok:
                     continue
-                узлы = [c for c in ext.children if c.tag == path[len("extInfo/"):]]
+                nodes = [c for c in ext.children if c.tag == path[len("extInfo/"):]]
             else:
-                узлы = [c for c in n.children if c.tag == path]
-            if len(узлы) == 1 and default_value(узлы[0]) == text:
-                тег = designer_tag(path.rpartition("/")[2])
-                дети = [c for c in дети if not (c.tag == тег or (c.tag == RAW and c.attrs.get("feature") == path))]
-            elif not узлы:
-                дети.append(raw(path, []))
-        return дети
+                nodes = [c for c in n.children if c.tag == path]
+            if len(nodes) == 1 and default_value(nodes[0]) == text:
+                tag = designer_tag(path.rpartition("/")[2])
+                children = [c for c in children if not (c.tag == tag or (c.tag == RAW and c.attrs.get("feature") == path))]
+            elif not nodes:
+                children.append(raw(path, []))
+        return children
 
     # --- реквизиты, команды, параметры ---
 
@@ -1135,59 +1135,59 @@ class ReverseForm:
         ext_name = self._ext_class(n)
         expected = ext_name if ext_name in ("DynamicListExtInfo", "SpreadsheetDocumentExtInfo",
                                             "ValueListExtInfo", "GraphicalSchemeExtInfo") else None
-        богатое = self._attribute(n, expected, rich=True)
-        if self._forward_named(богатое, n, "attribute"):
-            return богатое
-        скелет = self._attribute(n, expected, rich=False)
+        rich_node = self._attribute(n, expected, rich=True)
+        if self._forward_named(rich_node, n, "attribute"):
+            return rich_node
+        skeleton = self._attribute(n, expected, rich=False)
         self.skeletons.append(("Attribute", self._name(n)))
-        if self._forward_named(скелет, n, "attribute"):
-            return скелет
+        if self._forward_named(skeleton, n, "attribute"):
+            return skeleton
         raise ValueError(f"реквизит «{self._name(n)}» не проходит круг перекладки даже скелетом")
 
     def _forward_named(self, designer, n, kind):
-        вперёд = FormTranslation()
+        forward = FormTranslation()
         try:
-            узел = getattr(вперёд, kind)(as_parsed(designer))
+            node = getattr(forward, kind)(as_parsed(designer))
         except Exception:                               # noqa: BLE001 — не сошлось, значит скелет
             return False
-        return not вперёд.problems and same(узел, n)
+        return not forward.problems and same(node, n)
 
     def _attribute(self, n, expected, rich):
         cls = FORM + "FormAttribute"
         attrs = {"name": self._name(n), "id": next((c.text for c in n.children if c.tag == "id"), "") or ""}
-        дети, settings = [], []
-        for name, узлы in _groups(n):
+        children, settings = [], []
+        for name, nodes in _groups(n):
             if name in ("name", "id"):
                 continue
             if name == "valueType":
-                type_ = self.type_description(узлы[0], "Type") if len(узлы) == 1 else None
-                дети.append(type_ if type_ is not None else raw(name, узлы))
-            elif name == "main" and len(узлы) == 1 and узлы[0].text == "true":
-                дети.append(Node("MainAttribute", text="true"))
+                type_ = self.type_description(nodes[0], "Type") if len(nodes) == 1 else None
+                children.append(type_ if type_ is not None else raw(name, nodes))
+            elif name == "main" and len(nodes) == 1 and nodes[0].text == "true":
+                children.append(Node("MainAttribute", text="true"))
             elif name == "columns":
-                дети.append(Node("Columns", children=[self.column(c, attrs["name"]) for c in узлы]))
+                children.append(Node("Columns", children=[self.column(c, attrs["name"]) for c in nodes]))
             elif name == "extInfo":
-                класс = узлы[0].attrs.get("xsi:type", "").partition(":")[2]
-                if not rich or len(узлы) != 1 or класс != expected:
-                    дети.append(raw("extInfo", узлы))
+                cls_name = nodes[0].attrs.get("xsi:type", "").partition(":")[2]
+                if not rich or len(nodes) != 1 or cls_name != expected:
+                    children.append(raw("extInfo", nodes))
                 else:
-                    settings += self.feature(cls, expected, name, узлы)
+                    settings += self.feature(cls, expected, name, nodes)
             elif rich:
-                дети += self.feature(cls, expected, name, узлы)
+                children += self.feature(cls, expected, name, nodes)
             else:
-                дети.append(raw(name, узлы))
+                children.append(raw(name, nodes))
         if expected is not None and _by_tag(n, "extInfo") is None:
-            дети.append(raw("extInfo", []))
+            children.append(raw("extInfo", []))
         if rich:
-            дети = self.normalize(дети + settings, n, cls, expected, _key("attributes", expected))
-            settings = [c for c in дети if c.tag == RAW and c.attrs.get("feature", "").startswith("extInfo/")
+            children = self.normalize(children + settings, n, cls, expected, _key("attributes", expected))
+            settings = [c for c in children if c.tag == RAW and c.attrs.get("feature", "").startswith("extInfo/")
                          or c in settings]
-            дети = [c for c in дети if c not in settings]
+            children = [c for c in children if c not in settings]
         else:
-            дети.append(raw(ALL, []))
+            children.append(raw(ALL, []))
         if settings:
-            дети.append(Node("Settings", children=[self._setting(c) for c in settings]))
-        return Node("Attribute", attrs=attrs, children=дети)
+            children.append(Node("Settings", children=[self._setting(c) for c in settings]))
+        return Node("Attribute", attrs=attrs, children=children)
 
     @staticmethod
     def _setting(c):
@@ -1197,66 +1197,66 @@ class ReverseForm:
                     attrs=c.attrs, children=c.children)
 
     def column(self, n, attribute):
-        богатое = self._simple(n, "Column", FORM + "FormAttributeColumn", "columns|", rich=True)
-        вперёд = FormTranslation()
+        rich_node = self._simple(n, "Column", FORM + "FormAttributeColumn", "columns|", rich=True)
+        forward = FormTranslation()
         try:
-            if same(вперёд.column(as_parsed(богатое), f"Attribute «{attribute}»"), n) and not вперёд.problems:
-                return богатое
+            if same(forward.column(as_parsed(rich_node), f"Attribute «{attribute}»"), n) and not forward.problems:
+                return rich_node
         except Exception:                               # noqa: BLE001 — не сошлось, значит скелет
             pass
         return self._simple(n, "Column", FORM + "FormAttributeColumn", "columns|", rich=False)
 
     def command(self, n):
-        богатое = self._simple(n, "Command", FORM + "FormCommand", "formCommands|", rich=True)
-        if self._forward_named(богатое, n, "command"):
-            return богатое
-        скелет = self._simple(n, "Command", FORM + "FormCommand", "formCommands|", rich=False)
+        rich_node = self._simple(n, "Command", FORM + "FormCommand", "formCommands|", rich=True)
+        if self._forward_named(rich_node, n, "command"):
+            return rich_node
+        skeleton = self._simple(n, "Command", FORM + "FormCommand", "formCommands|", rich=False)
         self.skeletons.append(("Command", self._name(n)))
-        if self._forward_named(скелет, n, "command"):
-            return скелет
+        if self._forward_named(skeleton, n, "command"):
+            return skeleton
         raise ValueError(f"команда «{self._name(n)}» не проходит круг перекладки даже скелетом")
 
     def parameter(self, n):
-        богатое = self._simple(n, "Parameter", FORM + "FormParameter", "parameters|", rich=True)
-        if self._forward_named(богатое, n, "parameter"):
-            return богатое
-        скелет = self._simple(n, "Parameter", FORM + "FormParameter", "parameters|", rich=False)
-        if self._forward_named(скелет, n, "parameter"):
-            return скелет
+        rich_node = self._simple(n, "Parameter", FORM + "FormParameter", "parameters|", rich=True)
+        if self._forward_named(rich_node, n, "parameter"):
+            return rich_node
+        skeleton = self._simple(n, "Parameter", FORM + "FormParameter", "parameters|", rich=False)
+        if self._forward_named(skeleton, n, "parameter"):
+            return skeleton
         raise ValueError(f"параметр «{self._name(n)}» не проходит круг перекладки даже скелетом")
 
-    def _simple(self, n, тег, cls, key, rich):
+    def _simple(self, n, tag, cls, key, rich):
         attrs = {"name": self._name(n)}
         number = next((c.text for c in n.children if c.tag == "id"), None)
         if number is not None:
             attrs["id"] = number
-        дети = []
-        for name, узлы in _groups(n):
+        children = []
+        for name, nodes in _groups(n):
             if name in ("name", "id"):
                 continue
             if name == "valueType":
-                type_ = self.type_description(узлы[0], "Type") if len(узлы) == 1 else None
-                дети.append(type_ if type_ is not None else raw(name, узлы))
-            elif name == "action" and self._action(узлы) is not None:
-                дети.append(Node("Action", text=self._action(узлы)))
+                type_ = self.type_description(nodes[0], "Type") if len(nodes) == 1 else None
+                children.append(type_ if type_ is not None else raw(name, nodes))
+            elif name == "action" and self._action(nodes) is not None:
+                children.append(Node("Action", text=self._action(nodes)))
             elif rich:
-                дети += self.feature(cls, None, name, узлы)
+                children += self.feature(cls, None, name, nodes)
             else:
-                дети.append(raw(name, узлы))
+                children.append(raw(name, nodes))
         if rich:
-            дети = self.normalize(дети, n, cls, None, key)
+            children = self.normalize(children, n, cls, None, key)
         else:
-            дети.append(raw(ALL, []))
-        return Node(тег, attrs=attrs, children=дети)
+            children.append(raw(ALL, []))
+        return Node(tag, attrs=attrs, children=children)
 
     @staticmethod
-    def _action(узлы):
-        if len(узлы) != 1 or узлы[0].attrs.get("xsi:type") != "form:FormCommandHandlerContainer":
+    def _action(nodes):
+        if len(nodes) != 1 or nodes[0].attrs.get("xsi:type") != "form:FormCommandHandlerContainer":
             return None
-        обработчик = узлы[0].children
-        if len(обработчик) != 1 or обработчик[0].tag != "handler" or len(обработчик[0].children) != 1:
+        handler = nodes[0].children
+        if len(handler) != 1 or handler[0].tag != "handler" or len(handler[0].children) != 1:
             return None
-        name = обработчик[0].children[0]
+        name = handler[0].children[0]
         return name.text if name.tag == "name" and plain(name.text) else None
 
 

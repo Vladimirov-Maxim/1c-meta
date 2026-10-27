@@ -55,25 +55,25 @@ def test_an_unknown_rule_code_is_refused_not_clean(правки, профиль,
 
 
 def test_the_filter_is_echoed_and_clean_is_clean_only_by_it(правки, профиль, capsys):
-    результат, text, данные = check(capsys, профиль, правки, "--только", rules.OUTSIDE_INSERTION)
-    assert результат == 0 and коды(данные) == []
+    результат, text, data = check(capsys, профиль, правки, "--только", rules.OUTSIDE_INSERTION)
+    assert результат == 0 and коды(data) == []
     assert f"Фильтр: правила {rules.OUTSIDE_INSERTION}" in text
     assert "ЧИСТО ПО ФИЛЬТРУ" in text and "проверены все правила" not in text, text
-    assert данные["фильтр"] == {"правила": [rules.OUTSIDE_INSERTION], "файлы": []}
+    assert data["фильтр"] == {"правила": [rules.OUTSIDE_INSERTION], "файлы": []}
 
-    результат, text, данные = check(capsys, профиль, правки, "--только", rules.NO_BOM)
-    assert результат == 1 and коды(данные) == [rules.NO_BOM], text
+    результат, text, data = check(capsys, профиль, правки, "--только", rules.NO_BOM)
+    assert результат == 1 and коды(data) == [rules.NO_BOM], text
 
 
 def test_paths_narrow_the_files_checked(правки, профиль, capsys):
-    результат, text, данные = check(capsys, профиль, правки, "--файлы", "CommonModules/мой_Б",
+    результат, text, data = check(capsys, профиль, правки, "--файлы", "CommonModules/мой_Б",
                                             "--задача", "TASK-1")
-    assert результат == 0 and коды(данные) == [], text
+    assert результат == 0 and коды(data) == [], text
     assert "Файлов задачи: 1 (по отбору paths)" in text and "ЧИСТО ПО ФИЛЬТРУ" in text
-    assert данные["фильтр"]["файлы"] == ["CommonModules/мой_Б"]
+    assert data["фильтр"]["файлы"] == ["CommonModules/мой_Б"]
 
-    _, _, данные = check(capsys, профиль, правки, "--файлы", "CommonModules/*/Ext/Module.bsl")
-    assert коды(данные) == [rules.NO_BOM]
+    _, _, data = check(capsys, профиль, правки, "--файлы", "CommonModules/*/Ext/Module.bsl")
+    assert коды(data) == [rules.NO_BOM]
 
 
 def test_paths_matching_no_file_are_refused(правки, профиль, capsys):
@@ -88,6 +88,6 @@ def test_many_findings_start_with_a_summary_and_are_limited_per_file():
     text = "\n".join(lines)
     assert "Находок 80 в 2 файлах — сводка" in text
     assert text.index("Чужой.mdo") < text.index("[ФАЙЛ-БЕЗ-BOM]")      # сводка — в начале
-    assert len([с for с in lines if "[ПРАВКА-ТОЛЬКО-ПРОБЕЛЫ]" in с]) == НА_ФАЙЛ
+    assert len([ss for ss in lines if "[ПРАВКА-ТОЛЬКО-ПРОБЕЛЫ]" in ss]) == НА_ФАЙЛ
     assert f"… ещё {79 - НА_ФАЙЛ} в Чужой.mdo" in text
     assert "Свой.bsl — файл без BOM" in text                                 # свой файл не вытеснен

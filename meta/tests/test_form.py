@@ -70,9 +70,9 @@ from meta.tests import corpus  # noqa: E402
 
 
 @pytest.fixture
-def узел():
-    дерево = LxmlCardTree()
-    return дерево.to_node(дерево.parse(ФОРМА))
+def node():
+    tree = LxmlCardTree()
+    return tree.to_node(tree.parse(ФОРМА))
 
 
 @pytest.fixture(scope="module")
@@ -87,29 +87,29 @@ def корпус_форм():
         pytest.skip(f"пропущен: нет выгрузки {corpus.CORPUS}")
     from lxml import etree
 
-    дерево = LxmlCardTree()
+    tree = LxmlCardTree()
     result = {"форм": 0, "побайтно": 0, "разошлись": [], "чужие_виды": set(),
             "спутников": 0, "спутники_выводятся": 0, "номера_подряд": 0}
-    for каталог, _, файлы in os.walk(corpus.CORPUS):
-        if os.path.basename(каталог) != "Ext" or "Form.xml" not in файлы:
+    for directory, _, files in os.walk(corpus.CORPUS):
+        if os.path.basename(directory) != "Ext" or "Form.xml" not in files:
             continue
-        path = os.path.join(каталог, "Form.xml")
+        path = os.path.join(directory, "Form.xml")
         исходник = open(path, encoding="utf-8-sig").read().replace("\r\n", "\n")
         result["форм"] += 1
 
-        разобранное = дерево.parse(исходник)
-        if дерево.serialize(разобранное) == исходник:
+        разобранное = tree.parse(исходник)
+        if tree.serialize(разобранное) == исходник:
             result["побайтно"] += 1
         elif len(result["разошлись"]) < 5:
             result["разошлись"].append(os.path.relpath(path, corpus.CORPUS))
 
-        узел = дерево.to_node(разобранное)
-        result["чужие_виды"] |= form.kinds_of(узел) - set(form.ЭЛЕМЕНТЫ)
+        node = tree.to_node(разобранное)
+        result["чужие_виды"] |= form.kinds_of(node) - set(form.ELEMENTS)
 
         for узел_xml in разобранное.iter():
             if not isinstance(узел_xml.tag, str):
                 continue
-            if etree.QName(узел_xml).localname not in form.СПУТНИКИ:
+            if etree.QName(узел_xml).localname not in form.SATELLITES:
                 continue
             result["спутников"] += 1
             parent = узел_xml.getparent().get("name") or ""
@@ -134,9 +134,9 @@ def test_every_form_of_the_configuration_survives_the_round_trip(корпус_ф
     assert корпус_форм["побайтно"] == корпус_форм["форм"], корпус_форм["разошлись"]
 
 
-def test_the_view_keeps_the_tree_and_the_bindings(узел):
+def test_the_view_keeps_the_tree_and_the_bindings(node):
     """Взгляд передаёт то, ради чего он нужен: вложенность и привязки."""
-    html = form.html_from_node(узел, "Проба")
+    html = form.html_from_node(node, "Проба")
     assert 'data-путь="СкладОтбор"' in html
     assert 'data-путь="Объект.Ответственный"' in html
     # группа горизонтальная и в рамке — и то и другое из свойств
@@ -149,56 +149,56 @@ def test_the_view_keeps_the_tree_and_the_bindings(узел):
     assert group < field < закрытие
 
 
-def test_a_caption_comes_from_the_form_attribute(узел):
+def test_a_caption_comes_from_the_form_attribute(node):
     """У поля своего заголовка нет — подпись лежит на реквизите формы.
 
     `СкладОтбор` в элементе не несёт ничего, кроме пути; «Склад» написано
     в `<Attributes>`. Печатать вместо этого имя элемента — показывать не ту
     подпись, которую видит пользователь живой формы.
     """
-    html = form.html_from_node(узел)
+    html = form.html_from_node(node)
     assert ">Склад<" in html
     assert "СкладОтбор<" not in html.split("data-путь")[1]
 
 
-def test_a_hidden_caption_stays_hidden(узел):
+def test_a_hidden_caption_stays_hidden(node):
     """`TitleLocation = None` — подписи нет вовсе, так у 6534 полей замеренной
     конфигурации."""
-    html = form.html_from_node(узел)
+    html = form.html_from_node(node)
     кусок = html[html.index('data-путь="Объект.Ответственный"'):]
     assert "Ответственный</span>" not in кусок.split("</label>")[0]
 
 
-def test_a_group_title_shows_unless_it_is_switched_off(узел):
+def test_a_group_title_shows_unless_it_is_switched_off(node):
     """Платформа пишет `ShowTitle` только чтобы спрятать заголовок.
 
     В замеренной конфигурации `false` стоит явно у 54 984 групп, а тега нет у
     5347 — и у них заголовок виден. Трактовать отсутствие как «не показывать»
     значит потерять заголовок у каждой одиннадцатой группы.
     """
-    html = form.html_from_node(узел)
+    html = form.html_from_node(node)
     assert "▾ Отбор" in html
 
 
-def test_satellites_are_dropped(узел):
+def test_satellites_are_dropped(node):
     """Контекстное меню и подсказка есть у каждого поля и смысла не несут.
 
     Их 597 296 в замеренной конфигурации — больше половины всех элементов
     формы. Показывать их значит показывать не форму, а её разбор.
     """
-    html = form.html_from_node(узел)
-    for спутник in ("КонтекстноеМеню", "РасширеннаяПодсказка"):
-        assert спутник not in html
+    html = form.html_from_node(node)
+    for satellite in ("КонтекстноеМеню", "РасширеннаяПодсказка"):
+        assert satellite not in html
 
 
 def test_an_unknown_kind_is_shown_and_not_dropped():
     """Незнакомый вид остаётся видимым — молча потерять элемент хуже."""
-    дерево = LxmlCardTree()
+    tree = LxmlCardTree()
     подменённая = ФОРМА.replace("<InputField name=\"Скрытое\" id=\"15\">",
                                 "<НовыйВидПоля name=\"Скрытое\" id=\"15\">")
     подменённая = подменённая.replace("</InputField>\n\t\t\t</ChildItems>",
                                       "</НовыйВидПоля>\n\t\t\t</ChildItems>")
-    html = form.html_from_node(дерево.to_node(дерево.parse(подменённая)))
+    html = form.html_from_node(tree.to_node(tree.parse(подменённая)))
     assert 'data-вид="НовыйВидПоля"' in html
     assert "неизвестный" in html
 

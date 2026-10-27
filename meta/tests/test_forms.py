@@ -41,13 +41,13 @@ from meta.tests.conftest import ТЕСТ  # noqa: E402
 КРУГ2 = "Documents/мой_ПробаНепроводимый/Forms/мой_Круг2"
 
 
-def эталон(name):
+def reference_node(name):
     with open(os.path.join(ЭТАЛОНЫ, name), "rb") as source:
         return source.read()
 
 
 def задание(name):
-    return json.loads(эталон(name).decode("utf-8-sig"))
+    return json.loads(reference_node(name).decode("utf-8-sig"))
 
 
 def без_uuid(raw):
@@ -64,7 +64,7 @@ def dump():
         path = os.path.join(root, *rel.split("/"))
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "wb") as target:
-            target.write(эталон(name))
+            target.write(reference_node(name))
 
     положить("Configuration.xml", "Configuration.xml")
     положить("Documents/мой_ПробаСДвижениями.xml", "мой_ПробаСДвижениями.до.xml")
@@ -81,7 +81,7 @@ def выполнить(root, name):
     return result
 
 
-def файл(root, rel):
+def file(root, rel):
     with open(os.path.join(root, *rel.split("/")), "rb") as source:
         return source.read()
 
@@ -91,10 +91,10 @@ def файл(root, rel):
 def test_a_form_is_born_and_then_filled_as_the_platform_returned_it(dump):
     выполнить(dump, "1-пустая.json")
     выполнить(dump, "2-наполнение.json")
-    assert файл(dump, КРУГ + "/Ext/Form.xml") == эталон("круг.наполнение.xml")
-    assert файл(dump, КРУГ + "/Ext/Form/Module.bsl") == эталон("круг.Module.bsl")
-    assert без_uuid(файл(dump, КРУГ + ".xml")) == без_uuid(эталон("круг.карточка.xml"))
-    assert файл(dump, "Documents/мой_ПробаСДвижениями.xml") == эталон(
+    assert file(dump, КРУГ + "/Ext/Form.xml") == reference_node("круг.наполнение.xml")
+    assert file(dump, КРУГ + "/Ext/Form/Module.bsl") == reference_node("круг.Module.bsl")
+    assert без_uuid(file(dump, КРУГ + ".xml")) == без_uuid(reference_node("круг.карточка.xml"))
+    assert file(dump, "Documents/мой_ПробаСДвижениями.xml") == reference_node(
         "мой_ПробаСДвижениями.после.xml")
 
 
@@ -102,19 +102,19 @@ def test_edits_on_a_filled_form_touch_only_what_was_asked(dump):
     выполнить(dump, "1-пустая.json")
     выполнить(dump, "2-наполнение.json")
     result = выполнить(dump, "3-правка.json")
-    assert файл(dump, КРУГ + "/Ext/Form.xml") == эталон("круг.правка.xml")
+    assert file(dump, КРУГ + "/Ext/Form.xml") == reference_node("круг.правка.xml")
     # модуль есть — инструмент его не трогает, а говорит, что положить
-    assert файл(dump, КРУГ + "/Ext/Form/Module.bsl") == эталон("круг.Module.bsl")
+    assert file(dump, КРУГ + "/Ext/Form/Module.bsl") == reference_node("круг.Module.bsl")
     assert any("Процедура ПроверитьЗаполнение(Команда)" in line
                for line in result.plan.describe())
 
 
 def test_a_new_form_is_born_and_filled_in_one_job(dump):
     выполнить(dump, "4-создать.json")
-    assert файл(dump, КРУГ2 + "/Ext/Form.xml") == эталон("круг2.xml")
-    assert файл(dump, КРУГ2 + "/Ext/Form/Module.bsl") == эталон("круг2.Module.bsl")
-    assert без_uuid(файл(dump, КРУГ2 + ".xml")) == без_uuid(эталон("круг2.карточка.xml"))
-    assert файл(dump, "Documents/мой_ПробаНепроводимый.xml") == эталон(
+    assert file(dump, КРУГ2 + "/Ext/Form.xml") == reference_node("круг2.xml")
+    assert file(dump, КРУГ2 + "/Ext/Form/Module.bsl") == reference_node("круг2.Module.bsl")
+    assert без_uuid(file(dump, КРУГ2 + ".xml")) == без_uuid(reference_node("круг2.карточка.xml"))
+    assert file(dump, "Documents/мой_ПробаНепроводимый.xml") == reference_node(
         "мой_ПробаНепроводимый.после.xml")
 
 
@@ -122,10 +122,10 @@ def test_preview_writes_nothing(dump):
     выполнить(dump, "1-пустая.json")
     job = задание("2-наполнение.json")
     edits = [job_dialect.form_edits_from_json(item) for item in job["forms"]]
-    before = файл(dump, КРУГ + "/Ext/Form.xml")
+    before = file(dump, КРУГ + "/Ext/Form.xml")
     result = EditFormUseCase(DesignerDump(dump)).execute(edits, apply_now=False)
     assert result.ok and result.plan is not None
-    assert файл(dump, КРУГ + "/Ext/Form.xml") == before
+    assert file(dump, КРУГ + "/Ext/Form.xml") == before
 
 
 def test_what_the_configurator_writes_to_a_new_element(dump):
@@ -136,7 +136,7 @@ def test_what_the_configurator_writes_to_a_new_element(dump):
     """
     выполнить(dump, "1-пустая.json")
     выполнить(dump, "2-наполнение.json")
-    text = файл(dump, КРУГ + "/Ext/Form.xml").decode("utf-8-sig")
+    text = file(dump, КРУГ + "/Ext/Form.xml").decode("utf-8-sig")
     assert "<TitleLocation>" not in text            # у флажка его нет
     assert "<Behavior>" not in text                 # и у группы — ни поведения,
     assert "<Representation>None" not in text       # ни отображения
@@ -326,7 +326,7 @@ def test_unknown_keys_in_a_form_job_are_refused():
 # --- реализации формата --------------------------------------------------------------
 
 def test_the_format_is_chosen_by_the_file_and_unknown_versions_are_refused():
-    text = эталон("круг.наполнение.xml").decode("utf-8-sig")
+    text = reference_node("круг.наполнение.xml").decode("utf-8-sig")
     assert registry.for_text(text).version == "2.21"
     with pytest.raises(Refuse):
         registry.for_text(text.replace('version="2.21"', 'version="9.9"'))
@@ -423,12 +423,12 @@ def test_a_list_form_is_born_with_a_dynamic_list_table(dump):
     идентификаторы пользовательских настроек — константы платформы."""
     выполнить(dump, "1-пустая.json")     # порядок заданий — как при снятии эталона
     выполнить(dump, "5-список.json")
-    assert файл(dump, КРУГ_СПИСОК + "/Ext/Form.xml") == эталон("кругсписок.xml")
-    assert без_uuid(файл(dump, КРУГ_СПИСОК + ".xml")) == без_uuid(
-        эталон("кругсписок.карточка.xml"))
-    assert файл(dump, "Documents/мой_ПробаСДвижениями.xml") == эталон(
+    assert file(dump, КРУГ_СПИСОК + "/Ext/Form.xml") == reference_node("кругсписок.xml")
+    assert без_uuid(file(dump, КРУГ_СПИСОК + ".xml")) == без_uuid(
+        reference_node("кругсписок.карточка.xml"))
+    assert file(dump, "Documents/мой_ПробаСДвижениями.xml") == reference_node(
         "мой_ПробаСДвижениями.после-списка.xml")
-    text = файл(dump, КРУГ_СПИСОК + "/Ext/Form.xml").decode("utf-8-sig")
+    text = file(dump, КРУГ_СПИСОК + "/Ext/Form.xml").decode("utf-8-sig")
     assert "<RowFilter" not in text
     assert "<DataPath>Список.Date</DataPath>" in text        # сказали «Дата»
     assert "<DataPath>Список.Комментарий</DataPath>" in text  # свой — как есть
@@ -440,7 +440,7 @@ def test_a_dynamic_list_column_shows_and_does_not_edit(dump):
     В замеренной конфигурации так у 19 465 колонок против 1262 полей ввода."""
     выполнить(dump, "1-пустая.json")
     выполнить(dump, "5-список.json")
-    text = файл(dump, КРУГ_СПИСОК + "/Ext/Form.xml").decode("utf-8-sig")
+    text = file(dump, КРУГ_СПИСОК + "/Ext/Form.xml").decode("utf-8-sig")
     assert text.count("<LabelField name=") == 3 and "<InputField" not in text
     # названный вид уважается
     edits = job_dialect.form_edits_from_json(
@@ -475,16 +475,16 @@ def test_a_tree_table_is_born_without_a_row_filter(dump):
     платформу у таблицы дерева нет отбора строк, а вид таблицы — «List»:
     иерархию даёт источник, а не свойство."""
     выполнить(dump, "6-дерево.json")
-    assert файл(dump, КРУГ_ДЕРЕВО + "/Ext/Form.xml") == эталон("кругдерево.xml")
-    assert без_uuid(файл(dump, КРУГ_ДЕРЕВО + ".xml")) == без_uuid(
-        эталон("кругдерево.карточка.xml"))
-    text = файл(dump, КРУГ_ДЕРЕВО + "/Ext/Form.xml").decode("utf-8-sig")
+    assert file(dump, КРУГ_ДЕРЕВО + "/Ext/Form.xml") == reference_node("кругдерево.xml")
+    assert без_uuid(file(dump, КРУГ_ДЕРЕВО + ".xml")) == без_uuid(
+        reference_node("кругдерево.карточка.xml"))
+    text = file(dump, КРУГ_ДЕРЕВО + "/Ext/Form.xml").decode("utf-8-sig")
     assert "<RowFilter" not in text
     assert "<Representation>List</Representation>" in text
     # остальное рождается как у таблицы данных
     assert "<AutoInsertNewRow>true</AutoInsertNewRow>" in text
     assert text.count('<Column name=') == 4
-    card = файл(dump, "Documents/мой_ПробаСДвижениями.xml").decode("utf-8-sig")
+    card = file(dump, "Documents/мой_ПробаСДвижениями.xml").decode("utf-8-sig")
     assert "<Form>мой_КругДерево</Form>" in card
 
 
@@ -494,8 +494,8 @@ def test_a_column_added_into_a_tree_lands_where_asked(dump):
     реквизита (max+1 по его «Columns»), а не в общем счёте формы."""
     выполнить(dump, "6-дерево.json")
     выполнить(dump, "7-дерево-колонка.json")
-    assert файл(dump, КРУГ_ДЕРЕВО + "/Ext/Form.xml") == эталон("кругдерево.колонка.xml")
-    text = файл(dump, КРУГ_ДЕРЕВО + "/Ext/Form.xml").decode("utf-8-sig")
+    assert file(dump, КРУГ_ДЕРЕВО + "/Ext/Form.xml") == reference_node("кругдерево.колонка.xml")
+    text = file(dump, КРУГ_ДЕРЕВО + "/Ext/Form.xml").decode("utf-8-sig")
     assert '<Column name="Комментарий" id="5">' in text
     assert '<Column name="Норматив" id="6">' in text
     # поле-надписи внутри таблицы: правку сообщает EditMode, автоправки нет
@@ -517,7 +517,7 @@ def test_a_tree_source_is_seen_even_when_the_attribute_is_new(dump):
     assert "RowFilter" not in dict(voc.BORN["Table/дерево"]["properties"])
     assert (voc.BORN["Table/дерево"]["satellites"] == voc.BORN["Table"]["satellites"])
     выполнить(dump, "6-дерево.json")          # реквизит и таблица — одно задание
-    assert "<RowFilter" not in файл(
+    assert "<RowFilter" not in file(
         dump, КРУГ_ДЕРЕВО + "/Ext/Form.xml").decode("utf-8-sig")
 
 
@@ -531,9 +531,9 @@ def test_pictures_radio_and_column_groups_come_back_from_the_platform_untouched(
     картинкой значений, переключатель со списком выбора, группа колонок с
     полями внутри таблицы. Платформа не меняет ни байта."""
     выполнить(dump, "8-виды.json")
-    assert файл(dump, КРУГ_ВИДЫ + "/Ext/Form.xml") == эталон("кругвиды.xml")
-    assert без_uuid(файл(dump, КРУГ_ВИДЫ + ".xml")) == без_uuid(эталон("кругвиды.карточка.xml"))
-    text = файл(dump, КРУГ_ВИДЫ + "/Ext/Form.xml").decode("utf-8-sig")
+    assert file(dump, КРУГ_ВИДЫ + "/Ext/Form.xml") == reference_node("кругвиды.xml")
+    assert без_uuid(file(dump, КРУГ_ВИДЫ + ".xml")) == без_uuid(reference_node("кругвиды.карточка.xml"))
+    text = file(dump, КРУГ_ВИДЫ + "/Ext/Form.xml").decode("utf-8-sig")
     # картинка: ссылка плюс LoadTransparent, приставка — платформенная
     assert text.count("<xr:Ref>StdPicture.Setting</xr:Ref>") == 2
     assert text.count("<xr:LoadTransparent>true</xr:LoadTransparent>") == 2
@@ -547,12 +547,12 @@ def test_pictures_radio_and_column_groups_come_back_from_the_platform_untouched(
     # группа колонок: спутник один, заголовок от имени, подсказки нет
     group = text[text.index('<ColumnGroup name="мой_ГруппаЧисел"'):]
     group = group[:group.index("</ColumnGroup>")]
-    is_own, дети = group.split("<ChildItems>", 1)   # спутники группы, а не полей
+    is_own, children = group.split("<ChildItems>", 1)   # спутники группы, а не полей
     assert "<ExtendedTooltip" in is_own and "<ContextMenu" not in is_own
     assert "<v8:content>Числа</v8:content>" in is_own and "<ToolTip>" not in is_own
     assert "<Group>InCell</Group>" in is_own
     # поле внутри группы колонок внутри таблицы — всё равно поле в таблице
-    надпись = дети[дети.index('<LabelField name="мой_ТаблицаКомментарий"'):]
+    надпись = children[children.index('<LabelField name="мой_ТаблицаКомментарий"'):]
     assert "<EditMode>EnterOnInput</EditMode>" in надпись
     assert "AutoEditMode" not in надпись
 
@@ -596,10 +596,10 @@ def test_a_choice_list_keeps_value_kinds():
                  "представление": "Принимаются"}]
     _, _, kind, приведённое = fm.check_property("ПолеПереключателя", "СписокВыбора", values)
     assert kind == "СписокЗначений" and len(приведённое) == 4
-    узел = Editor._choice_list_node("ChoiceList", приведённое)
-    types = [item.children[2].children[1].attrs["xsi:type"] for item in узел.children]
+    node = Editor._choice_list_node("ChoiceList", приведённое)
+    types = [item.children[2].children[1].attrs["xsi:type"] for item in node.children]
     assert types == ["xs:decimal", "xs:string", "xs:boolean", "xr:DesignTimeRef"]
-    assert узел.children[3].children[2].children[1].text == (
+    assert node.children[3].children[2].children[1].text == (
         "Enum.ОтражениеВУСН.EnumValue.Принимаются")
     for плохое in ([], "не список", [{"представление": "без значения"}],
                    [{"значение": 1, "лишнее": 2}]):
@@ -650,7 +650,7 @@ def test_a_new_attribute_goes_before_the_appearance_not_after_it(dump):
             {"форма": "Документ.мой_ПробаСДвижениями.мой_КругДерево",
              "реквизиты": [{"имя": "мой_Признак", "тип": "Булево"}]})], apply_now=True)
     assert result.ok, [str(f) for f in result.findings]
-    text = файл(dump, КРУГ_ДЕРЕВО + "/Ext/Form.xml").decode("utf-8-sig")
+    text = file(dump, КРУГ_ДЕРЕВО + "/Ext/Form.xml").decode("utf-8-sig")
     assert text.index('<Attribute name="мой_Признак"') < text.index("<ConditionalAppearance")
     # оформление не тронуто и по-прежнему последнее в разделе
     assert text.index("<ConditionalAppearance") < text.index("</Attributes>")
@@ -662,10 +662,10 @@ def test_kinds_the_tool_only_reads_are_named_from_the_property_dictionary():
     from meta.domain.form_properties import PROPERTIES
     from meta.infra.forms.designer221 import vocabulary as voc
 
-    спутники = {"РасширеннаяПодсказка", "ДополнениеСтрокаПоиска",
+    satellites = {"РасширеннаяПодсказка", "ДополнениеСтрокаПоиска",
                 "ДополнениеСостояниеПросмотра", "ДополнениеУправлениеПоиском"}
-    for тег, word in voc.DOMAIN_KIND.items():
-        assert word in PROPERTIES or word in спутники, (тег, word)
+    for tag, word in voc.DOMAIN_KIND.items():
+        assert word in PROPERTIES or word in satellites, (tag, word)
     # то, что инструмент читает, но не пишет, — не попало в умеющие виды
     assert voc.DOMAIN_KIND["SpreadSheetDocumentField"] == "ПолеТабличногоДокумента"
     assert "ПолеТабличногоДокумента" not in fm.ELEMENT_KINDS
@@ -766,13 +766,13 @@ def test_every_form_event_of_the_corpus_has_a_russian_name():
 
 # --- код типовой формы: литералы и обработчики ---------------------------------------
 
-def _код_надписи(свойства=None, events=None):
+def _код_надписи(props=None, events=None):
     from meta.acl import platform_code
     from meta.domain import forms as fmd
 
     правки = fmd.FormEdits(("Документ", "АвансовыйОтчет"), "ФормаДокумента", elements=[
         fmd.FormElement("Надпись", "мой_Надпись", parent="ГруппаКомментарий",
-                        properties=свойства or {}, events=events or {})], as_code=True)
+                        properties=props or {}, events=events or {})], as_code=True)
     return platform_code.render(правки, None)
 
 

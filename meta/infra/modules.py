@@ -75,8 +75,8 @@ class DumpModules(Modules):
         if os.path.isdir(ext):
             exists += [f"{address.kind}.{address.name}.{vocabulary.OWN_BY_FILE[name]}"
                      for name in sorted(os.listdir(ext)) if name in vocabulary.OWN_BY_FILE]
-        for папка, marker in (("Forms", "Форма"), ("Commands", "Команда")):
-            where = os.path.join(base, папка)
+        for subfolder, marker in (("Forms", "Форма"), ("Commands", "Команда")):
+            where = os.path.join(base, subfolder)
             if os.path.isdir(where):
                 exists += [f"{address.kind}.{address.name}.{marker}.{name}"
                          for name in sorted(os.listdir(where))
@@ -93,21 +93,21 @@ class DumpModules(Modules):
         address = ref.address
         if address is None or address.sub is not None or address.kind not in MODULES_OF_KIND.get(address.module, ()):
             return False
-        папка = vocabulary.object_folder(address)
-        if not папка:
+        folder = vocabulary.object_folder(address)
+        if not folder:
             return False
-        каталог = os.path.join(self.root, *папка)
-        return (os.path.isfile(os.path.join(каталог, address.name + ".mdo"))      # проект EDT
-                or os.path.isfile(каталог + ".xml"))                          # выгрузка
+        directory = os.path.join(self.root, *folder)
+        return (os.path.isfile(os.path.join(directory, address.name + ".mdo"))      # проект EDT
+                or os.path.isfile(directory + ".xml"))                          # выгрузка
 
     def _new_format(self, ref):
         """(BOM, перевод строки) нового модуля: BOM — как принято в формате
         (выгрузка — с BOM, проект EDT — без); переводы строк — как кладёт git,
         а где git их не задаёт — как у площадки."""
         edt = layout.layout_of(self.root).edt
-        от_git = git.checkout_eol(self.root, self.relative(ref))
-        if от_git:
-            return not edt, "\r\n" if от_git == "CRLF" else "\n"
+        from_git = git.checkout_eol(self.root, self.relative(ref))
+        if from_git:
+            return not edt, "\r\n" if from_git == "CRLF" else "\n"
         if edt:
             from .edt_dump import EdtDump
             return False, EdtDump(self.root).eol
@@ -134,11 +134,11 @@ class DumpModules(Modules):
         # переводы строк задаёт git (`core.autocrlf`, атрибуты) — те, которыми он
         # кладёт файл в рабочую копию: иные `git add` при `core.safecrlf=true`
         # не примет, а в индексе они сводятся, и diff во весь файл не возникает
-        от_git = git.checkout_eol(self.root, self.relative(ref))
-        if от_git:
+        from_git = git.checkout_eol(self.root, self.relative(ref))
+        if from_git:
             is_own = "CRLF" if eol == "\r\n" else "LF"
-            eol = "\r\n" if от_git == "CRLF" else "\n"
-            if "\n" in text and is_own != от_git:
+            eol = "\r\n" if from_git == "CRLF" else "\n"
+            if "\n" in text and is_own != from_git:
                 self._converted[path] = is_own
         self._format[path] = (bom, eol, final_eol)
         return re.split(r"\r\n|\n|\r", text) if text else []
@@ -149,9 +149,9 @@ class DumpModules(Modules):
         description = form_bindings.form_file(self.full_path(ref))
         if description is None or not os.path.isfile(description):
             return None
-        with open(description, encoding="utf-8-sig") as файл:
-            привязаны, элементы = form_bindings.bindings(файл.read())
-        return привязаны, элементы, form_bindings.FORM_EVENT_NAMES
+        with open(description, encoding="utf-8-sig") as file:
+            bound, elements = form_bindings.bindings(file.read())
+        return bound, elements, form_bindings.FORM_EVENT_NAMES
 
     def file_format(self, ref):
         known = self._format.get(self.full_path(ref))

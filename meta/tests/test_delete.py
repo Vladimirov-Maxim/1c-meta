@@ -566,15 +566,15 @@ def test_the_whole_object_guard_does_not_depend_on_order(dump):
     с вырезанным реквизитом, потом удаляется целиком. Инвариант, который
     зависит от порядка строк задания, инвариантом не является.
     """
-    for порядок in (["Справочник.мой_Свободный",
+    for order in (["Справочник.мой_Свободный",
                      "Справочник.мой_Свободный.Реквизит.Первый"],
                     ["Справочник.мой_Свободный.Реквизит.Первый",
                      "Справочник.мой_Свободный"]):
         with pytest.raises(Refuse) as refusal:
             DeleteUseCase(DesignerDump(dump)).execute(
-                [job_dialect.delete_job_from_json(aa) for aa in порядок],
+                [job_dialect.delete_job_from_json(aa) for aa in order],
                 apply_now=True)
-        assert "удаляется целиком" in str(refusal.value), порядок
+        assert "удаляется целиком" in str(refusal.value), order
 
 
 def test_every_missing_address_is_named_at_once(dump):

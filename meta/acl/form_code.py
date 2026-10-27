@@ -93,9 +93,9 @@ def parent_of(element, view, parent=None):
     прочитанной форме)."""
     if element.parent or parent:
         return element.parent or parent
-    сосед = element.before or element.after
-    if сосед and view is not None and сосед in view.elements:
-        return view.elements[сосед].parent
+    neighbour = element.before or element.after
+    if neighbour and view is not None and neighbour in view.elements:
+        return view.elements[neighbour].parent
     return None
 
 

@@ -132,11 +132,11 @@ class LxmlCardTree(CardTree):
         """Выданные права из файла прав роли — XPath, а не `to_node`: у иной роли
         названы тысячи объектов со всеми правами `false` (29 МБ у одной роли
         корпуса), и перевод всего дерева в узлы занимал бы минуту на вид объектов."""
-        пространства = {"r": tree.nsmap.get(None)}
-        return [(obj.findtext("r:name", namespaces=пространства) or "",
-                 obj.xpath("r:right[r:value='true']/r:name/text()", namespaces=пространства))
+        namespaces = {"r": tree.nsmap.get(None)}
+        return [(obj.findtext("r:name", namespaces=namespaces) or "",
+                 obj.xpath("r:right[r:value='true']/r:name/text()", namespaces=namespaces))
                 for obj in tree.xpath("r:object[r:right/r:value='true']",
-                                         namespaces=пространства)]
+                                         namespaces=namespaces)]
 
     def to_node(self, element):
         """Элемент -> `acl.Node`. Зеркало `build`, приставки сняты."""
@@ -145,8 +145,8 @@ class LxmlCardTree(CardTree):
             text=(element.text or "").strip() or None,
             attrs={etree.QName(name).localname if "}" in name else name: value
                    for name, value in element.attrib.items()},
-            children=[self.to_node(ребёнок) for ребёнок in element
-                      if isinstance(ребёнок.tag, str)])
+            children=[self.to_node(child) for child in element
+                      if isinstance(child.tag, str)])
 
     def build(self, node):
         """Описание узла (`acl.Node`) -> дерево с проставленными отступами."""

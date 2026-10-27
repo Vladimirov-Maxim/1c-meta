@@ -197,10 +197,10 @@ def test_the_code_section_of_a_profile_is_checked():
         assert word in str(refusal.value), refusal.value
 
 
-def профиль(папка, code):
-    path = os.path.join(папка, "профиль.json")
-    with open(path, "w", encoding="utf-8") as файл:
-        json.dump({"приставка": "мой_", "кодФормы": code}, файл, ensure_ascii=False)
+def профиль(folder, code):
+    path = os.path.join(folder, "профиль.json")
+    with open(path, "w", encoding="utf-8") as file:
+        json.dump({"приставка": "мой_", "кодФормы": code}, file, ensure_ascii=False)
     return path
 
 
@@ -281,11 +281,11 @@ def test_the_dialect_speaks_in_the_notes_and_findings():
 @pytest.fixture
 def выгрузка():
     root = tempfile.mkdtemp(prefix="meta-code-")
-    for name, эталон in (("Configuration.xml", "Configuration.xml"),
+    for name, reference_node in (("Configuration.xml", "Configuration.xml"),
                         ("Documents/мой_ПробаСДвижениями.xml", "мой_ПробаСДвижениями.до.xml")):
         path = os.path.join(root, *name.split("/"))
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        shutil.copyfile(os.path.join(ЭТАЛОНЫ, эталон), path)
+        shutil.copyfile(os.path.join(ЭТАЛОНЫ, reference_node), path)
     yield root
     shutil.rmtree(root, ignore_errors=True)
 
@@ -293,10 +293,10 @@ def выгрузка():
 def _сервер(выгрузка, conventions):
     сервер = mcp_server(roots=[выгрузка], conventions=conventions)
 
-    def вызвать(инструмент, **аргументы):
-        ответ = asyncio.run(сервер.call_tool(инструмент, аргументы))
+    def вызвать(инструмент, **arguments):
+        ответ = asyncio.run(сервер.call_tool(инструмент, arguments))
         ответ = ответ[0] if isinstance(ответ, tuple) else ответ
-        return "\n".join(блок.text for блок in ответ)
+        return "\n".join(block.text for block in ответ)
     return вызвать
 
 

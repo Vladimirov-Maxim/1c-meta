@@ -111,13 +111,13 @@ def git(root, *args):
 def написать(src, rel, text, eol):
     path = os.path.join(str(src), *rel.split("/"))
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "wb") as файл:
-        файл.write(text.replace("\n", eol).encode("utf-8"))
+    with open(path, "wb") as file:
+        file.write(text.replace("\n", eol).encode("utf-8"))
 
 
 def прочитать(src, rel):
-    with open(os.path.join(str(src), *rel.split("/")), "rb") as файл:
-        return файл.read()
+    with open(os.path.join(str(src), *rel.split("/")), "rb") as file:
+        return file.read()
 
 
 @pytest.fixture
@@ -154,8 +154,8 @@ def test_extension_cards_go_through_the_adapter_and_back_unchanged(расшир�
         if not rel.endswith(".mdo"):
             continue
         before = прочитать(расширение, rel)
-        дерево = площадка._designer_text(before)
-        after_ = площадка._edt_text(дерево, lambda *_: None).replace("\n", площадка.eol).encode("utf-8")
+        tree = площадка._designer_text(before)
+        after_ = площадка._edt_text(tree, lambda *_: None).replace("\n", площадка.eol).encode("utf-8")
         assert after_ == before, rel
 
 
@@ -175,34 +175,34 @@ def test_a_common_module_is_created_in_the_extension_beside_its_neighbours(ра�
 
     card = прочитать(расширение, "CommonModules/ОМ_мой_Проба/ОМ_мой_Проба.mdo")
     module = прочитать(расширение, "CommonModules/ОМ_мой_Проба/Module.bsl")
-    for данные in (card, module):
-        assert b"\r\n" in данные and b"\n" not in данные.replace(b"\r\n", b"")
-        assert not данные.startswith(b"\xef\xbb\xbf")
+    for data in (card, module):
+        assert b"\r\n" in data and b"\n" not in data.replace(b"\r\n", b"")
+        assert not data.startswith(b"\xef\xbb\xbf")
     assert "<name>ОМ_мой_Проба</name>" in card.decode("utf-8")
     assert b"objectBelonging" not in card and b"mdclassExtension" not in card
 
     registry = прочитать(расширение, "Configuration/Configuration.mdo")
     line = "  <commonModules>CommonModule.ОМ_мой_Проба</commonModules>\r\n".encode()
-    сосед = "  <commonModules>CommonModule.ЮТест</commonModules>\r\n".encode()
-    assert registry == реестр_до.replace(сосед, сосед + line)
+    neighbour = "  <commonModules>CommonModule.ЮТест</commonModules>\r\n".encode()
+    assert registry == реестр_до.replace(neighbour, neighbour + line)
 
     ответ = tmp_path / "ответ.json"
     capsys.readouterr()
     main(["--проверить", str(расширение), "--задача", "TASK-1", "--профиль", профиль, "--json", str(ответ)])
-    данные = json.loads(ответ.read_text(encoding="utf-8"))
-    assert данные["находки"] == [], capsys.readouterr().out
+    data = json.loads(ответ.read_text(encoding="utf-8"))
+    assert data["находки"] == [], capsys.readouterr().out
 
 
-@pytest.mark.parametrize("registry, карточки, ожидание", [
+@pytest.mark.parametrize("registry, cards, ожидание", [
     ("\r\n", "\r\n", "\r\n"),           # расширение тестов: всё в CRLF
     ("\n", "\n", "\n"),                 # основная конфигурация: всё в LF
     ("\r\n", "\n", "\n"),               # autocrlf: перевыгруженный реестр с CRLF среди LF
 ])
-def test_new_files_take_the_line_endings_of_the_project_cards(tmp_path, registry, карточки, ожидание):
+def test_new_files_take_the_line_endings_of_the_project_cards(tmp_path, registry, cards, ожидание):
     src = tmp_path / "src"
     написать(src, "Configuration/Configuration.mdo", РЕЕСТР, registry)
-    написать(src, "Catalogs/Договоры/Договоры.mdo", ЗАИМСТВОВАННЫЙ, карточки)
-    написать(src, "CommonModules/ЮТест/ЮТест.mdo", СВОЙ, карточки)
+    написать(src, "Catalogs/Договоры/Договоры.mdo", ЗАИМСТВОВАННЫЙ, cards)
+    написать(src, "CommonModules/ЮТест/ЮТест.mdo", СВОЙ, cards)
     assert EdtDump(str(src)).eol == ожидание
 
 

@@ -29,9 +29,9 @@ from meta.infra import layout  # noqa: E402
 с_edt = pytest.mark.skipif(not edt_model.available(), reason="таблица метамодели EDT не сгенерирована")
 
 
-def задание(tmp_path, данные):
+def задание(tmp_path, data):
     path = tmp_path / "задание.json"
-    path.write_text(json.dumps(данные, ensure_ascii=False), encoding="utf-8")
+    path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
     return [str(path), "--apply", "--профиль", ПРОФИЛЬ]
 
 
@@ -92,10 +92,10 @@ def test_a_nested_subsystem_of_a_designer_dump(tmp_path):
     """Выгрузка конфигуратора: карточка вложенной — `Subsystems/Р/Subsystems/В.xml`."""
     from meta.infra.designer import DesignerDump
     root = tmp_path / "cf"
-    папка = root / "Subsystems" / "Р" / "Subsystems"
-    папка.mkdir(parents=True)
+    folder = root / "Subsystems" / "Р" / "Subsystems"
+    folder.mkdir(parents=True)
     (root / "Configuration.xml").write_text("<x/>", encoding="utf-8")
-    (папка / "В.xml").write_text(
+    (folder / "В.xml").write_text(
         '<?xml version="1.0" encoding="UTF-8"?>\n<MetaDataObject xmlns="http://v8.1c.ru/8.3/MDClasses" '
         'xmlns:v8="http://v8.1c.ru/8.1/data/core" xmlns:xr="http://v8.1c.ru/8.3/xcf/readable" '
         'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="2.21">\n'

@@ -49,7 +49,7 @@ def выполнить(src, tmp_path, **задание):
     return main([str(path), "--apply", "--профиль", ПРОФИЛЬ])
 
 
-def файл(src):
+def file(src):
     return os.path.join(str(src), "ScheduledJobs", "мой_Обмен", "Schedule.schedule")
 
 
@@ -58,16 +58,16 @@ def test_a_scheduled_job_is_created_with_its_schedule(проект, tmp_path):
     задание["поля"]["расписание"] = РАСПИСАНИЕ
     assert выполнить(проект, tmp_path, objects=[МОДУЛЬ]) == 0
     assert выполнить(проект, tmp_path, objects=[задание]) == 0
-    assert open(файл(проект), "rb").read() == ОЖИДАНИЕ.encode("utf-8")
+    assert open(file(проект), "rb").read() == ОЖИДАНИЕ.encode("utf-8")
 
 
 def test_the_schedule_is_changed_and_shown(проект, tmp_path, capsys):
     assert выполнить(проект, tmp_path, objects=[МОДУЛЬ]) == 0
     assert выполнить(проект, tmp_path, objects=[ЗАДАНИЕ]) == 0
-    assert not os.path.exists(файл(проект))                     # не заказано — файла нет
+    assert not os.path.exists(file(проект))                     # не заказано — файла нет
     assert выполнить(проект, tmp_path, changes=[{"путь": "РегламентноеЗадание.мой_Обмен",
                                                  "поля": {"расписание": РАСПИСАНИЕ}}]) == 0
-    assert open(файл(проект), "rb").read() == ОЖИДАНИЕ.encode("utf-8")
+    assert open(file(проект), "rb").read() == ОЖИДАНИЕ.encode("utf-8")
     capsys.readouterr()
     main(["--показать", str(проект), "РегламентноеЗадание.мой_Обмен"])
     assert "расписание:" in capsys.readouterr().out

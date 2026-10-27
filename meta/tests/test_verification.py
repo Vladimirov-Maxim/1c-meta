@@ -29,7 +29,7 @@ from meta.domain.changes import (  # noqa: E402
 from meta.domain.conventions import Conventions  # noqa: E402
 from meta.domain.edits import Edit, Signature, edit_module  # noqa: E402
 
-КОМАНДА = Conventions(prefix="мой_", other_prefixes=("ОМ_мой_",))
+COMMAND = Conventions(prefix="мой_", other_prefixes=("ОМ_мой_",))
 ВЕНДОР = ["Процедура ПередЗаписью(Отказ, РежимЗаписи, РежимПроведения)", "\tЗначение = 1;",
           "КонецПроцедуры"]
 
@@ -71,7 +71,7 @@ def test_pairs_by_position_and_by_content():
 def test_a_new_object_without_the_team_prefix_is_found():
     found = v.prefix_findings([("CommonModules/ОМ_мой_Новый.xml", "ОбщийМодуль", "ОМ_мой_Новый"),
                                ("CommonModules/мой_Новый.xml", "ОбщийМодуль", "мой_Новый"),
-                               ("CommonModules/ЧужойМодуль.xml", "ОбщийМодуль", "ЧужойМодуль")], КОМАНДА)
+                               ("CommonModules/ЧужойМодуль.xml", "ОбщийМодуль", "ЧужойМодуль")], COMMAND)
     assert [(f.code, f.path) for f in found] == [("МД-ПРЕФИКС", "CommonModules/ЧужойМодуль.xml")]
     assert "«ОбщийМодуль.ЧужойМодуль» без приставки «мой_»" in found[0].message
 
@@ -464,7 +464,7 @@ def test_rights_on_new_objects():
     roles = {("ОбщаяКоманда", "мой_А"): [("мой_атом_А", True)],
             ("РегистрСведений", "мой_Б"): [("мой_атом_Выключено", False)],
             ("Отчет", "мой_В"): [("ПолныеПрава", True)]}
-    found = v.rights_findings(objects, roles, КОМАНДА)
+    found = v.rights_findings(objects, roles, COMMAND)
     assert [(f.code, f.message.split(" ")[0]) for f in found] == [
         ("ПРАВА-НЕ-ВЫДАНЫ", "РегистрСведений.мой_Б"),
         ("ПРАВА-ТОЛЬКО-В-ЧУЖОЙ-РОЛИ", "Отчет.мой_В"),

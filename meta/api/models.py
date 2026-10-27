@@ -147,13 +147,13 @@ class FormJob(_Model):
                           "модуль и имя и выдаст готовый вызов")
 
 
-def в_язык_заданий(формы):
+def в_язык_заданий(forms):
     """Модели -> пункты «forms» языка заданий: словари с теми же ключами.
 
     Незаданное выбрасывается: у языка заданий «ключа нет» и «ключ пуст» —
     одно и то же, а лишние пустые ключи только шумели бы в его проверках.
     """
-    return [форма.model_dump(exclude_none=True) for форма in формы]
+    return [form.model_dump(exclude_none=True) for form in forms]
 
 
 # --- задание на метаданные --------------------------------------------------------
@@ -341,12 +341,12 @@ def код_в_язык_заданий(modules, перенос):
     """Модели -> ключи задания на код, те же, что в файле для терминала."""
     задание = {"modules": []}
     for м in modules:
-        данные = м.model_dump(by_alias=True, exclude_none=True)
-        if "module" in данные:
-            if "модуль" in данные:
+        data = м.model_dump(by_alias=True, exclude_none=True)
+        if "module" in data:
+            if "модуль" in data:
                 raise Refuse("модуль назван дважды — «module» и «модуль»; нужен один: module")
-            данные["модуль"] = данные.pop("module")
-        задание["modules"].append(данные)
+            data["модуль"] = data.pop("module")
+        задание["modules"].append(data)
     if перенос is not None:
         задание["move_method"] = перенос.model_dump(by_alias=True, exclude_none=True)
     return задание

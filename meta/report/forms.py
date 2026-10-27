@@ -19,7 +19,7 @@ def describe_form(edits):
     """
     lines = []
     пиши = lines.append
-    handler_name = fm.code_handler_name if edits.as_code else (lambda обработчик: обработчик)
+    handler_name = fm.code_handler_name if edits.as_code else (lambda handler: handler)
     for attribute in edits.attributes:
         where = f" (колонка «{attribute.table}»)" if attribute.table else ""
         пиши(f"   реквизит {attribute.name}: {type_record(attribute.value_type)}{where}"
@@ -33,7 +33,7 @@ def describe_form(edits):
     for event, handler in edits.events.items():
         пиши(f"   событие формы {event} -> {handler}")
 
-    def дерево(element, level):
+    def tree(element, level):
         chunks = [element.kind, element.name]
         if element.path:
             chunks.append(f"[{element.path}]")
@@ -49,7 +49,7 @@ def describe_form(edits):
             chunks.append(" ".join(f"@{e}={handler_name(h)}" for e, h in element.events.items()))
         пиши("   " + "   " * level + " ".join(chunks))
         for child in element.children:
-            дерево(child, level + 1)
+            tree(child, level + 1)
 
     if edits.elements:
         пиши("   элементы:")
@@ -58,7 +58,7 @@ def describe_form(edits):
             # Заголовок — на уровне корневых элементов: с отступом детей он
             # читался бы как ребёнок предыдущего элемента.
             пиши(f"   в «{element.parent}»:")
-        дерево(element, 1 if element.parent else 0)
+        tree(element, 1 if element.parent else 0)
     for name in edits.remove_elements:
         пиши(f"   убрать элемент {name}")
     for name in edits.remove_attributes:
@@ -84,10 +84,10 @@ def shown_form(view, name, form_file, module_file, detailed=False, подска�
     пиши = lines.append
     процедуры = getattr(view, "procedures", None)
 
-    def missing(обработчик):
+    def missing(handler):
         """Пометка обработчика, процедуры которого в модуле нет: после записи
         формы без задания на код ссылка ведёт в никуда, и показ об этом говорит."""
-        if процедуры is None or not обработчик or обработчик in процедуры:
+        if процедуры is None or not handler or handler in процедуры:
             return ""
         return " (процедуры в модуле нет)"
 
@@ -115,22 +115,22 @@ def shown_form(view, name, form_file, module_file, detailed=False, подска�
     if view.commands:
         пиши("\n   Команды:")
         for команда in sorted(view.commands):
-            обработчик = view.commands_actions.get(команда)
+            handler = view.commands_actions.get(команда)
             пиши(f"{ВЕТКА * 2}{команда}"
-                 + (f" -> {обработчик}" if обработчик and обработчик != команда else "")
-                 + missing(обработчик))
+                 + (f" -> {handler}" if handler and handler != команда else "")
+                 + missing(handler))
     if view.events:
         пиши("\n   События формы:")
-        for event, обработчик in view.events.items():
-            пиши(f"{ВЕТКА * 2}{event} -> {обработчик}{missing(обработчик)}")
+        for event, handler in view.events.items():
+            пиши(f"{ВЕТКА * 2}{event} -> {handler}{missing(handler)}")
     пиши("\n   Элементы:")
-    дерево = _дерево(view, detailed)
-    lines += дерево.lines(None, 0, missing)
-    if дерево.спутников:
+    tree = _дерево(view, detailed)
+    lines += tree.lines(None, 0, missing)
+    if tree.спутников:
         # Спрятанное названо вслух: молча укоротить вывод — значит соврать
         # о составе формы.
         пиши(f"\n   Скрыто спутников (меню, подсказки, дополнения таблиц): "
-             f"{дерево.спутников}; показать — {подсказки.detailed}")
+             f"{tree.спутников}; показать — {подсказки.detailed}")
     return lines
 
 
@@ -143,26 +143,26 @@ class _дерево:
     спрятать их.
     """
 
-    def __init__(self, view, detailed, корень=None):
+    def __init__(self, view, detailed, root=None):
         self.view = view
         все_дети = {}
         for name in view.order:
             все_дети.setdefault(view.elements[name].parent, []).append(name)
 
         def со_своими(name):
-            return any(not view.elements[ребёнок].satellite or со_своими(ребёнок)
-                       for ребёнок in все_дети.get(name, ()))
+            return any(not view.elements[child].satellite or со_своими(child)
+                       for child in все_дети.get(name, ()))
 
-        self.дети = {}
+        self.children = {}
         self.спутников = 0
         for name in view.order:
             element = view.elements[name]
-            if корень is not None and корень not in _путь(view, name)[:-1]:
+            if root is not None and root not in _путь(view, name)[:-1]:
                 continue
             if element.satellite and not detailed and not со_своими(name):
                 self.спутников += 1
                 continue
-            self.дети.setdefault(element.parent, []).append(name)
+            self.children.setdefault(element.parent, []).append(name)
 
     def line(self, name, level, missing):
         element = self.view.elements[name]
@@ -172,16 +172,16 @@ class _дерево:
             chunks.append(f"[{element.path}]")
         if element.command:
             chunks.append(f"-> {element.command}")
-        chunks += [f"@{event}={обработчик}{missing(обработчик)}"
-                  for event, обработчик in element.events]
+        chunks += [f"@{event}={handler}{missing(handler)}"
+                  for event, handler in element.events]
         return ВЕТКА * (level + 2) + " ".join(chunks)
 
     def lines(self, parent, level, missing):
-        вывод = []
-        for name in self.дети.get(parent, ()):
-            вывод.append(self.line(name, level, missing))
-            вывод += self.lines(name, level + 1, missing)
-        return вывод
+        output = []
+        for name in self.children.get(parent, ()):
+            output.append(self.line(name, level, missing))
+            output += self.lines(name, level + 1, missing)
+        return output
 
 
 def _путь(view, name):
@@ -200,13 +200,13 @@ def _ветвь(view, name, detailed, подсказки, missing):
         return [f"\n   элемента «{name}» на форме нет"
                 + (f"; похожие: {', '.join(similar)}" if similar else "")
                 + f" — дерево целиком: без {подсказки.ветвь}"]
-    дерево = _дерево(view, detailed, корень=name)
+    tree = _дерево(view, detailed, root=name)
     lines = [f"\n   Ветка «{name}»: {' › '.join(_путь(view, name))}",
               f"   реквизиты, команды и события формы и остальные ветки — без {подсказки.ветвь}",
-              "\n   Элементы:", дерево.line(name, 0, missing)]
-    lines += дерево.lines(name, 1, missing)
-    if дерево.спутников:
-        lines.append(f"\n   Скрыто спутников в ветке: {дерево.спутников}; показать — "
+              "\n   Элементы:", tree.line(name, 0, missing)]
+    lines += tree.lines(name, 1, missing)
+    if tree.спутников:
+        lines.append(f"\n   Скрыто спутников в ветке: {tree.спутников}; показать — "
                       f"{подсказки.detailed}")
     return lines
 
@@ -221,8 +221,8 @@ def element_properties(kind):
     from ..domain.form_properties import ENUMS, PROPERTIES
     from ..domain.forms import ELEMENT_KINDS, KIND_ITSELF, expressible
 
-    свойства = PROPERTIES.get(kind)
-    if свойства is None:
+    props = PROPERTIES.get(kind)
+    if props is None:
         return None
     # У вида, которого инструмент не заводит, свойства — справка о платформе,
     # а не «для задания»: в задание такой элемент не поставить.
@@ -240,7 +240,7 @@ def element_properties(kind):
         lines.append(f"   Куда: «родитель» — «{FORM_COMMAND_BAR}» (командная панель формы, у новой "
                       f"формы — тем же заданием), «<Таблица>{панель_таблицы}» (панель таблицы) или "
                       "имя своей группы кнопок; без родителя — в корень формы.\n")
-    for name, (_, type_, умолчание) in свойства.items():
+    for name, (_, type_, default) in props.items():
         # Невыразимое помечено: цвет и шрифт стоят в справке наравне с
         # остальными, а задание их отвергает.
         if type_ in KIND_ITSELF:
@@ -248,8 +248,8 @@ def element_properties(kind):
             continue
         values = ENUMS.get(type_)
         what = f"{type_}: {', '.join(values)}" if values else (type_ or "")
-        if умолчание:
-            what += f"; по умолчанию {умолчание}"
+        if default:
+            what += f"; по умолчанию {default}"
         if not expressible(type_):
             what += " — заданием не выражается"
         lines.append(f"   {name:34} {what}")

@@ -33,8 +33,8 @@ def _тест():
     import json
 
     from meta.jobs.profile import conventions
-    with open(ПРОФИЛЬ, encoding="utf-8") as файл:
-        return conventions(json.load(файл), "профиль тестов")
+    with open(ПРОФИЛЬ, encoding="utf-8") as file:
+        return conventions(json.load(file), "профиль тестов")
 
 
 #: Соглашения тестовой команды — для тестов, которые зовут домен напрямую.

@@ -749,7 +749,7 @@ def test_the_schema_matches_what_the_platform_wrote_back():
         from meta.application.add_object.use_case import AddObjectUseCase
 
         address = "Отчет.мой_ПробаСКД.Макет.ОсновнаяСхема"
-        вариант = address + ".ВариантНастроек.Основной"
+        variant = address + ".ВариантНастроек.Основной"
         AddObjectUseCase(DesignerDump(root)).execute(
             [job_dialect.spec_from_json({"вид": "Отчет", "поля": {
                 "имя": "мой_ПробаСКД", "синоним": "(Мой) Проба СКД",
@@ -769,16 +769,16 @@ def test_the_schema_matches_what_the_platform_wrote_back():
         add(root, address, "Параметр", {
             "имя": "ТолькоПроведённые", "заголовок": "Только проведённые",
             "типЗначения": {"вид": "Булево"}, "значение": True})
-        add(root, вариант, "ВыбираемоеПоле",
+        add(root, variant, "ВыбираемоеПоле",
             {"использование": True, "поле": "Ссылка"})
-        add(root, вариант, "ВыбираемоеПоле",
+        add(root, variant, "ВыбираемоеПоле",
             {"использование": True, "поле": "Дата", "заголовок": "Дата"})
-        add(root, вариант, "Отбор", {
+        add(root, variant, "Отбор", {
             "использование": True, "левое": "Дата",
             "видСравнения": "Заполнено", "представление": "Дата заполнена"})
-        add(root, вариант, "ПолеПорядка", {
+        add(root, variant, "ПолеПорядка", {
             "использование": True, "поле": "Дата", "направление": "Убывание"})
-        add(root, вариант, "ГруппировкаСтруктуры",
+        add(root, variant, "ГруппировкаСтруктуры",
             {"использование": True, "имя": "ПоДате"})
 
         written = open(os.path.join(

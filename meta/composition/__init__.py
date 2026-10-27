@@ -72,15 +72,15 @@ def соглашения_из_файла(path):
     работать без соглашений команды значило бы пропустить её правила."""
     откуда = f"профиль «{path}»"
     try:
-        with open(path, encoding="utf-8-sig") as файл:
-            данные = json.load(файл)
+        with open(path, encoding="utf-8-sig") as file:
+            data = json.load(file)
     except OSError as error:
         raise Refuse(f"{откуда} не прочитан: {error.strerror or error}") from error
     except ValueError as error:
         raise Refuse(f"{откуда} — не JSON: {error}") from error
     nearby = os.path.dirname(os.path.abspath(path))
     return profile.conventions(
-        данные, откуда, диалект_из=lambda name: диалект_из_файла(os.path.join(nearby, name)))
+        data, откуда, диалект_из=lambda name: диалект_из_файла(os.path.join(nearby, name)))
 
 
 def диалект_из_файла(path):
@@ -138,9 +138,9 @@ def _inside(repo, roots):
         raise Refuse(f"сервер не настроен: в «{ROOTS_VARIABLE}» не указано ни одной "
                      "выгрузки, писать некуда")
     target = os.path.normcase(os.path.abspath(repo))
-    for корень in roots:
-        полный = os.path.normcase(os.path.abspath(корень))
-        if target == полный or target.startswith(полный + os.sep):
+    for root in roots:
+        full = os.path.normcase(os.path.abspath(root))
+        if target == full or target.startswith(full + os.sep):
             return
     raise Refuse(f"выгрузка «{repo}» вне разрешённых: " + "; ".join(roots)
                  + f" — список взят из «{ROOTS_VARIABLE}» при запуске сервера "
@@ -206,9 +206,9 @@ def _план(src):
     """Источник правок для сверки плана. План описывает объекты конфигурации, а
     раскладку внешней обработки и отчёта сверка не знает: факт был бы пуст, и
     вместо отказа выходило бы ложное «объект не сделан»."""
-    for каталог in (getattr(src, "root", None), getattr(src, "baseline", None), getattr(src, "target", None)):
-        if каталог and is_external(каталог):
-            raise Refuse(f"«{каталог}» — выгрузка внешней обработки или отчёта: сверки плана "
+    for directory in (getattr(src, "root", None), getattr(src, "baseline", None), getattr(src, "target", None)):
+        if directory and is_external(directory):
+            raise Refuse(f"«{directory}» — выгрузка внешней обработки или отчёта: сверки плана "
                          "(plan_check, plan_emit) для неё нет — план описывает объекты конфигурации; "
                          "правки проверяет verify")
     return src

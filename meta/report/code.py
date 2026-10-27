@@ -31,7 +31,7 @@ def place(d):
     return f"{where} ({d.where})" if d.where else where
 
 
-def neighbours(d, lines, пары, end):
+def neighbours(d, lines, pairs, end):
     """Блок со строкой-соседом сверху и снизу: «·» вместо «│».
 
     Решение о разделителе рядом с чужой меткой иначе было бы видно только в
@@ -40,7 +40,7 @@ def neighbours(d, lines, пары, end):
     above, ниже = d.context if len(d.context) == 2 else (None, None)
     if above is not None:
         lines.append(f"        {d.at - 1:>6} ·{видимо(above)}")
-    for number, text in пары:
+    for number, text in pairs:
         lines.append(f"        {number if number else '':>6} │{видимо(text)}")
     if ниже is not None:
         lines.append(f"        {end + 1:>6} ·{видимо(ниже)}")
@@ -59,12 +59,12 @@ def видимо(text):
     return text
 
 
-def shown(d, apply_now, целиком=False, detailed="подробный показ"):
+def shown(d, apply_now, whole=False, detailed="подробный показ"):
     """Текст блока правки с номерами строк нового модуля; длинный — краями,
     `целиком` — весь. У записи текст — только при `целиком`: без него ответ
     записи даёт одни номера, и записанное пришлось бы сверять чтением файла."""
     if d.kind == "откат":
-        if apply_now and not целиком:
+        if apply_now and not whole:
             return []
         # Разделители — в счёте той же вставки: итоговой строкой отдельно от
         # неё «снимается 7» не сошлось бы с ушедшими 8.
@@ -85,31 +85,31 @@ def shown(d, apply_now, целиком=False, detailed="подробный по�
         return [] if apply_now or d.insert else [
             f"      будет удалено строк: {d.last - d.first + 1}"]
     end = d.at + len(d.block) - 1
-    if apply_now and not целиком:
+    if apply_now and not whole:
         return [f"      записано — строки {d.at}-{end}"]
     lines = [f"      записано — строки {d.at}-{end}:" if apply_now
               else f"      будет записано — строки {d.at}-{end} нового текста:"]
-    пары = list(enumerate(d.block, d.at))
-    if len(пары) > ПОКАЗ_ЦЕЛИКОМ and not целиком:
+    pairs = list(enumerate(d.block, d.at))
+    if len(pairs) > ПОКАЗ_ЦЕЛИКОМ and not whole:
         # Объявления методов из середины видны всегда: иначе при переименовании
         # строка с новым именем пряталась бы в свёрнутом.
-        середина = пары[ПОКАЗ_НАЧАЛО:-ПОКАЗ_КОНЕЦ]
-        видно = [pair for pair in середина if DECLARATION.match(pair[1])]
-        скрыто = len(середина) - len(видно)
-        пары = (пары[:ПОКАЗ_НАЧАЛО]
+        середина = pairs[ПОКАЗ_НАЧАЛО:-ПОКАЗ_КОНЕЦ]
+        visible = [pair for pair in середина if DECLARATION.match(pair[1])]
+        скрыто = len(середина) - len(visible)
+        pairs = (pairs[:ПОКАЗ_НАЧАЛО]
                 + [(None, f"… ещё строк: {скрыто}; целиком — {detailed} …")]
-                + видно + ([(None, "…")] if видно else [])
-                + пары[-ПОКАЗ_КОНЕЦ:])
-    return neighbours(d, lines, пары, end)
+                + visible + ([(None, "…")] if visible else [])
+                + pairs[-ПОКАЗ_КОНЕЦ:])
+    return neighbours(d, lines, pairs, end)
 
 
-def code_lines(result, apply_now=False, подсказки=БЕЗ_КАНАЛА, целиком=False):
+def code_lines(result, apply_now=False, подсказки=БЕЗ_КАНАЛА, whole=False):
     lines = []
     пиши = lines.append
-    подпись = result.signature
+    caption = result.signature
     # у чистого отката даты и автора нет — иначе шапка напечатала бы «дата , автор »
-    пиши(f"Задача: {подпись.task}" + (f", дата {подпись.date}, автор {подпись.author}"
-                                      if подпись.date or подпись.author else ""))
+    пиши(f"Задача: {caption.task}" + (f", дата {caption.date}, автор {caption.author}"
+                                      if caption.date or caption.author else ""))
     пиши(f"Модулей в задании: {len(result.per_module)}")
     # Две системы номеров в одном ответе выглядят одинаково, поэтому шапка
     # говорит, какие номера по какому тексту. «Разметку модуля» она называет —
@@ -122,7 +122,7 @@ def code_lines(result, apply_now=False, подсказки=БЕЗ_КАНАЛА, 
     if not apply_now:
         пиши("В показе «│» — что будет записано, «·» — соседние строки, для ориентира; "
              "«→» — табуляция в пустой строке.")
-    elif целиком:
+    elif whole:
         пиши("В показе «│» — что записано, «·» — соседние строки, для ориентира; "
              "«→» — табуляция в пустой строке.")
     for примечание in getattr(result, "notes", ()):
@@ -142,7 +142,7 @@ def code_lines(result, apply_now=False, подсказки=БЕЗ_КАНАЛА, 
                 continue
             mark = d.kind if d.marker else (d.kind or "без меток")
             пиши(f"    {place(d)}: {mark} — {d.reason}")
-            lines.extend(shown(d, apply_now, целиком, подсказки.detailed))
+            lines.extend(shown(d, apply_now, whole, подсказки.detailed))
     пиши("")
     if apply_now:
         пиши(f"Записано модулей: {len(result.written)}.")

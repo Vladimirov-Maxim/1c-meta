@@ -183,8 +183,8 @@ def test_domain_and_acl_have_no_disk():
             continue
         tree = ast.parse(open(path, encoding="utf-8-sig").read())
         for target in imports_of(tree, current):
-            корень = target.split(".")[0]
-            if корень in DISK_MODULES:
+            root = target.split(".")[0]
+            if root in DISK_MODULES:
                 violations.append(f"{current} -> {target}")
     assert not violations, (
         "домен и перекладка не должны знать про файловую систему:\n"

@@ -70,7 +70,7 @@ OBJECT_FOLDERS = {
 }
 
 #: Вид по-русски -> каталог и слово вида в правах роли.
-FOLDER_OF = {kind: каталог for каталог, (kind, _) in OBJECT_FOLDERS.items()}
+FOLDER_OF = {kind: directory for directory, (kind, _) in OBJECT_FOLDERS.items()}
 RIGHTS_WORD = {kind: word for _, (kind, word) in OBJECT_FOLDERS.items()}
 
 #: Карточка объекта верхнего уровня: `Catalogs/Имя.xml`.
@@ -117,8 +117,8 @@ def owner_of(path):
 
 def card_path(kind, name):
     """Путь карточки объекта от корня выгрузки; вид без каталога — None."""
-    каталог = FOLDER_OF.get(kind)
-    return f"{каталог}/{name}.xml" if каталог else None
+    directory = FOLDER_OF.get(kind)
+    return f"{directory}/{name}.xml" if directory else None
 
 
 def is_service(path):
@@ -202,8 +202,8 @@ class EdtLayout(Layout):
         return OBJECT_FOLDERS[parts[0]][0], parts[1]
 
     def card_path(self, kind, name):
-        каталог = FOLDER_OF.get(kind)
-        return f"{каталог}/{name}/{name}.mdo" if каталог else None
+        directory = FOLDER_OF.get(kind)
+        return f"{directory}/{name}/{name}.mdo" if directory else None
 
     def is_service(self, path):
         return False
@@ -227,7 +227,7 @@ def layout_of(root, default=DESIGNER):
     """Раскладка исходников по их корню: `Configuration.xml` — выгрузка
     конфигуратора, `Configuration/Configuration.mdo` — проект EDT. Ни того ни
     другого (обработка вне конфигурации, пустой каталог) — `default`."""
-    for раскладка in LAYOUTS:
-        if раскладка.is_configuration(root):
-            return раскладка
+    for layout in LAYOUTS:
+        if layout.is_configuration(root):
+            return layout
     return default

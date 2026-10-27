@@ -35,9 +35,9 @@ ORACLE_SEED = 20261007
 
 def files(root):
     found = {}
-    for папка, _, names in os.walk(root):
+    for folder, _, names in os.walk(root):
         for name in names:
-            path = os.path.join(папка, name)
+            path = os.path.join(folder, name)
             found[os.path.relpath(path, root).replace(os.sep, "/")] = path
     return found
 
@@ -52,10 +52,10 @@ def проект(tmp_path, monkeypatch):
     return src
 
 
-def apply(src, tmp_path, формы=False):
+def apply(src, tmp_path, forms=False):
     """Задания по порядку: без форм (эталон `ожидание`) или все (`ожидание-формы`)."""
     for name in sorted(os.listdir(ЗАДАНИЯ)):
-        if not name.endswith(".json") or ("-форма-" in name and not формы):
+        if not name.endswith(".json") or ("-форма-" in name and not forms):
             continue
         with open(os.path.join(ЗАДАНИЯ, name), encoding="utf-8") as f:
             задание = json.loads(f.read().replace("{repo}", str(src).replace("\\", "/")))
@@ -77,7 +77,7 @@ def test_forms_are_written_as_edt_writes_them(проект, tmp_path):
     """Формы: новая форма объекта (запись в карточке хозяина, описание, модуль,
     настройки динамического списка) и правка существующей — те же байты, что у
     EDT после импорта выгрузки, в которой те же задания записал писатель выгрузки."""
-    apply(проект, tmp_path, формы=True)
+    apply(проект, tmp_path, forms=True)
     ожидание, after_ = files(os.path.join(EDT, "ожидание-формы")), files(проект)
     assert sorted(after_) == sorted(ожидание)
     разошлись = [path for path in ожидание
@@ -88,8 +88,8 @@ def test_forms_are_written_as_edt_writes_them(проект, tmp_path):
 def test_a_new_file_is_utf8_without_bom_and_lf(проект, tmp_path):
     apply(проект, tmp_path)
     for path in files(проект).values():
-        данные = open(path, "rb").read()
-        assert not данные.startswith(b"\xef\xbb\xbf") and b"\r\n" not in данные, path
+        data = open(path, "rb").read()
+        assert not data.startswith(b"\xef\xbb\xbf") and b"\r\n" not in data, path
 
 
 def test_what_the_edt_platform_writes_verify_accepts(проект, tmp_path):
@@ -110,10 +110,10 @@ def test_what_the_edt_platform_writes_verify_accepts(проект, tmp_path):
     apply(проект, tmp_path)
     ответ = tmp_path / "ответ.json"
     main(["--проверить", str(проект), "--задача", "ОРАКУЛ-1", "--профиль", ПРОФИЛЬ, "--json", str(ответ)])
-    данные = json.loads(ответ.read_text(encoding="utf-8"))
-    коды = {f["код"] for f in данные["находки"]}
-    assert коды <= {"ПРАВА-НЕ-ВЫДАНЫ"}, данные["находки"]
-    assert данные["источник"].startswith("проект EDT")
+    data = json.loads(ответ.read_text(encoding="utf-8"))
+    коды = {f["код"] for f in data["находки"]}
+    assert коды <= {"ПРАВА-НЕ-ВЫДАНЫ"}, data["находки"]
+    assert data["источник"].startswith("проект EDT")
 
 
 def test_a_form_read_from_edt_is_the_same_form_as_in_the_dump(tmp_path, monkeypatch):
@@ -130,10 +130,10 @@ def test_a_form_read_from_edt_is_the_same_form_as_in_the_dump(tmp_path, monkeypa
     cf = tmp_path / "cf"
     edt_oracle.base_dump(str(cf))
     edt_oracle.apply_jobs(str(cf), main)
-    формы = os.path.join(EDT, "ожидание-формы", "Documents", "мой_Заявка", "Forms")
+    forms = os.path.join(EDT, "ожидание-формы", "Documents", "мой_Заявка", "Forms")
     сверено = 0
-    for name in sorted(os.listdir(формы)):
-        edt_text = open(os.path.join(формы, name, "Form.form"), encoding="utf-8").read()
+    for name in sorted(os.listdir(forms)):
+        edt_text = open(os.path.join(forms, name, "Form.form"), encoding="utf-8").read()
         xml = open(cf / "Documents" / "мой_Заявка" / "Forms" / name / "Ext" / "Form.xml",
                    encoding="utf-8-sig").read().replace("\r\n", "\n")
         owner = ("Документ", "мой_Заявка")

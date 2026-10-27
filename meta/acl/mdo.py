@@ -67,41 +67,41 @@ def name_of(node):
 
 def type_of(node):
     """Узел `type` карточки EDT -> тип домена (или список типов)."""
-    по_тегам = [(_tag(c.tag), c) for c in node.children]
-    квалификаторы = {name: c for name, c in по_тегам if name.endswith("Qualifiers")}
-    собрано = []
-    for name, узел in по_тегам:
+    by_tag = [(_tag(c.tag), c) for c in node.children]
+    qualifiers = {name: c for name, c in by_tag if name.endswith("Qualifiers")}
+    collected = []
+    for name, child in by_tag:
         if name != "types":
             continue
-        text = EDT_WORDS.get((узел.text or "").strip(), (узел.text or "").strip())
+        text = EDT_WORDS.get((child.text or "").strip(), (child.text or "").strip())
         if not text:
             continue
         if text == "String":
-            q = _by_tag(квалификаторы.get("stringQualifiers", Node("x")))
-            длина = int(q["length"].text or "0") if "length" in q else 0
-            собрано.append(dm.StringType(длина, "fixed" in q and q["fixed"].text == "true"))
+            q = _by_tag(qualifiers.get("stringQualifiers", Node("x")))
+            length = int(q["length"].text or "0") if "length" in q else 0
+            collected.append(dm.StringType(length, "fixed" in q and q["fixed"].text == "true"))
         elif text == "Number":
-            q = _by_tag(квалификаторы.get("numberQualifiers", Node("x")))
-            собрано.append(dm.NumberType(
+            q = _by_tag(qualifiers.get("numberQualifiers", Node("x")))
+            collected.append(dm.NumberType(
                 int(q["precision"].text or "0") if "precision" in q else 10,
                 int(q["scale"].text or "0") if "scale" in q else 0,
                 "nonNegative" in q and q["nonNegative"].text == "true"))
         elif text == "Date":
-            q = _by_tag(квалификаторы.get("dateQualifiers", Node("x")))
+            q = _by_tag(qualifiers.get("dateQualifiers", Node("x")))
             word = q["dateFractions"].text if "dateFractions" in q else "DateTime"
-            назад = {v: k for k, v in DATE_PARTS.items()}
-            собрано.append(dm.DateType(назад.get(word, "ДатаВремя")))
+            backward = {v: k for k, v in DATE_PARTS.items()}
+            collected.append(dm.DateType(backward.get(word, "ДатаВремя")))
         elif text == "Boolean":
-            собрано.append(dm.BooleanType())
+            collected.append(dm.BooleanType())
         elif text in _PLATFORM_BACK:
-            собрано.append(dm.PlatformType(_PLATFORM_BACK[text]))
+            collected.append(dm.PlatformType(_PLATFORM_BACK[text]))
         elif text in READ_ONLY_TYPES_BACK:
-            собрано.append(dm.PlatformType(READ_ONLY_TYPES_BACK[text]))
+            collected.append(dm.PlatformType(READ_ONLY_TYPES_BACK[text]))
         else:
-            собрано.append(_reference(text))
-    if not собрано:
+            collected.append(_reference(text))
+    if not collected:
         return dm.AnyType()
-    return собрано[0] if len(собрано) == 1 else собрано
+    return collected[0] if len(collected) == 1 else collected
 
 
 def _reference(text):
@@ -109,19 +109,19 @@ def _reference(text):
 
     Чтение служит проверкам, и одно редкое обозначение не должно ронять сверку
     всего объекта."""
-    набор = text.split(".", 1)[0] in SETS
+    dataset = text.split(".", 1)[0] in SETS
     try:
-        return parse_type_notation(f"cfg:{text}", is_set=набор)
+        return parse_type_notation(f"cfg:{text}", is_set=dataset)
     except Refuse:
         return dm.PlatformType(text)
 
 
 def _predefined_items(node):
     """Элементы блока `predefined` — с элементами групп (`content`) на любой глубине."""
-    for ребёнок in node.children:
-        if _tag(ребёнок.tag) in ("items", "content", "childItems"):
-            yield ребёнок
-            yield from _predefined_items(ребёнок)
+    for child in node.children:
+        if _tag(child.tag) in ("items", "content", "childItems"):
+            yield child
+            yield from _predefined_items(child)
 
 
 def composition_from_node(node):
@@ -131,23 +131,23 @@ def composition_from_node(node):
     # Предопределённые EDT держит в карточке — группа есть всегда, пусть и
     # пустая: её отсутствие значит «формат её не читает» (выгрузка).
     members = {"предопределенные": {}}
-    for ребёнок in node.children:
-        if _tag(ребёнок.tag) == "predefined":
-            for element in _predefined_items(ребёнок):
+    for child in node.children:
+        if _tag(child.tag) == "predefined":
+            for element in _predefined_items(child):
                 name = name_of(element)
                 if name:
                     members["предопределенные"][name] = ()
             continue
-        group = CHILD_GROUPS.get(_tag(ребёнок.tag))
+        group = CHILD_GROUPS.get(_tag(child.tag))
         if group is None:
             continue
-        name = name_of(ребёнок)
+        name = name_of(child)
         if not name:
             continue
-        по_тегам = _by_tag(ребёнок)
+        by_tag = _by_tag(child)
         types = ()
-        if "type" in по_тегам:
-            type_ = type_of(по_тегам["type"])
+        if "type" in by_tag:
+            type_ = type_of(by_tag["type"])
             types = tuple(type_) if isinstance(type_, list) else (type_,)
         members.setdefault(group, {})[name] = types
     return Composition(members)

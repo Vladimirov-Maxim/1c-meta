@@ -24,9 +24,9 @@ from meta.jobs import dialect  # noqa: E402
 ПРОФИЛЬ = os.path.join(ROOT, "meta", "tests", "профиль-тестов.json")
 
 
-def задание(tmp_path, данные):
+def задание(tmp_path, data):
     path = tmp_path / "задание.json"
-    path.write_text(json.dumps(данные, ensure_ascii=False), encoding="utf-8")
+    path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
     return [str(path), "--apply", "--профиль", ПРОФИЛЬ]
 
 
@@ -104,13 +104,13 @@ def test_replace_is_explicit_and_names_what_leaves(выгрузка, tmp_path, c
     assert [x.split(">")[1].split("<")[0] for x in composition(выгрузка)] == ["Catalog.мой_В"]
 
 
-@pytest.mark.parametrize("value, слова", [
+@pytest.mark.parametrize("value, words", [
     ({"заменить": [], "добавить": []}, "один, без"),
     ({"добавлять": []}, "ключи правки перечня"),
     ({"добавить": "Справочник.мой_А"}, "список обозначений"),
 ])
-def test_malformed_list_edits_are_refused(value, слова):
-    with pytest.raises(Refuse, match=слова):
+def test_malformed_list_edits_are_refused(value, words):
+    with pytest.raises(Refuse, match=words):
         dialect.change_job_from_json({"путь": "Подсистема.мой_Раздел", "поля": {"состав": value}})
 
 

@@ -355,12 +355,12 @@ def _properties(schema, spec, host=None):
     # Копится всё, чем может возразить укладка значения, а не только
     # незнакомые слова словаря: два поля-длины, записанные числом, иначе
     # тоже стоили бы двух запусков, хотя про второе инструмент уже знает.
-    непонятые = Collected("непонятых значений")
+    not_understood = Collected("непонятых значений")
     for field in fields:
         value = spec.get(field.domain)
         if field.dictionary is not None and value:
             if value not in field.dictionary:
-                непонятые.add(
+                not_understood.add(
                     "не знаю, как записать «{}» в поле «{}»; допустимо: {}".format(
                         value, field.domain, ", ".join(field.dictionary)))
                 continue
@@ -370,11 +370,11 @@ def _properties(schema, spec, host=None):
         if not value and not field.always and field.omit_when is Field.OMIT_NOTHING:
             continue
         try:
-            узел = _value(field, value)
-            properties.extend(узел if isinstance(узел, list) else [узел])
+            node = _value(field, value)
+            properties.extend(node if isinstance(node, list) else [node])
         except Refuse as refusal:
-            непонятые.add(str(refusal))
-    непонятые.raise_collected()
+            not_understood.add(str(refusal))
+    not_understood.raise_collected()
     return properties
 
 
@@ -511,10 +511,10 @@ def render_rights(spec, configuration=None):
                 # Список сужается до вида, если он назван: всех прав 70,
                 # а у справочника их 25 — и читать нужно те самые.
                 kind = (granted.get("объект") or "").partition(".")[0]
-                у_вида = RIGHTS_BY_KIND.get(kind)
+                of_kind = RIGHTS_BY_KIND.get(kind)
                 raise Refuse("не знаю права «{}»; у вида «{}» бывают: {}".format(
-                    name, kind, ", ".join(sorted(у_вида)))
-                    if у_вида else "не знаю права «{}»; допустимы: {}".format(
+                    name, kind, ", ".join(sorted(of_kind)))
+                    if of_kind else "не знаю права «{}»; допустимы: {}".format(
                         name, ", ".join(sorted(RIGHTS))))
             named.append(RIGHTS[name])
         # Порядок прав канонический: платформа всё равно переставит их в него
@@ -540,7 +540,7 @@ def rights_from_node(node):
     словом файла, а не пропадает.
     """
     flags = {tag: field for field, tag in RIGHTS_FLAGS}
-    по_русски = {англ: рус for рус, англ in RIGHTS.items()}
+    in_russian = {en: ru for ru, en in RIGHTS.items()}
     fields, granted = {}, []
     for child in node.children:
         if child.tag in flags:
@@ -552,7 +552,7 @@ def rights_from_node(node):
                 if right.tag == "right":
                     values = {c.tag: c.text for c in right.children}
                     if values.get("value") == "true":
-                        rights.append(по_русски.get(values.get("name"), values.get("name")))
+                        rights.append(in_russian.get(values.get("name"), values.get("name")))
             granted.append({"объект": _rights_object(name), "права": rights})
     fields["права"] = granted
     return fields
@@ -562,19 +562,19 @@ def granted_rights(pairs):
     """[(объект словом файла, [права словом файла])] -> [{«объект», «права»}] —
     по-русски, как у `rights_from_node`. Для чтения многих ролей разом: файл
     разбирает площадка, а слова переводятся здесь."""
-    по_русски = {англ: рус for рус, англ in RIGHTS.items()}
-    return [{"объект": _rights_object(name), "права": [по_русски.get(pt, pt) for pt in rights]}
+    in_russian = {en: ru for ru, en in RIGHTS.items()}
+    return [{"объект": _rights_object(name), "права": [in_russian.get(pt, pt) for pt in rights]}
             for name, rights in pairs]
 
 
 def _rights_object(name):
     """`Catalog.Контрагенты` -> «Справочник.Контрагенты»; `Configuration.<Имя>` -> «Конфигурация»."""
     head, _, rest = (name or "").partition(".")
-    return "Конфигурация" if head == "Configuration" else f"{_виды_файла().get(head, head)}.{rest}"
+    return "Конфигурация" if head == "Configuration" else f"{_file_kinds().get(head, head)}.{rest}"
 
 
 @functools.cache
-def _виды_файла():
+def _file_kinds():
     """Слово вида в файле прав -> вид по-русски: корни выгрузки и элементы схемы."""
     kinds = dict(ROOTS_BACK)
     kinds.update({kind.element: name for name, kind in SCHEMA.items()})
@@ -825,11 +825,11 @@ def translate_node(spec, uuid, host=None, owner=None, new_id=None):
         # смотря по тому, хранится ли объект. Тот же вопрос домен решает
         # в `_child_host` — и решать его надо одинаково, иначе проверка
         # и запись разойдутся.
-        внутрь = (table_kind(host) if spec.kind == "ТабличнаяЧасть"
+        inward = (table_kind(host) if spec.kind == "ТабличнаяЧасть"
                   else spec.kind)
         inner.append(Node("ChildObjects",
                           children=_children(schema, spec, new_id, owner,
-                                             внутрь)))
+                                             inward)))
     return Node(schema.element, attrs={"uuid": uuid}, children=inner)
 
 
@@ -842,8 +842,8 @@ def _require_type(field, value):
     вместо ответа на вопрос «что не так в задании».
     """
     # Составной тип — список: у реквизита их бывает несколько.
-    for одно in value if isinstance(value, list) else [value]:
-        _one_type(field, одно)
+    for one in value if isinstance(value, list) else [value]:
+        _one_type(field, one)
 
 
 def _one_type(field, value):
@@ -1020,7 +1020,7 @@ def reference_pattern(path):
 
 
 @functools.cache
-def _слова_мест():
+def _place_words():
     """Тег сущности -> слово адреса и тег свойства -> поле задания.
 
     Из той же схемы видов, что пишет карточки: `Attribute` -> «Реквизит»,
@@ -1030,16 +1030,16 @@ def _слова_мест():
     функциональной опции тот же `Content`, что у подсистемы.
     """
     how_many = collections.Counter(schema.element for schema in SCHEMA.values())
-    сущности = {тег: kind for kind, тег in NESTED_ROOTS.items()}
-    сущности.update((schema.element, kind) for kind, schema in SCHEMA.items()
+    entities = {tag: kind for kind, tag in NESTED_ROOTS.items()}
+    entities.update((schema.element, kind) for kind, schema in SCHEMA.items()
                     if schema.container is None and how_many[schema.element] == 1)
-    сущности.update((тег, word) for word, теги in MEMBER_TAGS.items()
-                    for тег in теги)
+    entities.update((tag, word) for word, tags in MEMBER_TAGS.items()
+                    for tag in tags)
     fields = {}
     for schema in SCHEMA.values():
         for field in schema.fields:
-            fields.setdefault(_хвост_тега(field.tag), field.domain)
-    return сущности, fields
+            fields.setdefault(_tag_tail(field.tag), field.domain)
+    return entities, fields
 
 
 def reference_place(prefix, owner_kind, steps, prop):
@@ -1051,12 +1051,12 @@ def reference_place(prefix, owner_kind, steps, prop):
     находится поиском в файле. Так у графы журнала свойство `References`:
     инструмент его не пишет, своего слова у него нет.
     """
-    сущности, fields = _слова_мест()
-    address = prefix + "".join(f".{сущности.get(тег, тег)}.{name}" for тег, name in steps)
+    entities, fields = _place_words()
+    address = prefix + "".join(f".{entities.get(tag, tag)}.{name}" for tag, name in steps)
     if prop is None:
         return address
-    kind = сущности.get(steps[-1][0]) if steps else owner_kind
-    own = {_хвост_тега(field.tag): field.domain
+    kind = entities.get(steps[-1][0]) if steps else owner_kind
+    own = {_tag_tail(field.tag): field.domain
             for field in (SCHEMA[kind].fields if kind in SCHEMA else ())}
     return f"{address} ({own.get(prop) or fields.get(prop, prop)})"
 
@@ -1068,69 +1068,69 @@ def reference_place(prefix, owner_kind, steps, prop):
 # прочитали -> сверили» проверяет перекладку без всякой платформы.
 
 
-def _хвост_тега(tag):
+def _tag_tail(tag):
     """`dcsset:use` -> `use`: приставку пространства схема и файл пишут по-разному."""
     return tag.split(":")[-1]
 
 
-def _по_тегам(node):
-    return {_хвост_тега(ребёнок.tag): ребёнок for ребёнок in node.children}
+def _by_tags(node):
+    return {_tag_tail(child.tag): child for child in node.children}
 
 
-def _многоязычное(node):
+def _multilang(node):
     """`<Synonym><v8:item><v8:lang>ru</v8:lang><v8:content>…` -> текст."""
     for item in node.children:
-        по_тегам = _по_тегам(item)
-        содержимое = по_тегам.get("content")
-        if содержимое is not None:
-            return содержимое.text or ""
+        by_tag = _by_tags(item)
+        content = by_tag.get("content")
+        if content is not None:
+            return content.text or ""
     return ""
 
 
-def _тип_из_узлов(children):
+def _type_from_nodes(children):
     """Узлы `<v8:Type>` и квалификаторы -> тип (или список типов) домена."""
     from ..domain import model as dm
 
-    по_тегам = [(_хвост_тега(c.tag), c) for c in children]
+    by_tag = [(_tag_tail(c.tag), c) for c in children]
     # Набор («все ссылки справочников», определяемый тип, характеристика)
     # записан тегом TypeSet. Без него реквизит определяемого типа показывался
     # бы «Произвольным» — а так в замеренной выгрузке записаны 1597 типов в
     # справочниках и документах.
-    types = [(name == "TypeSet", c) for name, c in по_тегам if name in ("Type", "TypeSet")]
-    квалификаторы = {name: c for name, c in по_тегам if name.endswith("Qualifiers")}
-    собрано = []
-    for набор, узел in types:
-        text = (узел.text or "").strip()
-        if набор or text.startswith("cfg:"):
-            собрано.append(_ссылка_или_как_записано(text, набор))
+    types = [(name == "TypeSet", c) for name, c in by_tag if name in ("Type", "TypeSet")]
+    qualifiers = {name: c for name, c in by_tag if name.endswith("Qualifiers")}
+    collected = []
+    for dataset, node in types:
+        text = (node.text or "").strip()
+        if dataset or text.startswith("cfg:"):
+            collected.append(_reference_or_as_written(text, dataset))
         elif text == "xs:string":
-            q = _по_тегам(квалификаторы.get("StringQualifiers", Node("x")))
-            длина = int(q["Length"].text or "0") if "Length" in q else 0
-            фикс = ("AllowedLength" in q
+            q = _by_tags(qualifiers.get("StringQualifiers", Node("x")))
+            length = int(q["Length"].text or "0") if "Length" in q else 0
+            fixed_value = ("AllowedLength" in q
                     and q["AllowedLength"].text == STRING_LENGTH["Фиксированная"])
-            собрано.append(dm.StringType(длина, фикс))
+            collected.append(dm.StringType(length, fixed_value))
         elif text == "xs:decimal":
-            q = _по_тегам(квалификаторы.get("NumberQualifiers", Node("x")))
-            собрано.append(dm.NumberType(
+            q = _by_tags(qualifiers.get("NumberQualifiers", Node("x")))
+            collected.append(dm.NumberType(
                 int(q["Digits"].text or "0") if "Digits" in q else 0,
                 int(q["FractionDigits"].text or "0") if "FractionDigits" in q else 0,
                 "AllowedSign" in q
                 and q["AllowedSign"].text == NUMBER_SIGN["Неотрицательный"]))
         elif text == "xs:dateTime":
-            q = _по_тегам(квалификаторы.get("DateQualifiers", Node("x")))
+            q = _by_tags(qualifiers.get("DateQualifiers", Node("x")))
             word = q["DateFractions"].text if "DateFractions" in q else None
-            назад = {v: k for k, v in DATE_PARTS.items()}
-            собрано.append(dm.DateType(назад.get(word, "ДатаВремя")))
+            backward = {v: k for k, v in DATE_PARTS.items()}
+            collected.append(dm.DateType(backward.get(word, "ДатаВремя")))
         elif text == "xs:boolean":
-            собрано.append(dm.BooleanType())
+            collected.append(dm.BooleanType())
         elif text:
-            собрано.append(dm.PlatformType(_слово_платформы(text)))
-    if not собрано:
+            collected.append(dm.PlatformType(_platform_word(text)))
+    if not collected:
         return dm.AnyType()
-    return собрано[0] if len(собрано) == 1 else собрано
+    return collected[0] if len(collected) == 1 else collected
 
 
-def _ссылка_или_как_записано(text, набор):
+def _reference_or_as_written(text, dataset):
     """`cfg:…` -> ссылка домена; незнакомое обозначение — как записано.
 
     Чтение служит показу и проверкам, и одно редкое обозначение не должно
@@ -1138,55 +1138,55 @@ def _ссылка_или_как_записано(text, набор):
     """
     from ..domain import model as dm
     try:
-        return parse_type_notation(text, is_set=набор)
+        return parse_type_notation(text, is_set=dataset)
     except Refuse:
         return dm.PlatformType(text)
 
 
-def _слово_платформы(text):
+def _platform_word(text):
     """`v8:ValueTable`, `mxl:SpreadsheetDocument` -> слово задания или показа."""
-    назад = {v: k for k, v in PLATFORM_TYPES.items()}
-    if text in назад:
-        return назад[text]
+    backward = {v: k for k, v in PLATFORM_TYPES.items()}
+    if text in backward:
+        return backward[text]
     return READ_ONLY_TYPES_BACK.get(text.rpartition(":")[2], text)
 
 
-def _обозначение_назад(text):
+def _designation_back(text):
     """`Report.X.Template.Y` -> `Отчет.X.Макет.Y`."""
-    parts = [ч for ч in (text or "").split(".") if ч]
+    parts = [ch for ch in (text or "").split(".") if ch]
     if len(parts) < 2 or len(parts) % 2:
         return text
-    назад_корни = OBJECT_WORDS_BACK
-    назад_вложенные = {v: k for k, v in NESTED_ROOTS.items()}
+    back_roots = OBJECT_WORDS_BACK
+    back_nested = {v: k for k, v in NESTED_ROOTS.items()}
     came_out = []
     for i in range(0, len(parts), 2):
-        корень, name = parts[i], parts[i + 1]
-        vocabulary = назад_корни if i == 0 else назад_вложенные
-        came_out += [vocabulary.get(корень, корень), name]
+        root, name = parts[i], parts[i + 1]
+        vocabulary = back_roots if i == 0 else back_nested
+        came_out += [vocabulary.get(root, root), name]
     return ".".join(came_out)
 
 
-def _значение_поля(field, node):
+def _field_value(field, node):
     """Узел свойства -> значение на языке задания. `None` — читать нечем."""
     text = node.text
     if field.dictionary:
-        назад = {v: k for k, v in field.dictionary.items()}
-        return назад.get(text, text)
+        backward = {v: k for k, v in field.dictionary.items()}
+        return backward.get(text, text)
     if field.value_kind == BOOLEAN:
         return text == "true"
     if field.value_kind == DIMENSION_ROLE:
-        return any(ребёнок.tag.endswith("dimension") and ребёнок.text == "true" for ребёнок in node.children)
+        return any(child.tag.endswith("dimension") and child.text == "true" for child in node.children)
     if field.value_kind == MULTILANG:
-        return _многоязычное(node)
+        return _multilang(node)
     if field.value_kind in (VALUE_TYPE, TYPES):
-        return _тип_из_узлов(node.children)
+        return _type_from_nodes(node.children)
     if field.value_kind == OBJECT_REFERENCE:
-        return _обозначение_назад(text) if text else ""
+        return _designation_back(text) if text else ""
     if field.value_kind == FIELDS:
-        return [ребёнок.text for ребёнок in node.children if ребёнок.text]
+        return [child.text for child in node.children if child.text]
     if field.value_kind == ITEMS:
-        return [_обозначение_назад(ребёнок.text) for ребёнок in node.children
-                if ребёнок.text]
+        return [_designation_back(child.text) for child in node.children
+                if child.text]
     if field.value_kind == TEXT:
         value = text or ""
         prefix = field.prefix
@@ -1204,41 +1204,41 @@ def spec_from_node(kind, node):
     """
     schema = _schema(kind)
     card = node
-    if _хвост_тега(node.tag) == "MetaDataObject":
+    if _tag_tail(node.tag) == "MetaDataObject":
         own = [c for c in node.children
-                if _хвост_тега(c.tag) == _хвост_тега(schema.element)]
+                if _tag_tail(c.tag) == _tag_tail(schema.element)]
         if not own:
             raise Refuse(f"в файле нет элемента «{schema.element}»")
         card = own[0]
-    по_тегам = _по_тегам(card)
-    свойства = по_тегам.get("Properties")
-    исходные = _по_тегам(свойства) if свойства is not None else по_тегам
+    by_tag = _by_tags(card)
+    props = by_tag.get("Properties")
+    original = _by_tags(props) if props is not None else by_tag
     fields = {}
     for field in schema.fields:
-        узел = исходные.get(_хвост_тега(field.tag))
-        if узел is None:
+        field_node = original.get(_tag_tail(field.tag))
+        if field_node is None:
             continue
-        fields[field.domain] = _значение_поля(field, узел)
-    composition = по_тегам.get("ChildObjects")
-    for child_field, вид_ребёнка in schema.child_fields or ():
+        fields[field.domain] = _field_value(field, field_node)
+    composition = by_tag.get("ChildObjects")
+    for child_field, child_kind in schema.child_fields or ():
         if composition is None:
             continue
-        тег = _schema(вид_ребёнка).element
-        дети = [c for c in composition.children
-                if _хвост_тега(c.tag) == _хвост_тега(тег)]
-        if дети:
-            fields[child_field] = [spec_from_node(вид_ребёнка, ребёнок) for ребёнок in дети]
+        tag = _schema(child_kind).element
+        children = [c for c in composition.children
+                if _tag_tail(c.tag) == _tag_tail(tag)]
+        if children:
+            fields[child_field] = [spec_from_node(child_kind, child) for child in children]
     return Spec(kind, fields)
 
 
 @functools.cache
-def _группы_по_тегам():
+def _groups_by_tags():
     """Тег ребёнка в карточке -> группа состава: из схемы видов, а не отдельным
     словарём — читается то же, что пишется."""
     groups = {}
     for schema in SCHEMA.values():
-        for group, вид_ребёнка in schema.child_fields or ():
-            groups[_хвост_тега(_schema(вид_ребёнка).element)] = group
+        for group, child_kind in schema.child_fields or ():
+            groups[_tag_tail(_schema(child_kind).element)] = group
     return groups
 
 
@@ -1252,22 +1252,22 @@ def composition_from_node(node):
     частей) в состав не входит.
     """
     card = node
-    if _хвост_тега(node.tag) == "MetaDataObject":
+    if _tag_tail(node.tag) == "MetaDataObject":
         card = node.children[0] if node.children else Node("x")
-    members, groups = {}, _группы_по_тегам()
-    composition = _по_тегам(card).get("ChildObjects")
-    for ребёнок in (composition.children if composition is not None else ()):
-        group = groups.get(_хвост_тега(ребёнок.tag))
-        свойства = _по_тегам(ребёнок).get("Properties")
-        if group is None or свойства is None:
+    members, groups = {}, _groups_by_tags()
+    composition = _by_tags(card).get("ChildObjects")
+    for child in (composition.children if composition is not None else ()):
+        group = groups.get(_tag_tail(child.tag))
+        props = _by_tags(child).get("Properties")
+        if group is None or props is None:
             continue
-        по_тегам = _по_тегам(свойства)
-        name = (по_тегам["Name"].text or "").strip() if "Name" in по_тегам else ""
+        by_tag = _by_tags(props)
+        name = (by_tag["Name"].text or "").strip() if "Name" in by_tag else ""
         if not name:
             continue
         types = ()
-        if "Type" in по_тегам:
-            type_ = _тип_из_узлов(по_тегам["Type"].children)
+        if "Type" in by_tag:
+            type_ = _type_from_nodes(by_tag["Type"].children)
             types = tuple(type_) if isinstance(type_, list) else (type_,)
         members.setdefault(group, {})[name] = types
     return Composition(members)
@@ -1281,21 +1281,21 @@ def forms_from_node(node):
     формы, — показ обязан их перечислять.
     """
     card = node
-    if _хвост_тега(node.tag) == "MetaDataObject" and node.children:
+    if _tag_tail(node.tag) == "MetaDataObject" and node.children:
         card = node.children[0]
-    composition = _по_тегам(card).get("ChildObjects")
+    composition = _by_tags(card).get("ChildObjects")
     if composition is None:
         return []
     names = []
     for c in composition.children:
-        if _хвост_тега(c.tag) != "Form":
+        if _tag_tail(c.tag) != "Form":
             continue
         if c.text:
             names.append(c.text)
         else:
             # Форма целиком — так её отдаёт карточка проекта EDT: имя в свойствах.
-            свойства = _по_тегам(c).get("Properties")
-            name = _по_тегам(свойства).get("Name") if свойства is not None else None
+            props = _by_tags(c).get("Properties")
+            name = _by_tags(props).get("Name") if props is not None else None
             if name is not None and name.text:
                 names.append(name.text)
     return names

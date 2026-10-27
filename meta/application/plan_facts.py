@@ -20,8 +20,8 @@ def touched(source):
         obj = source.owner_of(c.path)
         if obj is None:
             continue
-        статус = c.status if source.object_of(c.path) == obj else MODIFIED
-        out.setdefault(obj, set()).add(статус)
+        status = c.status if source.object_of(c.path) == obj else MODIFIED
+        out.setdefault(obj, set()).add(status)
     return out
 
 

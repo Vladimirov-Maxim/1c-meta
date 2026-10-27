@@ -126,7 +126,7 @@ def attribute_type(attribute):
         # и знать не должна — динамический список бывает только у формы.
         return dm.PlatformType(fm.DYNAMIC_LIST)
     try:
-        return mapping._тип_из_узлов(TREE.to_node(type_node).children)
+        return mapping._type_from_nodes(TREE.to_node(type_node).children)
     except Refuse:
         return attribute_type_text(attribute)
 
@@ -151,8 +151,8 @@ def _command_of(node):
 
 
 #: Слово группировки по тегу `Group` — обратное к словарю свойств формы.
-_LAYOUT = {англ: рус for vocabulary in ("ГруппировкаПодчиненныхЭлементовФормы", "ГруппировкаКолонок")
-           for рус, англ in fp.ENUMS.get(vocabulary, {}).items()}
+_LAYOUT = {en: ru for vocabulary in ("ГруппировкаПодчиненныхЭлементовФормы", "ГруппировкаКолонок")
+           for ru, en in fp.ENUMS.get(vocabulary, {}).items()}
 
 
 def view(root, owner, name):
@@ -532,10 +532,10 @@ class Editor:
         # пропал бы — задание сказало, файл не получил, никто не заметил.
         # Порядок выведен по корпусу и содержит только то, что там
         # встречается, — чего в корпусе нет, того инструмент наугад не ставит.
-        потеряно = [tag for tag in properties if tag not in voc.ELEMENT_ORDER[kind]]
-        if потеряно:
+        lost = [tag for tag in properties if tag not in voc.ELEMENT_ORDER[kind]]
+        if lost:
             raise Refuse(f"не знаю, где у вида «{element.kind}» стоит "
-                         f"{', '.join(sorted(потеряно))} — в замеренной выгрузке такого "
+                         f"{', '.join(sorted(lost))} — в замеренной выгрузке такого "
                          "не встречалось")
         ordered = []
         for tag in voc.ELEMENT_ORDER[kind]:
