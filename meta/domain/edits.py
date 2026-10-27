@@ -311,42 +311,42 @@ def marker_ranges(lines, problems=None):
         elif kind == "open" and not code:
             # «[-]» над живым методом по смыслу не бывает: удалённое — это
             # комментарии, и метод под такой меткой ей не принадлежит.
-            знак = SIGN.search(lines[i - 1])
-            above = i if знак and знак.group(1) in "+*" else None
+            sign = SIGN.search(lines[i - 1])
+            above = i if sign and sign.group(1) in "+*" else None
         elif not (kind is None and code.startswith(("//", "&"))):
             above = None
     # С чем метка спарилась бы сама — проход без неявного закрытия.
-    сама = {r["start"]: r["end"] for r in _pair_markers(lines, kinds, codes, heads, None, [])}
+    itself = {r["start"]: r["end"] for r in _pair_markers(lines, kinds, codes, heads, None, [])}
 
-    def своя_пара(start, end):
-        пара = сама.get(start)
-        if пара is None or пара <= end:
+    def own_pair(start, end):
+        pair = itself.get(start)
+        if pair is None or pair <= end:
             return False
         j = end + 1
         while j <= len(lines) and not lines[j - 1].strip():
             j += 1
-        if пара == j:
+        if pair == j:
             return True                  # закрыта сразу за концом метода
-        дата = marker_date(lines[start - 1][lines[start - 1].find("//"):])
-        return дата is not None and дата == marker_date(lines[пара - 1][lines[пара - 1].find("//"):])
+        date = marker_date(lines[start - 1][lines[start - 1].find("//"):])
+        return date is not None and date == marker_date(lines[pair - 1][lines[pair - 1].find("//"):])
 
-    заметки = []
-    ranges = _pair_markers(lines, kinds, codes, heads, своя_пара, заметки)
+    notes_ = []
+    ranges = _pair_markers(lines, kinds, codes, heads, own_pair, notes_)
     # Метки внутри закрытого блока «[-]» — история: деактивированный код
     # несёт свои старые метки, а закрывающая часто стоит хвостом на
     # закомментированной строке («//КонецФункции // } …») и меткой не
     # считается. Называть такую «без пары» — шум.
-    удалённые = [(r["start"], r["end"]) for r in ranges if r["sign"] == "-"]
-    for заметка in заметки:
-        номер = re.match(r"строка (\d+):", заметка)
-        n = int(номер.group(1)) if номер else 0
-        if problems is not None and not any(a < n < b for a, b in удалённые):
-            problems.append(заметка)
+    deleted = [(r["start"], r["end"]) for r in ranges if r["sign"] == "-"]
+    for note in notes_:
+        number = re.match(r"строка (\d+):", note)
+        n = int(number.group(1)) if number else 0
+        if problems is not None and not any(a < n < b for a, b in deleted):
+            problems.append(note)
     return ranges
 
 
-def _pair_markers(lines, kinds, codes, heads, своя_пара, notes):
-    """Проход по меткам: стек, спор по дате и — если задано `своя_пара` —
+def _pair_markers(lines, kinds, codes, heads, own_pair, notes):
+    """Проход по меткам: стек, спор по дате и — если задано `own_pair` —
     неявное закрытие метки метода на его конце."""
     ranges, stack = [], []
     declared = None                   # метка, открывающая текущий метод
@@ -363,8 +363,8 @@ def _pair_markers(lines, kinds, codes, heads, своя_пара, notes):
         if DECLARATION.match(code):
             declared = heads.get(i)
         elif METHOD_END.match(code):
-            if (своя_пара is not None and kind is None and declared is not None and stack
-                    and stack[-1][0] == declared and not своя_пара(declared, i)):
+            if (own_pair is not None and kind is None and declared is not None and stack
+                    and stack[-1][0] == declared and not own_pair(declared, i)):
                 start, task, sign, _ = stack.pop()
                 ranges.append({"start": start, "end": i, "task": task, "sign": sign,
                                "implicit": True})
@@ -507,11 +507,11 @@ def split_parts(block):
     """
     parts, pending, depth = [], [], 0
 
-    def code(строки):
+    def code(lines):
         if parts and parts[-1][0] == "код":
-            parts[-1][1].extend(строки)
+            parts[-1][1].extend(lines)
         else:
-            parts.append(("код", list(строки)))
+            parts.append(("код", list(lines)))
 
     for line in block:
         t = line.strip()
@@ -545,9 +545,9 @@ def split_parts(block):
         return None
     if pending:
         code(pending)
-    for kind, строки in parts:
-        while kind == "код" and строки and not строки[-1].strip():
-            строки.pop()
+    for kind, lines in parts:
+        while kind == "код" and lines and not lines[-1].strip():
+            lines.pop()
     return parts
 
 
@@ -608,8 +608,8 @@ def separate(block, lines, first, last, ind, count, declaration=False):
     # оказывается сама строка-якорь: она сдвинется вниз, а не исчезнет
     tail_index = last if count > 0 else first - 1
     after = lines[tail_index] if tail_index < len(lines) else None
-    шапка = before is not None and before.strip().startswith(("//", "&"))
-    if before is not None and before.strip() and not bare_marker(before) and not (declaration and шапка):
+    header = before is not None and before.strip().startswith(("//", "&"))
+    if before is not None and before.strip() and not bare_marker(before) and not (declaration and header):
         out.insert(0, ind)
     if after is not None and after.strip() and not bare_marker(after) and not declaration:
         out.append(ind)
@@ -624,8 +624,8 @@ def bare_marker(line):
 def open_marker(kind, ind, date, author, task, tag=None):
     """Открывающая метка; `tag` — метка команды перед автором, если она у команды есть."""
     sign, word = kind
-    кто = f"{tag} {author}" if tag else author
-    return f"{ind}// {{[{sign}](фрагмент {word}), {date}, {кто} #{task}"
+    who = f"{tag} {author}" if tag else author
+    return f"{ind}// {{[{sign}](фрагмент {word}), {date}, {who} #{task}"
 
 
 def close_marker(ind, author, date):
@@ -656,7 +656,7 @@ def build_insertion(kind, ind, old_block, new_block, meta, compact=False):
     if kind == TYPE_CHANGED:
         if not compact:
             out.append(ind)
-        out.extend(comment_out(строка, ind) for строка in old_block)
+        out.extend(comment_out(line, ind) for line in old_block)
         if not compact:
             out.append(ind)
         out.extend(new_block)
@@ -665,7 +665,7 @@ def build_insertion(kind, ind, old_block, new_block, meta, compact=False):
     elif kind == TYPE_ADDED:
         out.extend(new_block)
     else:
-        out.extend(comment_out(строка, ind) for строка in old_block)
+        out.extend(comment_out(line, ind) for line in old_block)
 
     # Закрывающая метка вставки вокруг ЦЕЛОГО метода ставится на строке КонецПроцедуры
     # через пробел, а не отдельной строкой.
@@ -696,31 +696,31 @@ def checked(edit, lines):
 
     if count < 0 or first < 1 or (count > 0 and last > len(lines)) or (count == 0 and first > len(lines) + 1):
         raise Refuse(f"строка {first}: выход за границы модуля (в модуле {len(lines)} строк)")
-    беды = []
-    заглушка = placeholder(code)
-    if заглушка:
-        беды.append(f"строка {first}: в коде заглушка «{заглушка}» — подставьте настоящее имя")
+    problems = []
+    stub = placeholder(code)
+    if stub:
+        problems.append(f"строка {first}: в коде заглушка «{stub}» — подставьте настоящее имя")
     # Проверяется только написанный код: закомментированный и перенесённый
     # чужой — как был.
-    символы = [] if edit.carried else invalid_characters(code)
-    if символы:
-        беды.append(f"строка {first}: в коде символы, которые bsl-ls считает ошибкой "
+    symbols = [] if edit.carried else invalid_characters(code)
+    if symbols:
+        problems.append(f"строка {first}: в коде символы, которые bsl-ls считает ошибкой "
                     "(InvalidCharacterInFile, стандарт «Тексты модулей» #std456) — "
-                    + described(символы, "строка кода"))
-    ёлочки = [] if edit.carried else guillemet_lines(code)
-    if ёлочки:
-        беды.append(f"строка {first}: в коде кавычки-ёлочки ({line_numbers(ёлочки)} кода) — "
+                    + described(symbols, "строка кода"))
+    guillemets = [] if edit.carried else guillemet_lines(code)
+    if guillemets:
+        problems.append(f"строка {first}: в коде кавычки-ёлочки ({line_numbers(guillemets)} кода) — "
                     "в коде — и в комментариях, и в текстах сообщений — кавычки прямые, "
                     "внутри строкового литерала — удвоенные (\"\")")
-    плоский = None if edit.carried else flat_method(code.split("\n") if code else [])
-    if плоский:
-        имя, номер = плоский
-        беды.append(f"строка {first}: тело метода «{имя}» без отступа (строка {номер} кода) — "
+    flat = None if edit.carried else flat_method(code.split("\n") if code else [])
+    if flat:
+        name, number = flat
+        problems.append(f"строка {first}: тело метода «{name}» без отступа (строка {number} кода) — "
                     "инструмент сдвигает блок целиком до уровня места правки, а отступы "
                     "внутри кода не ставит: передайте тело метода с табуляцией")
-    повтор = duplicate_region(lines, first, last, count, code.split("\n") if code else [])
-    if повтор:
-        беды.append(повтор)
+    repeat = duplicate_region(lines, first, last, count, code.split("\n") if code else [])
+    if repeat:
+        problems.append(repeat)
 
     # Код встаёт на уровень своего места и сдвигается туда целиком, если пришёл
     # мельче; пустые строки переданного кода получают отступ здесь, а не остаются
@@ -736,11 +736,11 @@ def checked(edit, lines):
         for field, num in (("first_line", first), ("last_line", last)):
             expected = getattr(edit, field)
             if expected is None:
-                беды.append(f"строка {first}: не задано поле «{field}» — якорь без проверки не принимается")
+                problems.append(f"строка {first}: не задано поле «{field}» — якорь без проверки не принимается")
                 continue
             actual = lines[num - 1]
             if actual.rstrip() != expected.rstrip():
-                беды.append(mismatch(num, expected, actual, lines))
+                problems.append(mismatch(num, expected, actual, lines))
     else:
         # У чистой вставки заменяемых границ нет, но переданный текст — тот же
         # якорь: молча его не сверять значит промахнуться так же, как без него.
@@ -748,21 +748,21 @@ def checked(edit, lines):
         for field in ("first_line", "last_line"):
             expected = getattr(edit, field)
             if expected is not None and actual.rstrip() != expected.rstrip():
-                беды.append(mismatch(first, expected, actual, lines,
+                problems.append(mismatch(first, expected, actual, lines,
                                      f" — при вставке «{field}» сверяется со строкой-якорем"))
     if not new_block and count == 0:
-        беды.append(f"строка {first}: правка пуста — нечего ни добавить, ни удалить")
+        problems.append(f"строка {first}: правка пуста — нечего ни добавить, ни удалить")
     if count == 0:
-        разрыв = directive_split(lines, first)
-        if разрыв:
-            беды.append(разрыв)
+        gap = directive_split(lines, first)
+        if gap:
+            problems.append(gap)
     # одна строка — и первая, и последняя: одно расхождение, а не два одинаковых
-    беды = list(dict.fromkeys(беды))
-    if len(беды) == 1:
-        raise Refuse(беды[0])
-    if беды:
-        raise Refuse(f"строка {first}: в правке бед {len(беды)}:\n"
-                     + "\n".join(f"    - {беда}" for беда in беды))
+    problems = list(dict.fromkeys(problems))
+    if len(problems) == 1:
+        raise Refuse(problems[0])
+    if problems:
+        raise Refuse(f"строка {first}: в правке бед {len(problems)}:\n"
+                     + "\n".join(f"    - {problem}" for problem in problems))
     return {"edit": edit, "first": first, "last": last, "count": count, "block": new_block,
             "level": level, "shift": delta}
 
@@ -780,21 +780,21 @@ def flat_method(code):
     так и остаётся вровень с объявлением, а пустые строки получают табуляцию
     через раз. Угадывать структуру тела инструмент не берётся — отказ.
     """
-    метод = None
+    method = None
     for number, line in enumerate(code, start=1):
-        объявлен = DECLARATION.match(line)
-        if метод is None:
-            if объявлен:
-                метод = (объявлен.group(1), indent_of(line), [])
+        declared = DECLARATION.match(line)
+        if method is None:
+            if declared:
+                method = (declared.group(1), indent_of(line), [])
             continue
         if METHOD_END.match(line.strip()):
-            имя, отступ, тело = метод
-            if тело and all(len(indent_of(s)) <= len(отступ) for _, s in тело):
-                return имя, тело[0][0]
-            метод = None
+            name, indent, body = method
+            if body and all(len(indent_of(s)) <= len(indent) for _, s in body):
+                return name, body[0][0]
+            method = None
             continue
         if line.strip() and not line.strip().startswith(FLAT_ALLOWED):
-            метод[2].append((number, line))
+            method[2].append((number, line))
     return None
 
 
@@ -807,32 +807,32 @@ def duplicate_region(lines, first, last, count, code):
     (bsl-ls: DuplicateRegion).
     Сравниваются соседи по уровню: области внутри той же области модуля.
     """
-    новые, глубина = [], 0
+    new_items, depth = [], 0
     for line in code:
-        слово = line.strip()
-        if слово.startswith("#Область"):
-            if глубина == 0:
-                новые.append(слово[len("#Область"):].strip())
-            глубина += 1
-        elif слово.startswith("#КонецОбласти") and глубина:
-            глубина -= 1
-    if not новые:
+        word = line.strip()
+        if word.startswith("#Область"):
+            if depth == 0:
+                new_items.append(word[len("#Область"):].strip())
+            depth += 1
+        elif word.startswith("#КонецОбласти") and depth:
+            depth -= 1
+    if not new_items:
         return None
-    области = module_regions(lines)
+    regions = module_regions(lines)
 
-    def самая_вложенная(объемлющие):
-        return max(объемлющие, key=lambda о: о[1]) if объемлющие else None
+    def innermost(enclosing):
+        return max(enclosing, key=lambda ob: ob[1]) if enclosing else None
 
     # Вставка перед строкой `first` лежит внутри области, если та началась
     # раньше и кончается не раньше якоря (перед её #КонецОбласти — ещё в ней);
     # замена — если область охватывает заменяемые строки.
-    место = самая_вложенная([о for о in области if о[1] < first and (
-        last <= о[2] if count == 0 else last < о[2])])
-    for имя, начало, конец in области:
-        родитель = самая_вложенная([о for о in области if о[1] < начало and конец < о[2]])
-        if имя in новые and родитель == место:
-            return (f"строка {first}: область «{имя}» здесь уже есть (строки {начало}-{конец}) "
-                    f"— новый код кладите в неё: якорем её #КонецОбласти (строка {конец})")
+    place = innermost([ob for ob in regions if ob[1] < first and (
+        last <= ob[2] if count == 0 else last < ob[2])])
+    for name, start, end in regions:
+        parent = innermost([ob for ob in regions if ob[1] < start and end < ob[2]])
+        if name in new_items and parent == place:
+            return (f"строка {first}: область «{name}» здесь уже есть (строки {start}-{end}) "
+                    f"— новый код кладите в неё: якорем её #КонецОбласти (строка {end})")
     return None
 
 
@@ -867,12 +867,12 @@ def indent_words(text):
     head = text[:len(text) - len(text.lstrip())]
     if not head:
         return "без отступа"
-    части = []
+    parts = []
     for count, forms in ((head.count("\t"), ("табуляция", "табуляции", "табуляций")),
                          (head.count(" "), ("пробел", "пробела", "пробелов"))):
         if count:
-            части.append(f"{count} {plural(count, *forms)}")
-    return " и ".join(части) or "отступ из других пробельных символов"
+            parts.append(f"{count} {plural(count, *forms)}")
+    return " и ".join(parts) or "отступ из других пробельных символов"
 
 
 def plural(n, one, few, many):
@@ -891,23 +891,23 @@ def where_now(lines, expected, near):
     строка, заставляет искать её заново. Ближайшая к названному номеру;
     одинаковых строк бывает много — сказано, сколько.
     """
-    цель = expected.rstrip()
-    if not цель.strip():
+    target = expected.rstrip()
+    if not target.strip():
         return ""
-    найдено = [n for n, line in enumerate(lines, start=1) if line.rstrip() == цель]
-    if not найдено:
+    found = [n for n, line in enumerate(lines, start=1) if line.rstrip() == target]
+    if not found:
         # Тот же текст с другим отступом — почти всегда сбитые табуляции, а
         # не пропавшая строка.
-        похожие = [n for n, line in enumerate(lines, start=1) if line.strip() == цель.strip()]
-        if похожие:
-            ближайшая = min(похожие, key=lambda n: abs(n - near))
-            return (f"; с таким отступом строки в модуле нет, с другим — на {ближайшая} "
-                    f"({indent_words(lines[ближайшая - 1])}, а ожидалось "
+        similar = [n for n, line in enumerate(lines, start=1) if line.strip() == target.strip()]
+        if similar:
+            nearest = min(similar, key=lambda n: abs(n - near))
+            return (f"; с таким отступом строки в модуле нет, с другим — на {nearest} "
+                    f"({indent_words(lines[nearest - 1])}, а ожидалось "
                     f"{indent_words(expected)})")
         return "; такой строки в модуле сейчас нет"
-    ближайшая = min(найдено, key=lambda n: abs(n - near))
-    ещё = f" (таких строк в модуле {len(найдено)}, это ближайшая)" if len(найдено) > 1 else ""
-    return f"; такая строка сейчас на {ближайшая}{ещё} — номер устарел?"
+    nearest = min(found, key=lambda n: abs(n - near))
+    more = f" (таких строк в модуле {len(found)}, это ближайшая)" if len(found) > 1 else ""
+    return f"; такая строка сейчас на {nearest}{more} — номер устарел?"
 
 PLACEHOLDER = re.compile(r"<[А-Яа-яЁё][\wА-Яа-яЁё]*>")
 
@@ -921,9 +921,9 @@ def placeholder(code):
     это текст, а не код.
     """
     for line in (code or "").split("\n"):
-        комментарий = comment_start(line)
+        comment = comment_start(line)
         for m in PLACEHOLDER.finditer(line):
-            if комментарий is not None and m.start() >= комментарий:
+            if comment is not None and m.start() >= comment:
                 break
             if line[:m.start()].count('"') % 2 == 0:
                 return m.group()
@@ -933,26 +933,26 @@ def placeholder(code):
 def open_brackets(lines):
     """Сколько круглых скобок осталось открытыми к концу строк — без строковых
     литералов и комментариев."""
-    счёт = 0
+    count = 0
     for line in lines:
-        конец = comment_start(line)
-        в_литерале = False
-        for ch in line[:конец]:
+        end = comment_start(line)
+        in_literal = False
+        for ch in line[:end]:
             if ch == '"':
-                в_литерале = not в_литерале
-            elif not в_литерале:
-                счёт += (ch == "(") - (ch == ")")
-    return счёт
+                in_literal = not in_literal
+            elif not in_literal:
+                count += (ch == "(") - (ch == ")")
+    return count
 
 
 def comment_start(line):
     """Позиция `//`, с которой в строке начинается комментарий, — вне строкового
     литерала; комментария нет — None."""
-    в_литерале = False
+    in_literal = False
     for i, ch in enumerate(line):
         if ch == '"':
-            в_литерале = not в_литерале
-        elif not в_литерале and line.startswith("//", i):
+            in_literal = not in_literal
+        elif not in_literal and line.startswith("//", i):
             return i
     return None
 
@@ -1169,10 +1169,10 @@ def outer_wrapper(group, foreign, lines, ranges, meta):
         # «Повторён» — только если повторять было что: когда правка заменила
         # всё живое, такая фраза заставляла бы искать задвоенный старый код.
         dead, _ = live_lines(lines, f_first, f_last, ranges)
-        замена = {n for g in group for n in range(g["first"], g["last"] + 1) if g["count"]}
-        осталось = [n for n in range(f_first, f_last + 1)
-                    if n not in dead and n not in замена and lines[n - 1].strip()]
-        what = ("её живой код повторён следом с правкой" if осталось
+        replacement = {n for g in group for n in range(g["first"], g["last"] + 1) if g["count"]}
+        left_over = [n for n in range(f_first, f_last + 1)
+                    if n not in dead and n not in replacement and lines[n - 1].strip()]
+        what = ("её живой код повторён следом с правкой" if left_over
                 else "живой код в ней весь заменён правкой — следом только новый код")
     else:
         kind = TYPE_REMOVED
@@ -1197,7 +1197,7 @@ def plain(item, reason, lines=None):
     или к `#КонецОбласти`, а добавить одну пустую строку у директивы правкой
     нельзя. Код внутри метода разделителей не получает."""
     block = item["block"]
-    if lines is not None and any(вид == "метод" for вид, _ in split_parts(block)):
+    if lines is not None and any(kind == "метод" for kind, _ in split_parts(block)):
         block = separate(block, lines, item["first"], item["last"], item["level"], item["count"])
     return {"line": item["first"], "first": item["first"], "last": item["last"], "marker": False,
             "reason": reason + shift_note(item["shift"]), "kind": None,
@@ -1227,13 +1227,13 @@ def marked(item, lines, meta, nested_in=None):
     # Текст запроса — те же метки, но комментарием BSL без «|»:
     # метка с фигурными скобками, попавшая в текст запроса, разбирается
     # компоновщиком как расширение {ВЫБРАТЬ}/{ГДЕ}.
-    in_query = is_query_line(anchor) or (old_block and any(is_query_line(строка) for строка in old_block))
+    in_query = is_query_line(anchor) or (old_block and any(is_query_line(line) for line in old_block))
     # Смена сигнатуры: ИЗМЕНЕН оборачивает только
     # объявление — вплотную под описанием, без пустых строк внутри и под меткой.
-    объявление = (kind == TYPE_CHANGED and bool(DECLARATION.match(old_block[0]))
-                  and any(DECLARATION.match(строка) for строка in new_block[:1])
-                  and not any(METHOD_END.match(code_part(строка).strip()) for строка in new_block))
-    компактно = bool(in_query or объявление)
+    declaration = (kind == TYPE_CHANGED and bool(DECLARATION.match(old_block[0]))
+                  and any(DECLARATION.match(line) for line in new_block[:1])
+                  and not any(METHOD_END.match(code_part(line).strip()) for line in new_block))
+    compact = bool(in_query or declaration)
 
     # Несколько частей разом — каждый метод и каждый кусок прочего кода в своей
     # вставке, директивы областей без меток, между частями пустая строка.
@@ -1249,18 +1249,18 @@ def marked(item, lines, meta, nested_in=None):
             else:
                 block.extend(build_insertion(kind, ind, [], part, meta))
     else:
-        block = build_insertion(kind, ind, old_block, new_block, meta, compact=компактно)
+        block = build_insertion(kind, ind, old_block, new_block, meta, compact=compact)
 
     # в тексте запроса пустых строк снаружи тоже нет: метки — вплотную к его строкам
     if not in_query:
-        block = separate(block, lines, first, last, ind, count, declaration=объявление)
+        block = separate(block, lines, first, last, ind, count, declaration=declaration)
     if nested_in:
-        чья = nested_in["task"] or "без ИД"
-        заменяемое = ("деактивирована только заменяемая строка" if count == 1
+        whose_one = nested_in["task"] or "без ИД"
+        replaced = ("деактивирована только заменяемая строка" if count == 1
                       else "деактивированы только заменяемые строки")
-        reason = (f"вложенная метка внутри чужой вставки {чья} (правка на месте: чужие метки "
-                  f"на месте, {заменяемое})" if count > 0 else
-                  f"вложенная метка внутри чужой вставки {чья} (чистая вставка ничего чужого не "
+        reason = (f"вложенная метка внутри чужой вставки {whose_one} (правка на месте: чужие метки "
+                  f"на месте, {replaced})" if count > 0 else
+                  f"вложенная метка внутри чужой вставки {whose_one} (чистая вставка ничего чужого не "
                   "деактивирует)")
     elif in_query:
         reason = "текст запроса, метки комментарием BSL без «|»"
@@ -1323,9 +1323,9 @@ def classify_all(items, lines, ranges, meta):
     """Решения по всем правкам модуля: правки внутри одной чужой вставки
     решаются вместе — обёртка снаружи на них одна."""
     for item in items:
-        отказ = repeated(item, lines, ranges, meta["task"])
-        if отказ:
-            raise Refuse(отказ)
+        refusal = repeated(item, lines, ranges, meta["task"])
+        if refusal:
+            raise Refuse(refusal)
     if meta["new_module"]:
         return [plain(i, "модуль создан текущей задачей — внутри разметки нет", lines) for i in items]
     if not meta.get("markers", True):
@@ -1343,15 +1343,15 @@ def classify_all(items, lines, ranges, meta):
         # Правка, задевающая метку своей вставки не целиком изнутри, закомментировала
         # бы собственные метки задачи блоком УДАЛЕН («//// {[+]…»): снимают свою
         # вставку откатом, а не правкой.
-        своя_метка = next((x for x in ranges if x["task"] == meta["task"] and item["count"] > 0
+        own_marker = next((x for x in ranges if x["task"] == meta["task"] and item["count"] > 0
                            and where != "own"
                            and (item["first"] <= x["start"] <= item["last"]
                                 or item["first"] <= x["end"] <= item["last"])), None)
-        if своя_метка is not None:
+        if own_marker is not None:
             raise Refuse(
                 "строки {}-{}: правка задевает метку своей вставки {} (строки {}-{}) — снимите вставку "
                 "откатом одной вставки («revert»: номер её строки) или сузьте правку внутрь неё".format(
-                    item["first"], item["last"], meta["task"], своя_метка["start"], своя_метка["end"]))
+                    item["first"], item["last"], meta["task"], own_marker["start"], own_marker["end"]))
         if where == "own":
             slots.append(plain(item, "правка внутри своей вставки {} — новой обёртки нет, "
                                      "дата прежняя".format(meta["task"]), lines))
@@ -1408,37 +1408,37 @@ def revert_task(lines, task, base=None, only=None):
     if only is not None:
         # Одна вставка: та своя, в которой лежит строка (самая внутренняя), —
         # вместе со своими вложенными. Остальные вставки задачи остаются.
-        вокруг = [r for r in mine if r["start"] <= only <= r["end"]]
-        if not вокруг:
+        around = [r for r in mine if r["start"] <= only <= r["end"]]
+        if not around:
             raise Refuse(f"строка {only}: своей вставки задачи {task} здесь нет — откат одной вставки "
                          "называет строку внутри неё (метку или код)")
-        цель = max(вокруг, key=lambda r: r["start"])
+        target = max(around, key=lambda r: r["start"])
         if base is not None:
             # Стыки одной вставки с базой не совместить: рядом стоят другие
             # вставки задачи, которых в базе нет. Какие пустые строки на её
             # стыках — разделители записи, решает полный откат (он с базой
             # совмещается); они снимаются заранее, и дальше откат идёт без базы.
-            _, все, _ = revert_task(lines, task, base)
-            своё = next((d for d in все if d["start"] == цель["start"]), None)
-            разделители = sorted(set(своё["dropped"])) if своё else []
-            if своё is not None and своё.get("settled"):
-                без = [line for n, line in enumerate(lines, 1) if n not in разделители]
-                сдвиг = sum(1 for n in разделители if n < only)
-                out, решения, notes = revert_task(без, task, None, only - сдвиг)
-                for d in решения:
-                    if d["start"] + sum(1 for n in разделители if n < цель["start"]) == цель["start"]:
-                        d["start"], d["end"] = цель["start"], цель["end"]
-                        d["dropped"], d["settled"] = разделители, True
-                return out, решения, notes
-        mine = [r for r in mine if цель["start"] <= r["start"] and r["end"] <= цель["end"]]
+            _, all_items, _ = revert_task(lines, task, base)
+            is_own = next((d for d in all_items if d["start"] == target["start"]), None)
+            separators = sorted(set(is_own["dropped"])) if is_own else []
+            if is_own is not None and is_own.get("settled"):
+                without = [line for n, line in enumerate(lines, 1) if n not in separators]
+                shift = sum(1 for n in separators if n < only)
+                out, inner_decisions, notes = revert_task(without, task, None, only - shift)
+                for d in inner_decisions:
+                    if d["start"] + sum(1 for n in separators if n < target["start"]) == target["start"]:
+                        d["start"], d["end"] = target["start"], target["end"]
+                        d["dropped"], d["settled"] = separators, True
+                return out, inner_decisions, notes
+        mine = [r for r in mine if target["start"] <= r["start"] and r["end"] <= target["end"]]
     if not mine:
         return out, decisions, []
-    заведённые, notes = task_regions(out, mine, base) if only is None else ([], [])
-    for имя, начало, конец in заведённые:
-        внутри = [r for r in mine if начало < r["start"] and r["end"] < конец]
-        mine = [r for r in mine if r not in внутри]
-        mine.append({"start": начало, "end": конец, "sign": "+", "task": task, "region": имя,
-                     "inner": [(r["start"], r["end"]) for r in внутри]})
+    created, notes = task_regions(out, mine, base) if only is None else ([], [])
+    for name, region_start, region_end in created:
+        inside = [r for r in mine if region_start < r["start"] and r["end"] < region_end]
+        mine = [r for r in mine if r not in inside]
+        mine.append({"start": region_start, "end": region_end, "sign": "+", "task": task, "region": name,
+                     "inner": [(r["start"], r["end"]) for r in inside]})
     # (начало, конец) восстановленного — после всех откатов — и чьё это решение:
     # снятый разделитель называется у своей вставки, с номером по тексту до
     # правки: при одной итоговой строке «снято: 3» счёт по вставкам не
@@ -1452,7 +1452,7 @@ def revert_task(lines, task, base=None, only=None):
         if sign == "+":
             restored = []
         elif sign == "-":
-            restored = [uncomment(строка) for строка in body if строка.strip()]
+            restored = [uncomment(ln) for ln in body if ln.strip()]
         else:
             # ИЗМЕНЕН: старый код — первый непрерывный блок закомментированных строк
             restored, seen = [], False
@@ -1515,9 +1515,9 @@ def revert_task(lines, task, base=None, only=None):
         # Сверено или нет — у каждой вставки своё: иначе одно несверенное окно
         # объявляло бы несверенными все стыки модуля, и по diff пришлось бы
         # проверять места, которые совпали с HEAD побайтно.
-        несверенные = {candidates[index][0] for index in failed}
+        unreconciled = {candidates[index][0] for index in failed}
         for k, d in enumerate(decisions):
-            d["settled"] = k not in несверенные
+            d["settled"] = k not in unreconciled
     return out, decisions, notes
 
 
@@ -1529,32 +1529,32 @@ def task_regions(lines, mine, base):
     базовой версии таких заголовков меньше, чем в модуле. Без базовой версии
     чья область, не сказать: она остаётся, о ней — примечание.
     """
-    добавленные = [r for r in mine if r["sign"] == "+"]
-    кандидаты = []
-    for имя, начало, конец in module_regions(lines):
-        внутри = [r for r in mine if начало < r["start"] and r["end"] < конец]
-        if not внутри or any(r not in добавленные for r in внутри):
+    added = [r for r in mine if r["sign"] == "+"]
+    candidates = []
+    for name, start, end in module_regions(lines):
+        inside = [r for r in mine if start < r["start"] and r["end"] < end]
+        if not inside or any(r not in added for r in inside):
             continue
-        покрыто = {n for r in внутри for n in range(r["start"], r["end"] + 1)}
-        if all(n in покрыто or not lines[n - 1].strip() for n in range(начало + 1, конец)):
-            кандидаты.append((имя, начало, конец))
-    if not кандидаты:
+        covered = {n for r in inside for n in range(r["start"], r["end"] + 1)}
+        if all(n in covered or not lines[n - 1].strip() for n in range(start + 1, end)):
+            candidates.append((name, start, end))
+    if not candidates:
         return [], []
     if base is None:
-        return [], [f"область «{имя}» (строки {начало}-{конец}) после отката останется "
+        return [], [f"область «{name}» (строки {start}-{end}) после отката останется "
                     "пустой — если её завела задача, удалите её: базовой версии модуля нет, "
-                    "чья область, не сверить" for имя, начало, конец in кандидаты]
+                    "чья область, не сверить" for name, start, end in candidates]
 
-    def заголовки(строки):
-        счёт = {}
-        for строка in строки:
-            if строка.strip().startswith("#Область"):
-                счёт[строка.strip()] = счёт.get(строка.strip(), 0) + 1
-        return счёт
+    def titles(lines):
+        count = {}
+        for line in lines:
+            if line.strip().startswith("#Область"):
+                count[line.strip()] = count.get(line.strip(), 0) + 1
+        return count
 
-    в_базе, в_модуле = заголовки(base), заголовки(lines)
-    return [о for о in кандидаты
-            if в_модуле.get(lines[о[1] - 1].strip(), 0) > в_базе.get(lines[о[1] - 1].strip(), 0)], []
+    in_base, in_module = titles(base), titles(lines)
+    return [ob for ob in candidates
+            if in_module.get(lines[ob[1] - 1].strip(), 0) > in_base.get(lines[ob[1] - 1].strip(), 0)], []
 
 
 #: Строк контекста по краям окна, в котором стык сверяется с базовой версией.
@@ -1667,17 +1667,17 @@ def declared_methods(lines):
     скобкой параметров, а параметры бывают на нескольких строках — поэтому
     смотрится текст от объявления до скобки, без меток вставок.
     """
-    методы = {}
-    for номер, строка in enumerate(lines, start=1):
-        найдено = DECLARATION.match(строка)
-        if найдено is None or найдено.group(1) in методы:
+    methods = {}
+    for number, line in enumerate(lines, start=1):
+        found = DECLARATION.match(line)
+        if found is None or found.group(1) in methods:
             continue
-        хвост = " ".join(code_part(lines[n])
-                         for n in range(номер - 1, min(len(lines), номер - 1 + DECLARATION_SPAN)))
-        скобка = хвост.find(")")
-        экспорт = скобка >= 0 and EXPORT_AFTER_PARAMETERS.match(хвост, скобка) is not None
-        методы[найдено.group(1)] = (экспорт, номер)
-    return методы
+        tail = " ".join(code_part(lines[n])
+                         for n in range(number - 1, min(len(lines), number - 1 + DECLARATION_SPAN)))
+        bracket = tail.find(")")
+        export = bracket >= 0 and EXPORT_AFTER_PARAMETERS.match(tail, bracket) is not None
+        methods[found.group(1)] = (export, number)
+    return methods
 
 
 def place_of(lines, number, insert):
@@ -1701,16 +1701,16 @@ def place_of(lines, number, insert):
         if insert and number == end:
             return f"в конце метода «{name}»"
         return f"в методе «{name}»"
-    области = [о for о in module_regions(lines) if о[1] <= number <= о[2]]
-    if not области:
+    regions = [ob for ob in module_regions(lines) if ob[1] <= number <= ob[2]]
+    if not regions:
         return "вне областей"
-    имя, начало, конец = области[-1]                    # самая вложенная
-    if number == начало:
-        return f"перед областью «{имя}»" if insert else f"начало области «{имя}»"
-    if insert and number == конец:
-        return f"в конце области «{имя}»"
-    раньше = [m[0] for m in methods if начало < m[3] < number]
-    return f"в области «{имя}»" + (f", после метода «{раньше[-1]}»" if раньше else "")
+    region_name, region_start, region_end = regions[-1]                    # самая вложенная
+    if number == region_start:
+        return f"перед областью «{region_name}»" if insert else f"начало области «{region_name}»"
+    if insert and number == region_end:
+        return f"в конце области «{region_name}»"
+    earlier = [m[0] for m in methods if region_start < m[3] < number]
+    return f"в области «{region_name}»" + (f", после метода «{earlier[-1]}»" if earlier else "")
 
 
 def directive_split(lines, number):
@@ -1798,12 +1798,12 @@ def rename_edits(lines, old_name, new_name, own=()):
     return edits, foreign
 
 
-def all_refusals(отказы):
+def all_refusals(refusals):
     """Отказы по правкам одного модуля — одним текстом, каждый своей строкой."""
-    if len(отказы) == 1:
-        return отказы[0]
-    return f"правок с отказом: {len(отказы)}:\n" + "\n".join(
-        f"    {номер}) {текст}" for номер, текст in enumerate(отказы, 1))
+    if len(refusals) == 1:
+        return refusals[0]
+    return f"правок с отказом: {len(refusals)}:\n" + "\n".join(
+        f"    {number}) {text}" for number, text in enumerate(refusals, 1))
 
 
 def apply_all(lines, edits, meta):
@@ -1813,19 +1813,19 @@ def apply_all(lines, edits, meta):
     # Отказы по правкам — все разом: отказ по первой правке прятал бы вторую
     # проблему того же модуля (устаревший якорь, повтор метода) до следующего
     # вызова.
-    items, отказы = [], []
+    items, refusals = [], []
     for edit in edits:
         try:
             item = checked(edit, lines)
-        except Refuse as отказ:
-            отказы.append(str(отказ))
+        except Refuse as refusal:
+            refusals.append(str(refusal))
             continue
-        повтор = repeated(item, lines, ranges, meta["task"])
-        if повтор:
-            отказы.append(повтор)
+        repeat = repeated(item, lines, ranges, meta["task"])
+        if repeat:
+            refusals.append(repeat)
         items.append(item)
-    if отказы:
-        raise Refuse(all_refusals(отказы))
+    if refusals:
+        raise Refuse(all_refusals(refusals))
 
     # правило LSP: диапазоны правок не пересекаются, иначе часть документа
     # правилась бы дважды и результат зависел бы от порядка
@@ -1854,8 +1854,8 @@ def apply_all(lines, edits, meta):
         # открывающая — на правки ниже. Иначе закрывающая на конце соседней
         # функции над правками называлась бы «сверьте решение» в каждом ответе,
         # хотя на решения не влияет.
-        закрывающая = "закрывающая метка без открывающей" in p
-        if any((n - NOTE_REACH <= i["first"] <= n) if закрывающая
+        closing = "закрывающая метка без открывающей" in p
+        if any((n - NOTE_REACH <= i["first"] <= n) if closing
                else (n <= i["last"] <= n + NOTE_REACH) for i in items):
             near.append(p)
         else:
@@ -1916,9 +1916,9 @@ def apply_all(lines, edits, meta):
             offset += len(d["block"]) - (end - start + 1)
     # и кто стоит вокруг него — строкой выше и строкой ниже
     for _, _, d in spans:
-        после = d["at"] - 1 + len(d["block"] or ())
+        after = d["at"] - 1 + len(d["block"] or ())
         d["context"] = (lines[d["at"] - 2] if d["at"] >= 2 else None,
-                        lines[после] if после < len(lines) else None)
+                        lines[after] if after < len(lines) else None)
 
     return lines, decisions
 
@@ -1960,17 +1960,17 @@ def revert(lines, task, base=None, only=None):
                    "проверьте diff"}
     # Восстановленный текст — в решении: по одним счётчикам не видно до
     # записи, что вернётся на место.
-    def разделители(номера):
-        if not номера:
+    def separators(numbers):
+        if not numbers:
             return ""
-        return (f", снята пустая строка-разделитель {номера[0]}" if len(номера) == 1
-                else ", сняты пустые строки-разделители " + ", ".join(map(str, sorted(номера))))
+        return (f", снята пустая строка-разделитель {numbers[0]}" if len(numbers) == 1
+                else ", сняты пустые строки-разделители " + ", ".join(map(str, sorted(numbers))))
 
-    def что_снято(d):
+    def what_removed(d):
         if d.get("region"):
-            вставки = ", ".join(f"{a}-{b}" for a, b in d["inner"])
+            insertions = ", ".join(f"{a}-{b}" for a, b in d["inner"])
             return (f"снята область «{d['region']}» со вставками задачи {task} (строки "
-                    f"{вставки}) — её завела задача: в базовой версии её нет")
+                    f"{insertions}) — её завела задача: в базовой версии её нет")
         return f"снята вставка [{d['sign'] or '?'}] задачи {task}"
 
     # по порядку строк: снимаются снизу вверх, а читать снизу вверх
@@ -1979,22 +1979,22 @@ def revert(lines, task, base=None, only=None):
     # Где восстановленное окажется в новом тексте: показ отката нумерует
     # строки так же, как показ правки. Сдвиг — от снятого выше и
     # от снятых выше разделителей.
-    сдвиг, снятые = 0, sorted(n for d in reverted for n in d["dropped"])
+    shift, removed_items = 0, sorted(n for d in reverted for n in d["dropped"])
     decisions = []
     for d in reverted:
-        выше = sum(1 for n in снятые if n < d["start"])
-        at = d["start"] + сдвиг - выше
+        above = sum(1 for n in removed_items if n < d["start"])
+        at = d["start"] + shift - above
         # соседи восстановленного в новом тексте; у пустого — строки стыка
-        после = at - 1 + len(d["lines"])
+        after = at - 1 + len(d["lines"])
         context = (new_lines[at - 2] if at >= 2 else None,
-                   new_lines[после] if после < len(new_lines) else None)
+                   new_lines[after] if after < len(new_lines) else None)
         decisions.append(Decision(
             d["start"], d["start"], d["end"], False, "откат",
             "{}, восстановлено строк: {}{}{}".format(
-                что_снято(d), d["restored"], разделители(d["dropped"]), edge[d.get("settled")]),
+                what_removed(d), d["restored"], separators(d["dropped"]), edge[d.get("settled")]),
             block=tuple(d["lines"]), at=at, context=context,
             dropped=tuple(sorted(d["dropped"]))))
-        сдвиг += d["restored"] - (d["end"] - d["start"] + 1)
+        shift += d["restored"] - (d["end"] - d["start"] + 1)
     if not reverted:
         decisions.append(Decision(0, 0, 0, False, None, f"вставок задачи {task} в модуле нет", True))
     decisions.extend(Decision(0, 0, 0, False, None, n, True) for n in notes)
@@ -2025,17 +2025,17 @@ def rename(lines, old_name, new_name, own=()):
     другого модуля — обычные правки, а не переименование.
     """
     span = method_range(lines, old_name)
-    занят = method_range(lines, new_name)
-    if span is None and занят is not None:
+    occupied = method_range(lines, new_name)
+    if span is None and occupied is not None:
         # Повтор задания после записи: «не объявлен» читалось бы как ошибка в
         # имени, хотя переименование уже внесено.
         raise Refuse(f"метод «{old_name}» в модуле не объявлен, а «{new_name}» объявлен "
-                     f"(строка {занят[0]}) — переименование уже внесено?")
+                     f"(строка {occupied[0]}) — переименование уже внесено?")
     if span is None:
         raise Refuse(f"метод «{old_name}» в модуле не объявлен — переименовывается метод "
                      "своего модуля; обращения к методу другого модуля правятся обычными правками")
-    if занят is not None:
-        raise Refuse(f"метод «{new_name}» в модуле уже есть (строка {занят[0]}) — "
+    if occupied is not None:
+        raise Refuse(f"метод «{new_name}» в модуле уже есть (строка {occupied[0]}) — "
                      "переименование объявило бы его второй раз")
     edits, foreign = rename_edits(lines, old_name, new_name, own)
     notes = []

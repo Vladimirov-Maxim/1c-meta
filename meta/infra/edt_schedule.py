@@ -15,58 +15,58 @@ NAMESPACE = "http://g5.1c.ru/v8/dt/schedule"
 ATTRIBUTE = re.compile(r'(\w+)="([^"]*)"')
 WEEKDAYS_BACK = {v: k for k, v in домен.WEEKDAYS.items()}
 MONTHS_BACK = {v: k for k, v in домен.MONTHS.items()}
-ЧИСЛА = set(домен.ЧИСЛА)
+NUMBERS = set(домен.NUMBERS)
 
 
-def _атрибуты(пары, значения):
+def _атрибуты(пары, values):
     out = []
-    for поле, атрибут in пары:
-        значение = значения.get(поле, домен.ALWAYS.get(поле))
-        if значение is None:
+    for field, атрибут in пары:
+        value = values.get(field, домен.ALWAYS.get(field))
+        if value is None:
             continue
-        out.append(f'{атрибут}="{значение}"')
+        out.append(f'{атрибут}="{value}"')
     return " ".join(out)
 
 
-def render(расписание):
+def render(schedule):
     """Расписание словами задания -> текст файла (переводы строк — LF)."""
-    голова = f'<schedule:Schedule xmlns:schedule="{NAMESPACE}" {_атрибуты(домен.ATTRIBUTES, расписание)}'
-    дети = ([f"  <weekDays>{домен.WEEKDAYS[x]}</weekDays>" for x in расписание.get("дниНедели") or ()]
-            + [f"  <months>{домен.MONTHS[x]}</months>" for x in расписание.get("месяцы") or ()]
-            + [f"  <dailySchedules {_атрибуты(домен.DAILY, день)}/>" for день in расписание.get("расписанияДня")
+    голова = f'<schedule:Schedule xmlns:schedule="{NAMESPACE}" {_атрибуты(домен.ATTRIBUTES, schedule)}'
+    дети = ([f"  <weekDays>{домен.WEEKDAYS[x]}</weekDays>" for x in schedule.get("дниНедели") or ()]
+            + [f"  <months>{домен.MONTHS[x]}</months>" for x in schedule.get("месяцы") or ()]
+            + [f"  <dailySchedules {_атрибуты(домен.DAILY, day)}/>" for day in schedule.get("расписанияДня")
                or ()])
-    строки = ['<?xml version="1.0" encoding="UTF-8"?>']
+    lines = ['<?xml version="1.0" encoding="UTF-8"?>']
     if дети:
-        строки += [голова + ">", *дети, "</schedule:Schedule>"]
+        lines += [голова + ">", *дети, "</schedule:Schedule>"]
     else:
-        строки.append(голова + "/>")
-    return "\n".join(строки) + "\n"
+        lines.append(голова + "/>")
+    return "\n".join(lines) + "\n"
 
 
 def parse(text):
     """Текст файла -> расписание словами задания (только заданное: обязательные
     атрибуты с пустыми значениями не называются)."""
-    по_атрибуту = {атрибут: поле for поле, атрибут in домен.ATTRIBUTES}
+    по_атрибуту = {атрибут: field for field, атрибут in домен.ATTRIBUTES}
     голова = re.search(r"<schedule:Schedule ([^>]*?)/?>", text)
-    расписание = {}
-    for атрибут, значение in ATTRIBUTE.findall(голова.group(1) if голова else ""):
-        поле = по_атрибуту.get(атрибут)
-        if поле is None:
+    schedule = {}
+    for атрибут, value in ATTRIBUTE.findall(голова.group(1) if голова else ""):
+        field = по_атрибуту.get(атрибут)
+        if field is None:
             continue
-        if поле in ЧИСЛА:
-            расписание[поле] = int(значение)
-        elif домен.ALWAYS.get(поле) != значение:
-            расписание[поле] = значение
-    дни = [WEEKDAYS_BACK[x] for x in re.findall(r"<weekDays>(\w+)</weekDays>", text)]
+        if field in NUMBERS:
+            schedule[field] = int(value)
+        elif домен.ALWAYS.get(field) != value:
+            schedule[field] = value
+    days = [WEEKDAYS_BACK[x] for x in re.findall(r"<weekDays>(\w+)</weekDays>", text)]
     месяцы = [MONTHS_BACK[x] for x in re.findall(r"<months>(\w+)</months>", text)]
-    if дни:
-        расписание["дниНедели"] = дни
+    if days:
+        schedule["дниНедели"] = days
     if месяцы:
-        расписание["месяцы"] = месяцы
+        schedule["месяцы"] = месяцы
     дневные = []
     for атрибуты in re.findall(r"<dailySchedules ([^>]*?)/>", text):
-        по_дню = {атрибут: поле for поле, атрибут in домен.DAILY}
+        по_дню = {атрибут: field for field, атрибут in домен.DAILY}
         дневные.append({по_дню[a]: v for a, v in ATTRIBUTE.findall(атрибуты) if a in по_дню})
     if дневные:
-        расписание["расписанияДня"] = дневные
-    return расписание
+        schedule["расписанияДня"] = дневные
+    return schedule

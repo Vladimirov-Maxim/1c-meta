@@ -31,9 +31,9 @@ false: команда меток вставок не ставит — правк
 
 import re
 
-from ..domain.atomic_roles import СхемаРолей
-from ..domain.conventions import ПЛАТФОРМА, УРОВНИ, КодФорм, Соглашения
-from ..domain.form_dialect import ПЛАТФОРМА as ПЛАТФОРМА_ДИАЛЕКТ
+from ..domain.atomic_roles import RoleSchema
+from ..domain.conventions import LEVELS, PLATFORM, Conventions, FormCode
+from ..domain.form_dialect import PLATFORM as PLATFORM_DIALECT
 from ..domain.model import Refuse
 
 КЛЮЧИ = ("приставка", "метки", "атомарныеРоли", "кодФормы", "правила")
@@ -49,7 +49,7 @@ from ..domain.model import Refuse
 ТЕГ = re.compile(r"^#[^\s#]+$")
 
 
-def соглашения(данные, откуда="профиль", диалект_из=None):
+def conventions(данные, откуда="профиль", диалект_из=None):
     """Разобранный профиль. Ошибка в нём — отказ с объяснением, а не догадка.
 
     `диалект_из` — как получить диалект по имени файла из «кодФормы.диалект»:
@@ -58,120 +58,120 @@ def соглашения(данные, откуда="профиль", диале
     """
     if not isinstance(данные, dict):
         raise Refuse(f"{откуда}: ожидается объект JSON с ключами {', '.join(КЛЮЧИ)}")
-    лишние = sorted(set(данные) - set(КЛЮЧИ))
-    if лишние:
-        raise Refuse(f"{откуда}: неизвестные ключи {', '.join(лишние)}; известны: {', '.join(КЛЮЧИ)}")
-    приставка, другие = _приставки(данные.get("приставка"), откуда)
-    правила = данные.get("правила") or {}
-    if not isinstance(правила, dict):
+    extra = sorted(set(данные) - set(КЛЮЧИ))
+    if extra:
+        raise Refuse(f"{откуда}: неизвестные ключи {', '.join(extra)}; известны: {', '.join(КЛЮЧИ)}")
+    prefix, others = _приставки(данные.get("приставка"), откуда)
+    rules = данные.get("правила") or {}
+    if not isinstance(rules, dict):
         raise Refuse(f"{откуда}: «правила» — объект «код находки: уровень»")
-    for код, уровень in правила.items():
-        if not _код_допустим(код):
-            raise Refuse(f"{откуда}: «{код}» — не код находки: заглавные слова через дефис, "
+    for code, level in rules.items():
+        if not _код_допустим(code):
+            raise Refuse(f"{откуда}: «{code}» — не код находки: заглавные слова через дефис, "
                          "как в ответе инструмента, например «МД-ПРЕФИКС»")
-        if уровень not in УРОВНИ:
-            raise Refuse(f"{откуда}: правило «{код}» — уровень «{уровень}»; допустимы: "
-                         f"{', '.join(УРОВНИ)}")
-    return Соглашения(приставка=приставка, другие_приставки=другие,
-                      тег_меток=_тег(данные.get("метки"), откуда),
-                      метки=_метки_ставятся(данные.get("метки"), откуда),
-                      атомарные_роли=_схема_ролей(данные.get("атомарныеРоли"), откуда),
-                      код_форм=_код_форм(данные.get("кодФормы"), откуда, диалект_из),
-                      правила=tuple(sorted(правила.items())))
+        if level not in LEVELS:
+            raise Refuse(f"{откуда}: правило «{code}» — уровень «{level}»; допустимы: "
+                         f"{', '.join(LEVELS)}")
+    return Conventions(prefix=prefix, other_prefixes=others,
+                      marker_tag=_тег(данные.get("метки"), откуда),
+                      markers=_метки_ставятся(данные.get("метки"), откуда),
+                      atomic_roles=_схема_ролей(данные.get("атомарныеРоли"), откуда),
+                      form_code=_код_форм(данные.get("кодФормы"), откуда, диалект_из),
+                      rules=tuple(sorted(rules.items())))
 
 
-def _приставки(значение, откуда):
+def _приставки(value, откуда):
     """(основная приставка, другие свои). Список — основная первой: её ставят
     новым именам и называют в находках, остальные тоже свои — прежние приставки
     команды, имена тестовых модулей («ОМ_мой_»)."""
-    if значение is None:
+    if value is None:
         return None, ()
-    список = значение if isinstance(значение, list) else [значение]
-    if not список or not all(isinstance(п, str) and п.strip() for п in список):
+    список = value if isinstance(value, list) else [value]
+    if not список or not all(isinstance(pt, str) and pt.strip() for pt in список):
         raise Refuse(f"{откуда}: «приставка» — непустая строка или список строк, например "
                      "«мой_» или [«мой_», «ОМ_мой_»]")
     return список[0], tuple(список[1:])
 
 
-def _код_форм(код, откуда, диалект_из=None):
+def _код_форм(code, откуда, диалект_из=None):
     """Язык кода доработки формы; без раздела — методы платформы."""
-    if код is None:
-        return КодФорм()
-    if not isinstance(код, dict):
+    if code is None:
+        return FormCode()
+    if not isinstance(code, dict):
         raise Refuse(f"{откуда}: «кодФормы» — объект: {{\"язык\": \"платформа\"}} или "
                      "{\"язык\": <язык команды>, \"диалект\": <файл диалекта>, …}")
-    язык = код.get("язык", ПЛАТФОРМА)
-    файл = код.get("диалект")
+    language = code.get("язык", PLATFORM)
+    файл = code.get("диалект")
     # Настройки — значением, как и все соглашения: по ним кешируется реестр видов.
-    настройки = tuple(sorted((ключ, _значением(значение)) for ключ, значение in код.items()
-                             if ключ not in КЛЮЧИ_КОДА))
+    settings = tuple(sorted((key, _значением(value)) for key, value in code.items()
+                             if key not in КЛЮЧИ_КОДА))
     try:
         if файл is None:
-            диалект = ПЛАТФОРМА_ДИАЛЕКТ
+            dialect = PLATFORM_DIALECT
         elif not isinstance(файл, str) or not файл.strip():
             raise Refuse("«диалект» — путь к файлу диалекта строкой")
         elif диалект_из is None:
             raise Refuse("«диалект» подключается только из файла профиля "
                          "(META_PROFILE или --профиль): путь к нему считается от профиля")
         else:
-            диалект = диалект_из(файл)
-        return КодФорм(язык, диалект, настройки)
-    except Refuse as отказ:
-        raise Refuse(f"{откуда}: «кодФормы»: {отказ}") from отказ
+            dialect = диалект_из(файл)
+        return FormCode(language, dialect, settings)
+    except Refuse as refusal:
+        raise Refuse(f"{откуда}: «кодФормы»: {refusal}") from refusal
 
 
-def _значением(значение):
+def _значением(value):
     """Значение настройки — неизменяемым: список кортежем, объект — парами."""
-    if isinstance(значение, list):
-        return tuple(_значением(элемент) for элемент in значение)
-    if isinstance(значение, dict):
-        return tuple(sorted((ключ, _значением(элемент)) for ключ, элемент in значение.items()))
-    return значение
+    if isinstance(value, list):
+        return tuple(_значением(element) for element in value)
+    if isinstance(value, dict):
+        return tuple(sorted((key, _значением(element)) for key, element in value.items()))
+    return value
 
 
-def _метки_ставятся(метки, откуда):
+def _метки_ставятся(markers, откуда):
     """`метки.ставить` — ставит ли команда метки вставок; по умолчанию — да."""
-    ставить = (метки or {}).get("ставить", True) if isinstance(метки, dict) else True
+    ставить = (markers or {}).get("ставить", True) if isinstance(markers, dict) else True
     if not isinstance(ставить, bool):
         raise Refuse(f"{откуда}: «метки.ставить» — true или false")
     return ставить
 
 
-def _тег(метки, откуда):
+def _тег(markers, откуда):
     """Метка команды из раздела «метки»; `None` — команда её не ставит."""
-    if метки is None:
+    if markers is None:
         return None
-    if not isinstance(метки, dict):
+    if not isinstance(markers, dict):
         raise Refuse(f"{откуда}: «метки» — объект, например {{\"тег\": \"#TEAM\"}}")
-    лишние = sorted(set(метки) - set(КЛЮЧИ_МЕТОК))
-    if лишние:
-        raise Refuse(f"{откуда}: в «метки» неизвестные ключи {', '.join(лишние)}; "
+    extra = sorted(set(markers) - set(КЛЮЧИ_МЕТОК))
+    if extra:
+        raise Refuse(f"{откуда}: в «метки» неизвестные ключи {', '.join(extra)}; "
                      f"известны: {', '.join(КЛЮЧИ_МЕТОК)}")
-    тег = метки.get("тег")
+    тег = markers.get("тег")
     if тег is not None and not (isinstance(тег, str) and ТЕГ.match(тег)):
         raise Refuse(f"{откуда}: «метки.тег» — «#» и слово без пробелов, например «#TEAM»")
     return тег
 
 
-def _схема_ролей(схема, откуда):
+def _схема_ролей(schema, откуда):
     """Схема имён атомарных ролей; `None` — команда их не заводит. Что схема
     даёт различимые имена, проверяет домен — здесь только форма записи."""
-    if схема is None:
+    if schema is None:
         return None
-    if not isinstance(схема, dict):
+    if not isinstance(schema, dict):
         raise Refuse(f"{откуда}: «атомарныеРоли» — объект с ключами «имя» и «синоним»")
-    лишние = sorted(set(схема) - set(КЛЮЧИ_СХЕМЫ))
-    if лишние:
-        raise Refuse(f"{откуда}: в «атомарныеРоли» неизвестные ключи {', '.join(лишние)}; "
+    extra = sorted(set(schema) - set(КЛЮЧИ_СХЕМЫ))
+    if extra:
+        raise Refuse(f"{откуда}: в «атомарныеРоли» неизвестные ключи {', '.join(extra)}; "
                      f"известны: {', '.join(КЛЮЧИ_СХЕМЫ)}")
-    if not all(isinstance(схема.get(ключ), str) and схема[ключ].strip() for ключ in КЛЮЧИ_СХЕМЫ):
+    if not all(isinstance(schema.get(key), str) and schema[key].strip() for key in КЛЮЧИ_СХЕМЫ):
         raise Refuse(f"{откуда}: в «атомарныеРоли» нужны «имя» и «синоним» — шаблоны строкой, "
                      "например «мой_атом_{вид}_{объект}_{право}» и «Атом. {вид} - {синоним} - {право}»")
     try:
-        return СхемаРолей(схема["имя"], схема["синоним"])
-    except Refuse as отказ:
-        raise Refuse(f"{откуда}: {отказ}") from отказ
+        return RoleSchema(schema["имя"], schema["синоним"])
+    except Refuse as refusal:
+        raise Refuse(f"{откуда}: {refusal}") from refusal
 
 
-def _код_допустим(код):
-    return isinstance(код, str) and bool(КОД.match(код))
+def _код_допустим(code):
+    return isinstance(code, str) and bool(КОД.match(code))

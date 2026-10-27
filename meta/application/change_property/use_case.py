@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 
 from ...domain import query_text
-from ...domain.conventions import НЕЙТРАЛЬНЫЕ, Соглашения
+from ...domain.conventions import NEUTRAL, Conventions
 from ...domain.kinds import kind_of
 from ...domain.model import Finding, Host, ListEdit, Spec, TextEdit
 from ..dto import Result
@@ -29,7 +29,7 @@ class ChangePropertyUseCase:
     """
 
     platform: Platform
-    соглашения: Соглашения = НЕЙТРАЛЬНЫЕ
+    conventions: Conventions = NEUTRAL
 
     def execute(self, changes, apply_now=False):
         """`changes` — пары (путь, поля). Путь: [(вид, имя), …] от объекта вглубь."""
@@ -38,8 +38,8 @@ class ChangePropertyUseCase:
         разницы = []
         for path, fields in changes:
             fields, перечни = self._lists(path, fields)
-            fields, тексты, разница = self._texts(path, fields)
-            перечни += тексты
+            fields, texts, разница = self._texts(path, fields)
+            перечни += texts
             разницы += разница
             resolved.append((path, fields))
             target_kind, target_name = path[-1]
@@ -49,18 +49,18 @@ class ChangePropertyUseCase:
             # родителя, и любое правило про имя объекта прочитало бы «Строки».
             host = (Host(path[-2][0], path[-2][1], path=path[:-1])
                     if len(path) > 1 else None)
-            kind = kind_of(target_kind, self.соглашения)
+            kind = kind_of(target_kind, self.conventions)
             spec = _spec(target_kind, target_name, fields)
             per_object.append((spec, kind.check_change(fields, host)
                                + self._related(kind, path, fields) + перечни))
         # соглашения команды: выключенные правила — прочь, уровни — из профиля
-        per_object = [(x, self.соглашения.применить(f)) for x, f in per_object]
+        per_object = [(x, self.conventions.apply(f)) for x, f in per_object]
         if any(f.blocking for _, findings in per_object for f in findings):
             return Result(per_object)
 
         plan = self.platform.prepare_changes(resolved)
-        for строка in разницы:
-            plan.note(строка)
+        for line in разницы:
+            plan.note(line)
         written = plan.apply() if apply_now else []
         return Result(per_object, plan, written)
 
@@ -74,23 +74,23 @@ class ChangePropertyUseCase:
         if not правки:
             return fields, [], []
         записано, _ = self.platform.read_spec(path)
-        готово, находки, разница = dict(fields), [], []
-        адрес = ".".join(f"{вид}.{имя}" for вид, имя in path)
+        ready, findings, разница = dict(fields), [], []
+        address = ".".join(f"{kind}.{name}" for kind, name in path)
         for field, правка in правки.items():
-            было = записано.fields.get(field) or ""
-            стало, беды = правка.applied(было)
-            находки += [Finding("ТЕКСТ-ЯКОРЬ", беда, field) for беда in беды]
-            if стало is None:
-                готово.pop(field)
+            before = записано.fields.get(field) or ""
+            after_, problems = правка.applied(before)
+            findings += [Finding("ТЕКСТ-ЯКОРЬ", problem, field) for problem in problems]
+            if after_ is None:
+                ready.pop(field)
                 continue
-            ошибки, предупреждения = query_text.problems(было, стало)
-            находки += [Finding("ТЕКСТ-СКОБКИ", x, field) for x in ошибки]
-            находки += [Finding("ТЕКСТ-ПАКЕТ", x, field, Finding.WARNING) for x in предупреждения]
-            готово[field] = стало
-            разница.append(f"{адрес}: «{field}» правится фрагментами ({правка}):")
+            errors, warnings = query_text.problems(before, after_)
+            findings += [Finding("ТЕКСТ-СКОБКИ", x, field) for x in errors]
+            findings += [Finding("ТЕКСТ-ПАКЕТ", x, field, Finding.WARNING) for x in warnings]
+            ready[field] = after_
+            разница.append(f"{address}: «{field}» правится фрагментами ({правка}):")
             разница += ["    " + x.rstrip("\n") for x in difflib.unified_diff(
-                было.split("\n"), стало.split("\n"), lineterm="", n=1)][2:]
-        return готово, находки, разница
+                before.split("\n"), after_.split("\n"), lineterm="", n=1)][2:]
+        return ready, findings, разница
 
     def _lists(self, path, fields):
         """Правки полей-перечней -> перечни целиком, сведённые с записанным.
@@ -102,44 +102,44 @@ class ChangePropertyUseCase:
         if not правки:
             return fields, []
         записано, _ = self.platform.read_spec(path)
-        kind = kind_of(path[-1][0], self.соглашения)
-        готово, находки = dict(fields), []
+        kind = kind_of(path[-1][0], self.conventions)
+        ready, findings = dict(fields), []
         for field, правка in правки.items():
-            было = list(записано.fields.get(field) or [])
-            новый, уже, нет = правка.applied(было)
-            for x in нет:
-                находки.append(Finding(
+            before = list(записано.fields.get(field) or [])
+            new, already, missing = правка.applied(before)
+            for x in missing:
+                findings.append(Finding(
                     "ПЕРЕЧЕНЬ-УБРАТЬ-НЕТ",
                     f"«{x}» в «{field}» нет — убирать нечего", field))
-            for x in уже:
-                находки.append(Finding(
+            for x in already:
+                findings.append(Finding(
                     "ПЕРЕЧЕНЬ-УЖЕ-ЕСТЬ",
                     f"«{x}» в «{field}» уже есть — второй раз не добавляется",
                     field, Finding.WARNING))
-            добавлено = правка.added(было)
+            добавлено = правка.added(before)
             if добавлено:
-                находки += [f for f in kind.own_findings(
+                findings += [f for f in kind.own_findings(
                     Spec(kind.name, {field: добавлено}), self.platform)
                     if f.field == field]
             if правка.replace is not None:
-                ушло = [x for x in было if x not in новый]
+                ушло = [x for x in before if x not in new]
                 if ушло:
-                    находки.append(Finding(
+                    findings.append(Finding(
                         "ПЕРЕЧЕНЬ-ЗАМЕНА",
                         f"«{field}» заменяется целиком; уходит {len(ушло)}: "
                         + ", ".join(ушло[:10]) + (" …" if len(ушло) > 10 else ""),
                         field, Finding.WARNING))
-            готово[field] = новый
-        return готово, находки
+            ready[field] = new
+        return ready, findings
 
     def _related(self, kind, path, fields):
         """Правка поля из связанной группы — проверка группы вместе с тем, что
         у объекта уже записано. Нет таких полей в правке — выгрузка не читается."""
-        if not any(set(группа) & set(fields) for группа in kind.RELATED):
+        if not any(set(group) & set(fields) for group in kind.RELATED):
             return []
         записано, _ = self.platform.read_spec(path)
-        объект = Spec(записано.kind, {**записано.fields, **fields})
-        return kind.related_findings(объект, self.platform, fields)
+        obj = Spec(записано.kind, {**записано.fields, **fields})
+        return kind.related_findings(obj, self.platform, fields)
 
 
 def _spec(kind, name, fields):

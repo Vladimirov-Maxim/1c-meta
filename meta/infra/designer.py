@@ -98,10 +98,10 @@ class DesignerDump(Repository, Platform):
                     # Процедура уже есть — заводить не нужно, и подсказка не зовёт
                     # завести существующую. Не годится она обработчиком — это
                     # находка сценария, а не пояснение.
-                    есть = existing_handler(module_text.splitlines(), name)
-                    if есть is not None:
+                    exists = existing_handler(module_text.splitlines(), name)
+                    if exists is not None:
                         notes.append(f"обработчик {name}: процедура в модуле формы уже есть "
-                                     f"(строка {есть.line}) — заводить не нужно")
+                                     f"(строка {exists.line}) — заводить не нужно")
                         continue
                     # Не «области нет — заведите её», а куда; три сообщения —
                     # отдельными фразами, а заготовка в конце названа заготовкой.
@@ -124,12 +124,12 @@ class DesignerDump(Repository, Platform):
         счётом, что у заготовок: у кода формы имена с приставкой
         «Подключаемый_» — и у событий элементов, и у действий команд: обоих он
         назначает программно."""
-        имя = code_handler_name if edits.as_code else (lambda handler: handler)
+        name = code_handler_name if edits.as_code else (lambda handler: handler)
         handlers = [("таблица" if e.kind == "ТаблицаФормы" else "надпись" if e.kind == "Надпись"
-                     else "элемент", event, имя(handler), e.name)
+                     else "элемент", event, name(handler), e.name)
                     for e in edits.all_elements() for event, handler in e.events.items()]
         handlers += [("форма", event, handler, None) for event, handler in edits.events.items()]
-        handlers += [("команда", None, имя(c.action), c.name) for c in edits.commands if c.action]
+        handlers += [("команда", None, name(c.action), c.name) for c in edits.commands if c.action]
         return handlers
 
     def handler_signatures(self, edits):
@@ -140,7 +140,7 @@ class DesignerDump(Repository, Platform):
         return [(name, directive, parameters or None) for _, name, directive, parameters
                 in form_formats.for_version(FORMAT_VERSION).handler_procedures(handlers, edits)]
 
-    def render_form_code(self, edits, view=None, код_форм=None):
+    def render_form_code(self, edits, view=None, form_code=None):
         """(текст кода доработки формы, процедуры-обработчики для модуля формы).
 
         Язык — по соглашениям команды: методы платформы пишет перекладка,
@@ -160,16 +160,16 @@ class DesignerDump(Repository, Platform):
         module_lines = (_read_text(module_path).splitlines() if os.path.isfile(module_path)
                         else [])
 
-        def где(region, name):
-            есть = existing_handler(module_lines, name)
-            if есть is not None:
-                return f"уже есть в модуле формы (строка {есть.line}) — заводить не нужно"
+        def where(region, name):
+            exists = existing_handler(module_lines, name)
+            if exists is not None:
+                return f"уже есть в модуле формы (строка {exists.line}) — заводить не нужно"
             return region_place(module_lines, region)
 
-        procedures = [(где(region, name), name, directive, parameters)
+        procedures = [(where(region, name), name, directive, parameters)
                       for region, name, directive, parameters in procedures]
-        if код_форм is None or код_форм.встроенный:
-            код = platform_code.render(edits, view)
+        if form_code is None or form_code.builtin:
+            code = platform_code.render(edits, view)
         else:
-            код = код_форм.диалект.код(edits, view, код_форм.словарь)
-        return код, procedures
+            code = form_code.dialect.code(edits, view, form_code.vocabulary)
+        return code, procedures

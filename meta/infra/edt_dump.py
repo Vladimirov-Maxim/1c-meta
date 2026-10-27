@@ -117,10 +117,10 @@ class EdtDump(DesignerDump):
             if len(голоса) >= self.EOL_SAMPLES:
                 break
             try:
-                имя = min(e.name for e in os.scandir(каталог) if e.is_dir())
+                name = min(e.name for e in os.scandir(каталог) if e.is_dir())
             except (OSError, ValueError):
                 continue
-            голос = self._eol_in(os.path.join(каталог, имя, имя + ".mdo"))
+            голос = self._eol_in(os.path.join(каталог, name, name + ".mdo"))
             if голос:
                 голоса.append(голос)
         if not голоса:
@@ -154,10 +154,10 @@ class EdtDump(DesignerDump):
         """Вложенная подсистема EDT: `Subsystems/А/Subsystems/Б/Б.mdo`."""
         for part in chain:
             check_part(part)
-        путь = os.path.join(self.root, "Subsystems", chain[0])
-        for имя in chain[1:]:
-            путь = os.path.join(путь, "Subsystems", имя)
-        return os.path.join(путь, chain[-1] + ".mdo")
+        path = os.path.join(self.root, "Subsystems", chain[0])
+        for name in chain[1:]:
+            path = os.path.join(path, "Subsystems", name)
+        return os.path.join(path, chain[-1] + ".mdo")
 
     def _module_path(self, name):
         return os.path.join(self.root, "CommonModules", check_part(name), "Module.bsl")
@@ -229,10 +229,10 @@ class EdtDump(DesignerDump):
         умеет — отказ: недописанная карточка хуже, чем никакой."""
         узел = self.tree.to_node(self.tree.parse(designer_text))
         перекладка = edt_card.Translation(satellite)
-        карточка = перекладка.card(узел)
+        card = перекладка.card(узел)
         if перекладка.problems:
             raise Refuse("в формат EDT не перекладывается: " + "; ".join(перекладка.problems))
-        return edt_xml.render(карточка)
+        return edt_xml.render(card)
 
     def _encode(self, text, path=None):
         """Текст -> байты файла проекта EDT: без BOM, переводы строк файла."""
@@ -257,17 +257,17 @@ class EdtDump(DesignerDump):
         for card in cards:
             path = self.card_path(card)
             if path in taken:
-                вид = mapping.ROOTS_BACK.get(card.element, card.element)
-                raise Refuse(f"«{вид}.{card.name}» создаётся этим заданием дважды")
+                kind = mapping.ROOTS_BACK.get(card.element, card.element)
+                raise Refuse(f"«{kind}.{card.name}» создаётся этим заданием дважды")
             if os.path.exists(path):
                 raise Refuse(f"карточка уже существует: {path}")
             taken.add(path)
             folder = os.path.dirname(path)
             макеты = {}
             for rel_path, content in card.satellites:
-                найдено = TEMPLATE_CARD.match(rel_path)
-                if найдено:
-                    макеты[найдено.group(1)] = self.tree.to_node(self.tree.build(content))
+                found = TEMPLATE_CARD.match(rel_path)
+                if found:
+                    макеты[found.group(1)] = self.tree.to_node(self.tree.build(content))
                     continue
                 target = satellite_target(folder, rel_path)
                 if os.path.exists(target):
@@ -280,9 +280,9 @@ class EdtDump(DesignerDump):
                         else self.tree.serialize(self.tree.build(content)))
                 plan.add(target, self._encode(text, target), True)
             text = self.tree.serialize(self.tree.build(serializer.card_to_node(card)))
-            карточка = self._edt_text(
+            card_text = self._edt_text(
                 text, lambda tag, name, макеты=макеты: макеты.get(name) if tag == "Template" else None)
-            plan.add(path, карточка.replace("\n", self._eol_of(path)).encode("utf-8"), True)
+            plan.add(path, card_text.replace("\n", self._eol_of(path)).encode("utf-8"), True)
             self._register(registry, card)
         plan.add(registry_path, self._encode(self.tree.serialize(registry), registry_path), False)
         return plan
@@ -293,18 +293,18 @@ class EdtDump(DesignerDump):
         return os.path.join(self.root, "ScheduledJobs", name, "Schedule.schedule")
 
     def schedule_of(self, name):
-        путь = self._schedule_path(name)
-        if not os.path.isfile(путь):
+        path = self._schedule_path(name)
+        if not os.path.isfile(path):
             return None
-        with open(путь, encoding="utf-8-sig") as файл:
+        with open(path, encoding="utf-8-sig") as файл:
             return edt_schedule.parse(файл.read().replace("\r\n", "\n"))
 
-    def _prepare_schedule(self, plan, name, расписание):
-        путь = self._schedule_path(name)
+    def _prepare_schedule(self, plan, name, schedule):
+        path = self._schedule_path(name)
         if not os.path.isfile(os.path.join(self.root, "ScheduledJobs", name, name + ".mdo")):
             raise Refuse(f"регламентного задания «{name}» в проекте нет")
-        plan.add(путь, edt_schedule.render(расписание).replace("\n", self._eol_of(путь)).encode("utf-8"),
-                 not os.path.isfile(путь))
+        plan.add(path, edt_schedule.render(schedule).replace("\n", self._eol_of(path)).encode("utf-8"),
+                 not os.path.isfile(path))
         plan.note(f"РегламентноеЗадание.{name}: расписание — Schedule.schedule")
 
     # --- предопределённые элементы справочника ---------------------------
@@ -330,11 +330,11 @@ class EdtDump(DesignerDump):
                             children=дети)
 
     def prepare_addition(self, additions):
-        свои = [a for a in additions if a[3] == PREDEFINED]
-        if not свои:
+        own = [a for a in additions if a[3] == PREDEFINED]
+        if not own:
             return super().prepare_addition(additions)
         прочие = [a for a in additions if a[3] != PREDEFINED]
-        общие = {a[0][0] for a in свои} & {a[0][0] for a in прочие}
+        общие = {a[0][0] for a in own} & {a[0][0] for a in прочие}
         if общие:
             raise Refuse("предопределённые элементы и другие части того же объекта ("
                          + ", ".join(f"{k}.{n}" for k, n in sorted(общие))
@@ -342,7 +342,7 @@ class EdtDump(DesignerDump):
         plan = super().prepare_addition(прочие) if прочие else Plan()
         self._writable()
         opened = OrderedDict()
-        for path, node, name, kind, shown in свои:
+        for path, node, name, kind, shown in own:
             if len(path) != 1 or path[0][0] != "Справочник":
                 raise Refuse("предопределённый элемент добавляется в справочник: путь «Справочник.<Имя>», "
                              "получено «" + ".".join(f"{k}.{n}" for k, n in path) + "»")
@@ -357,8 +357,8 @@ class EdtDump(DesignerDump):
     def _add_predefined(self, document, node, name, owner):
         """Элемент — в конец блока `predefined` карточки (или группы-родителя);
         блока нет — заводится: место ему по метамодели найдёт перекладка."""
-        объект = self.tree.find(document, [])
-        свойства = next(c for c in объект if etree.QName(c).localname == "Properties")
+        obj = self.tree.find(document, [])
+        свойства = next(c for c in obj if etree.QName(c).localname == "Properties")
         переходник = next((c for c in свойства if etree.QName(c).localname == edt_card.RAW
                            and c.get("feature") == self.PREDEFINED_FEATURE), None)
         if переходник is None:
@@ -378,27 +378,27 @@ class EdtDump(DesignerDump):
             raise Refuse(f"предопределённый элемент «{name}» уже есть в «Справочник.{owner}»")
 
         родитель_имя = node.attrs.pop("родитель", "")
-        куда, тег = блок, "items"
+        destination, тег = блок, "items"
         if родитель_имя:
-            куда = next((e for e in элементы if имя_элемента(e) == родитель_имя), None)
-            if куда is None or not any(местное(c) == "isFolder" and c.get(edt_card.RAW_TEXT) == "true"
-                                       for c in куда):
+            destination = next((e for e in элементы if имя_элемента(e) == родитель_имя), None)
+            if destination is None or not any(местное(c) == "isFolder" and c.get(edt_card.RAW_TEXT) == "true"
+                                       for c in destination):
                 raise Refuse(f"группы «{родитель_имя}» среди предопределённых «Справочник.{owner}» нет")
             тег = "content"
 
-        числовой = (self.tree.property_text(объект, "CodeType") or "String") == "Number"
-        код = next(c for c in node.children if c.tag == "code")
-        значение = код.children[0].attrs[edt_card.RAW_TEXT]
+        числовой = (self.tree.property_text(obj, "CodeType") or "String") == "Number"
+        code = next(c for c in node.children if c.tag == "code")
+        value = code.children[0].attrs[edt_card.RAW_TEXT]
         if числовой:
-            if not значение.isdigit():
-                raise Refuse(f"у «Справочник.{owner}» код числовой — «{значение}» не число"
-                             if значение else f"у «Справочник.{owner}» код числовой — задайте «код»")
-            код.attrs["type"] = "core:NumberValue"
-        длина = self.tree.property_text(объект, "CodeLength")
-        if значение and длина and длина.isdigit() and int(длина) and len(значение) > int(длина):
-            raise Refuse(f"код «{значение}» длиннее кода «Справочник.{owner}» ({длина})")
+            if not value.isdigit():
+                raise Refuse(f"у «Справочник.{owner}» код числовой — «{value}» не число"
+                             if value else f"у «Справочник.{owner}» код числовой — задайте «код»")
+            code.attrs["type"] = "core:NumberValue"
+        длина = self.tree.property_text(obj, "CodeLength")
+        if value and длина and длина.isdigit() and int(длина) and len(value) > int(длина):
+            raise Refuse(f"код «{value}» длиннее кода «Справочник.{owner}» ({длина})")
         node.tag = тег
-        куда.append(self.tree.build(node))
+        destination.append(self.tree.build(node))
 
     # --- удаление и переименование: каталог объекта ----------------------
 
@@ -517,20 +517,20 @@ class EdtDump(DesignerDump):
             taken.add(form_path)
             for note in item.notes:
                 plan.note(note)
-            текст, файлы = edt.files(item.form_text)
+            text, файлы = edt.files(item.form_text)
             новая = item.card is not None
             if новая and os.path.exists(form_path):
                 raise Refuse(f"файл уже существует: {form_path}")
-            plan.add(form_path, self._encode(текст, form_path), новая)
+            plan.add(form_path, self._encode(text, form_path), новая)
             for rel_path, содержимое in файлы.items():
-                путь = os.path.join(os.path.dirname(form_path), *rel_path.split("/"))
-                if not os.path.exists(путь):            # настройки списка у существующего — не трогать
-                    plan.add(путь, self._encode(содержимое, путь), True)
+                path = os.path.join(os.path.dirname(form_path), *rel_path.split("/"))
+                if not os.path.exists(path):            # настройки списка у существующего — не трогать
+                    plan.add(path, self._encode(содержимое, path), True)
             if item.module is not None:
                 plan.add(module_path, self._encode(item.module, module_path), True)
             if not новая:
                 continue
-            карточка = self.tree.to_node(self.tree.build(item.card))
+            card = self.tree.to_node(self.tree.build(item.card))
             if edits.owner is None:
                 if os.path.exists(card_path):
                     raise Refuse(f"файл уже существует: {card_path}")
@@ -545,13 +545,13 @@ class EdtDump(DesignerDump):
                                        mapping.Node("CommonForm", text=edits.name))
                 plan.note(f"общая форма «{edits.name}» — в реестр конфигурации")
                 continue
-            карточки.setdefault(card_path, {})[edits.name] = карточка
+            карточки.setdefault(card_path, {})[edits.name] = card
             self._attach_form(plan, opened, edits.create)
         for file_path, (document, _) in opened.items():
-            новые = карточки.get(file_path, {})
+            new_items = карточки.get(file_path, {})
             карточка_edt = self._edt_text(
                 self.tree.serialize(document),
-                lambda tag, name, новые=новые: новые.get(name) if tag == "Form" else None)
+                lambda tag, name, new_items=new_items: new_items.get(name) if tag == "Form" else None)
             plan.add(file_path, карточка_edt.replace("\n", self._eol_of(file_path)).encode("utf-8"), False)
         if registry is not None:
             plan.add(registry_path, self._encode(self.tree.serialize(registry), registry_path), False)
@@ -560,9 +560,9 @@ class EdtDump(DesignerDump):
 
 def satellite_target(folder, rel_path):
     """Спутник карточки выгрузки -> путь файла проекта EDT."""
-    for шаблон, замена in SATELLITES:
-        if шаблон.match(rel_path):
-            return os.path.join(folder, *шаблон.sub(замена, rel_path).split("/"))
+    for pattern, replacement in SATELLITES:
+        if pattern.match(rel_path):
+            return os.path.join(folder, *pattern.sub(replacement, rel_path).split("/"))
     raise Refuse(f"спутник «{rel_path}» в раскладку проекта EDT не переводится")
 
 

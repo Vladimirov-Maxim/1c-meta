@@ -36,8 +36,8 @@ from ..application.rename.use_case import RenameUseCase
 from ..application.show.use_case import ShowUseCase
 from ..application.show_form.use_case import ShowFormUseCase
 from ..application.verify.use_case import VerifyUseCase
-from ..domain.conventions import НЕЙТРАЛЬНЫЕ
-from ..domain.form_dialect import ДиалектКодаФорм
+from ..domain.conventions import NEUTRAL
+from ..domain.form_dialect import FormCodeDialect
 from ..domain.model import Refuse
 from ..infra.changes import DirectoryChanges, GitChanges
 from ..infra.designer import DesignerDump
@@ -67,52 +67,52 @@ ROOTS_VARIABLE = "META_ROOTS"
 PROFILE_VARIABLE = "META_PROFILE"
 
 
-def соглашения_из_файла(путь):
+def соглашения_из_файла(path):
     """Профиль соглашений из файла. Нечитаемый или неверный — отказ: молча
     работать без соглашений команды значило бы пропустить её правила."""
-    откуда = f"профиль «{путь}»"
+    откуда = f"профиль «{path}»"
     try:
-        with open(путь, encoding="utf-8-sig") as файл:
+        with open(path, encoding="utf-8-sig") as файл:
             данные = json.load(файл)
-    except OSError as ошибка:
-        raise Refuse(f"{откуда} не прочитан: {ошибка.strerror or ошибка}") from ошибка
-    except ValueError as ошибка:
-        raise Refuse(f"{откуда} — не JSON: {ошибка}") from ошибка
-    рядом = os.path.dirname(os.path.abspath(путь))
-    return profile.соглашения(
-        данные, откуда, диалект_из=lambda имя: диалект_из_файла(os.path.join(рядом, имя)))
+    except OSError as error:
+        raise Refuse(f"{откуда} не прочитан: {error.strerror or error}") from error
+    except ValueError as error:
+        raise Refuse(f"{откуда} — не JSON: {error}") from error
+    nearby = os.path.dirname(os.path.abspath(path))
+    return profile.conventions(
+        данные, откуда, диалект_из=lambda name: диалект_из_файла(os.path.join(nearby, name)))
 
 
-def диалект_из_файла(путь):
-    """Язык кода формы из файла-диалекта: модуль Python с объектом `ДИАЛЕКТ`.
+def диалект_из_файла(path):
+    """Язык кода формы из файла-диалекта: модуль Python с объектом `DIALECT`.
 
     Файл подключает профиль команды, то есть его пишет та же команда, что и
     профиль: это её код, и исполняется он так же, как код инструмента.
-    Нет файла, он не загрузился или в нём нет `ДИАЛЕКТ` нужного рода — отказ
+    Нет файла, он не загрузился или в нём нет `DIALECT` нужного рода — отказ
     с причиной: молча вернуться к языку платформы значило бы выдать команде
     код не на её языке.
     """
-    if not os.path.isfile(путь):
-        raise Refuse(f"файла диалекта «{путь}» нет")
-    имя = "meta_dialect_" + hashlib.sha1(os.path.abspath(путь).encode("utf-8")).hexdigest()[:12]
-    описание = importlib.util.spec_from_file_location(имя, путь)
-    модуль = importlib.util.module_from_spec(описание)
+    if not os.path.isfile(path):
+        raise Refuse(f"файла диалекта «{path}» нет")
+    name = "meta_dialect_" + hashlib.sha1(os.path.abspath(path).encode("utf-8")).hexdigest()[:12]
+    description = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(description)
     try:
-        описание.loader.exec_module(модуль)
-    except Exception as ошибка:
-        raise Refuse(f"файл диалекта «{путь}» не загрузился: "
-                     f"{type(ошибка).__name__}: {ошибка}") from ошибка
-    диалект = getattr(модуль, "ДИАЛЕКТ", None)
-    if not isinstance(диалект, ДиалектКодаФорм):
-        raise Refuse(f"в файле диалекта «{путь}» нет объекта «ДИАЛЕКТ» — наследника "
-                     "meta.domain.form_dialect.ДиалектКодаФорм")
-    return диалект
+        description.loader.exec_module(module)
+    except Exception as error:
+        raise Refuse(f"файл диалекта «{path}» не загрузился: "
+                     f"{type(error).__name__}: {error}") from error
+    dialect = getattr(module, "DIALECT", None)
+    if not isinstance(dialect, FormCodeDialect):
+        raise Refuse(f"в файле диалекта «{path}» нет объекта «DIALECT» — наследника "
+                     "meta.domain.form_dialect.FormCodeDialect")
+    return dialect
 
 
 def соглашения_из_окружения():
     """Профиль из `META_PROFILE`; не задан — нейтральные соглашения."""
-    путь = (os.environ.get(PROFILE_VARIABLE) or "").strip()
-    return соглашения_из_файла(путь) if путь else НЕЙТРАЛЬНЫЕ
+    path = (os.environ.get(PROFILE_VARIABLE) or "").strip()
+    return соглашения_из_файла(path) if path else NEUTRAL
 
 
 #: Когда процесс прочитал окружение: белый список берётся из него при запуске,
@@ -122,8 +122,8 @@ def соглашения_из_окружения():
 
 def roots_from_environment():
     """Разрешённые выгрузки из «META_ROOTS» (через «;»). Пусто — никуда."""
-    return tuple(путь.strip() for путь in (os.environ.get(ROOTS_VARIABLE) or "").split(";")
-                 if путь.strip())
+    return tuple(path.strip() for path in (os.environ.get(ROOTS_VARIABLE) or "").split(";")
+                 if path.strip())
 
 
 def _inside(repo, roots):
@@ -137,10 +137,10 @@ def _inside(repo, roots):
     if not roots:
         raise Refuse(f"сервер не настроен: в «{ROOTS_VARIABLE}» не указано ни одной "
                      "выгрузки, писать некуда")
-    цель = os.path.normcase(os.path.abspath(repo))
+    target = os.path.normcase(os.path.abspath(repo))
     for корень in roots:
         полный = os.path.normcase(os.path.abspath(корень))
-        if цель == полный or цель.startswith(полный + os.sep):
+        if target == полный or target.startswith(полный + os.sep):
             return
     raise Refuse(f"выгрузка «{repo}» вне разрешённых: " + "; ".join(roots)
                  + f" — список взят из «{ROOTS_VARIABLE}» при запуске сервера "
@@ -219,24 +219,24 @@ def _today():
     return datetime.date.today().strftime("%d.%m.%Y")
 
 
-def _controller(cls, platform, modules, соглашения=НЕЙТРАЛЬНЫЕ, changes=None):
+def _controller(cls, platform, modules, conventions=NEUTRAL, changes=None):
     """Контроллер канала с подключёнными сценариями и соглашениями команды."""
-    scenarios = {семья: (lambda repo, сценарий=сценарий: сценарий(platform(repo), соглашения))
+    scenarios = {семья: (lambda repo, сценарий=сценарий: сценарий(platform(repo), conventions))
                  for семья, сценарий in SCENARIOS.items()}
     # Сценарию кода нужна не площадка метаданных, а модули: у правки вставками
     # своя работа с файлами (кодировка, переводы строк, история в git). Часы —
     # тоже отсюда: дата меток сверяется с сегодняшней.
     scenarios["code"] = lambda repo: EditCodeUseCase(modules(repo), today=_today,
-                                                     соглашения=соглашения)
+                                                     conventions=conventions)
     changes = changes or changes_factory()
     return cls(scenarios=scenarios,
                show=lambda repo: ShowUseCase(platform(repo)),
-               show_form=lambda repo: ShowFormUseCase(platform(repo), соглашения),
+               show_form=lambda repo: ShowFormUseCase(platform(repo), conventions),
                reference=ReferenceUseCase(DesignerReference()),
-               verify=lambda **источник: VerifyUseCase(changes(**источник), соглашения),
-               normalize=lambda **источник: NormalizeUseCase(changes(**источник)),
-               plan_check=lambda **источник: PlanCheckUseCase(_план(changes(**источник)), соглашения),
-               plan_emit=lambda **источник: PlanEmitUseCase(_план(changes(**источник))))
+               verify=lambda **source: VerifyUseCase(changes(**source), conventions),
+               normalize=lambda **source: NormalizeUseCase(changes(**source)),
+               plan_check=lambda **source: PlanCheckUseCase(_план(changes(**source)), conventions),
+               plan_emit=lambda **source: PlanEmitUseCase(_план(changes(**source))))
 
 
 def _ключ_профиля(argv):
@@ -254,9 +254,9 @@ def terminal(argv):
     from ..cli.app import main
     from ..cli.controller import Controller
 
-    путь, argv = _ключ_профиля(argv)
-    соглашения = соглашения_из_файла(путь) if путь else соглашения_из_окружения()
-    return main(argv, _controller(Controller, platform_factory(), modules_factory(), соглашения,
+    path, argv = _ключ_профиля(argv)
+    conventions = соглашения_из_файла(path) if path else соглашения_из_окружения()
+    return main(argv, _controller(Controller, platform_factory(), modules_factory(), conventions,
                                   changes_factory()))
 
 
@@ -264,18 +264,18 @@ def run_terminal(argv):
     """Терминал для запуска из командной строки: отказ печатается словом «ОТКАЗ»."""
     try:
         return terminal(argv)
-    except Refuse as отказ:
-        print(f"ОТКАЗ: {отказ}")
+    except Refuse as refusal:
+        print(f"ОТКАЗ: {refusal}")
         return 1
 
 
-def mcp_server(roots=None, соглашения=None):
+def mcp_server(roots=None, conventions=None):
     """Сервер MCP; белый список и соглашения — из окружения, если не переданы явно."""
     from ..api.controller import Controller
     from ..api.server import build
 
     roots = roots_from_environment() if roots is None else tuple(roots)
-    соглашения = соглашения_из_окружения() if соглашения is None else соглашения
-    return build(_controller(Controller, platform_factory(roots), modules_factory(roots), соглашения,
+    conventions = соглашения_из_окружения() if conventions is None else conventions
+    return build(_controller(Controller, platform_factory(roots), modules_factory(roots), conventions,
                              changes_factory(roots)),
-                 соглашения)
+                 conventions)

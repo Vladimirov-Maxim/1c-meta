@@ -82,33 +82,33 @@ def render(edits, view=None):
 
 def type_description(value_type):
     """Тип домена (или список — составной) -> `Новый ОписаниеТипов(…)`."""
-    состав = value_type if isinstance(value_type, list) else [value_type]
-    if any(isinstance(тип, dm.AnyType) for тип in состав):
+    composition = value_type if isinstance(value_type, list) else [value_type]
+    if any(isinstance(type_, dm.AnyType) for type_ in composition):
         return "Новый ОписаниеТипов()"
-    имена, число, строка, дата = [], "", "", ""
-    for тип in состав:
-        if isinstance(тип, dm.BooleanType):
-            имена.append("Булево")
-        elif isinstance(тип, dm.StringType):
-            имена.append("Строка")
-            if тип.length:
-                строка = (f"Новый КвалификаторыСтроки({тип.length}"
-                          + (", ДопустимаяДлина.Фиксированная" if тип.fixed else "") + ")")
-        elif isinstance(тип, dm.NumberType):
+    names, число, line, date = [], "", "", ""
+    for type_ in composition:
+        if isinstance(type_, dm.BooleanType):
+            names.append("Булево")
+        elif isinstance(type_, dm.StringType):
+            names.append("Строка")
+            if type_.length:
+                line = (f"Новый КвалификаторыСтроки({type_.length}"
+                          + (", ДопустимаяДлина.Фиксированная" if type_.fixed else "") + ")")
+        elif isinstance(type_, dm.NumberType):
             # Без квалификаторов числа платформа числа хранить не даёт.
-            имена.append("Число")
-            число = (f"Новый КвалификаторыЧисла({тип.digits}, {тип.fraction_digits}"
-                     + (", ДопустимыйЗнак.Неотрицательный" if тип.nonnegative else "") + ")")
-        elif isinstance(тип, dm.DateType):
-            имена.append("Дата")
-            дата = f"Новый КвалификаторыДаты(ЧастиДаты.{тип.parts})"
-        elif isinstance(тип, dm.TypeRef):
-            имена.append(reference_type(тип))
-        elif isinstance(тип, dm.PlatformType):
-            имена.append(тип.name)
+            names.append("Число")
+            число = (f"Новый КвалификаторыЧисла({type_.digits}, {type_.fraction_digits}"
+                     + (", ДопустимыйЗнак.Неотрицательный" if type_.nonnegative else "") + ")")
+        elif isinstance(type_, dm.DateType):
+            names.append("Дата")
+            date = f"Новый КвалификаторыДаты(ЧастиДаты.{type_.parts})"
+        elif isinstance(type_, dm.TypeRef):
+            names.append(reference_type(type_))
+        elif isinstance(type_, dm.PlatformType):
+            names.append(type_.name)
         else:
-            raise Refuse(f"не знаю, как записать тип «{тип}» в коде")
-    аргументы = [quote(",".join(имена)), число, строка, дата]
+            raise Refuse(f"не знаю, как записать тип «{type_}» в коде")
+    аргументы = [quote(",".join(names)), число, line, date]
     while not аргументы[-1]:
         аргументы.pop()
     return f"Новый ОписаниеТипов({', '.join(аргументы)})"
@@ -147,23 +147,23 @@ def _commands(edits):
 
 def _element(element, kinds, parent=None, view=None):
     """Один элемент и его дети — каждый своим блоком."""
-    тип, вид = ELEMENT_TYPES[element.kind]
-    родитель = parent_of(element, view, parent)
-    перед = place_before(element, view)
+    type_, kind = ELEMENT_TYPES[element.kind]
+    parent_name = parent_of(element, view, parent)
+    before_it = place_before(element, view)
     # Родителя не назвали и по форме его не узнать — тот, где стоит сосед:
     # «перед» без родителя вставлял бы на верхний уровень формы.
-    куда = (f"Форма.Элементы.{родитель}" if родитель
-            else f"Форма.Элементы.{перед}.Родитель" if перед else None)
-    if перед:
+    destination = (f"Форма.Элементы.{parent_name}" if parent_name
+            else f"Форма.Элементы.{before_it}.Родитель" if before_it else None)
+    if before_it:
         создание = (f"{ЭЛЕМЕНТ} = Форма.Элементы.Вставить({quote(element.name)}, "
-                    f"Тип({quote(тип)}), {куда}, Форма.Элементы.{перед});")
+                    f"Тип({quote(type_)}), {destination}, Форма.Элементы.{before_it});")
     else:
-        создание = (f"{ЭЛЕМЕНТ} = Форма.Элементы.Добавить({quote(element.name)}, Тип({quote(тип)})"
-                    + (f", {куда}" if куда else "") + ");")
+        создание = (f"{ЭЛЕМЕНТ} = Форма.Элементы.Добавить({quote(element.name)}, Тип({quote(type_)})"
+                    + (f", {destination}" if destination else "") + ");")
     lines = [создание]
-    if вид:
-        lines.append(f"{ЭЛЕМЕНТ}.Вид = {вид};")
-    if element.kind == "Кнопка" and kinds.get(родитель) in BAR_KINDS:
+    if kind:
+        lines.append(f"{ЭЛЕМЕНТ}.Вид = {kind};")
+    if element.kind == "Кнопка" and kinds.get(parent_name) in BAR_KINDS:
         lines.append(f"{ЭЛЕМЕНТ}.Вид = ВидКнопкиФормы.КнопкаКоманднойПанели;")
     if element.path:
         lines.append(f"{ЭЛЕМЕНТ}.ПутьКДанным = {quote(element.path)};")

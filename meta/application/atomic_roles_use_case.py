@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 
 from ..domain import atomic_roles
-from ..domain.conventions import НЕЙТРАЛЬНЫЕ, Соглашения
+from ..domain.conventions import NEUTRAL, Conventions
 from ..domain.model import Refuse
 from .add_object.use_case import AddObjectUseCase
 from .ports import Platform
@@ -19,38 +19,38 @@ class AtomicRolesUseCase:
     """
 
     platform: Platform
-    соглашения: Соглашения = НЕЙТРАЛЬНЫЕ
+    conventions: Conventions = NEUTRAL
 
     def execute(self, requests, apply_now=False):
         """`requests` — (вид, имя, права или None[, сокращение[, комментарий]])."""
-        схема = atomic_roles.нужна_схема(self.соглашения.атомарные_роли)
-        specs, notes, соседи = [], {}, {}
-        for kind, name, rights, *хвост in requests:
-            сокращение = хвост[0] if хвост else None
-            комментарий = хвост[1] if len(хвост) > 1 else None
+        schema = atomic_roles.needs_schema(self.conventions.atomic_roles)
+        specs, notes, neighbours = [], {}, {}
+        for kind, name, rights, *tail in requests:
+            abbreviation = tail[0] if tail else None
+            comment = tail[1] if len(tail) > 1 else None
             if kind not in atomic_roles.kinds():
                 raise Refuse(f"типовой состав атомарных ролей есть для видов "
                              f"{', '.join(atomic_roles.kinds())}, а не для «{kind}»")
             try:
                 found, _ = self.platform.read_spec([(kind, name)])
-            except Refuse as отказ:
-                raise Refuse(f"{kind}.{name}: {отказ}") from отказ
+            except Refuse as refusal:
+                raise Refuse(f"{kind}.{name}: {refusal}") from refusal
             # Пара ролей у объекта уже бывает — под сокращённым именем, которое
             # по имени объекта не угадать: без этой проверки вторая пара
             # заводилась бы молча.
-            if kind not in соседи:
-                соседи[kind] = self.platform.roles_named(atomic_roles.name_pattern(схема, kind))
-            есть = atomic_roles.roles_of_object(kind, name, соседи[kind])
-            if есть:
+            if kind not in neighbours:
+                neighbours[kind] = self.platform.roles_named(atomic_roles.name_pattern(schema, kind))
+            exists = atomic_roles.roles_of_object(kind, name, neighbours[kind])
+            if exists:
                 raise Refuse(f"{kind}.{name}: атомарные роли у объекта уже есть — "
-                             f"{', '.join(есть)}; вторую пару не заводим")
+                             f"{', '.join(exists)}; вторую пару не заводим")
             for role, note in atomic_roles.roles_for(
-                    kind, name, found.get("синоним"), rights, сокращение, схема, соседи[kind],
-                    комментарий):
+                    kind, name, found.get("синоним"), rights, abbreviation, schema, neighbours[kind],
+                    comment):
                 specs.append(role)
                 if note:
                     notes[role.get("имя")] = note
-        result = AddObjectUseCase(self.platform, self.соглашения).execute(
+        result = AddObjectUseCase(self.platform, self.conventions).execute(
             specs, apply_now=False, role_notes=notes)
         if not result.ok:
             return result

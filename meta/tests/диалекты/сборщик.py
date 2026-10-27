@@ -7,59 +7,59 @@
 """
 
 from meta.acl.form_code import quote
-from meta.domain.form_dialect import CodeProcedure, ДиалектКодаФорм
+from meta.domain.form_dialect import CodeProcedure, FormCodeDialect
 from meta.domain.model import Finding, Refuse
 
 ГОТОВО = "Сборка.Готово();"
 
 
-class Сборщик(ДиалектКодаФорм):
-    имя = "сборщик"
-    заголовок = "Код сборщика форм"
-    заводящие = {"элемент": r"\.\s*Элемент", "реквизит": r"\.\s*Реквизит",
+class Сборщик(FormCodeDialect):
+    name = "сборщик"
+    title = "Код сборщика форм"
+    creating = {"элемент": r"\.\s*Элемент", "реквизит": r"\.\s*Реквизит",
                  "команда": r"\.\s*Команда"}
 
-    def проверить(self, настройки):
-        if sorted(настройки) != ["модуль"]:
+    def check(self, settings):
+        if sorted(settings) != ["модуль"]:
             raise Refuse("у сборщика одна настройка — «модуль»")
 
-    def описание(self, настройки):
-        return f"сборщиком форм («{настройки['модуль']}.Сборщик(Форма)»)"
+    def description(self, settings):
+        return f"сборщиком форм («{settings['модуль']}.Сборщик(Форма)»)"
 
-    def назначение(self, настройки):
+    def purpose(self, settings):
         return " сборщиком"
 
-    def код(self, edits, view, настройки):
-        строки = [f"Сборка = {настройки['модуль']}.Сборщик(Форма);"]
-        строки += [f"Сборка.Реквизит({quote(a.name)});" for a in edits.attributes]
-        строки += [f"Сборка.Элемент({quote(e.name)});" for e in edits.all_elements()]
-        строки.append(ГОТОВО)
-        return "\n".join(строки) + "\n"
+    def code(self, edits, view, settings):
+        lines = [f"Сборка = {settings['модуль']}.Сборщик(Форма);"]
+        lines += [f"Сборка.Реквизит({quote(a.name)});" for a in edits.attributes]
+        lines += [f"Сборка.Элемент({quote(e.name)});" for e in edits.all_elements()]
+        lines.append(ГОТОВО)
+        return "\n".join(lines) + "\n"
 
-    def признак_процедуры(self, настройки):
+    def procedure_sign(self, settings):
         return f"нет «{ГОТОВО}»"
 
-    def процедура(self, lines, span, arity, настройки):
-        for номер in range(span[0], span[1] + 1):
-            if lines[номер - 1].strip() == ГОТОВО:
-                return CodeProcedure(span[0], span[1], "Сборка", номер)
+    def procedure(self, lines, span, arity, settings):
+        for number in range(span[0], span[1] + 1):
+            if lines[number - 1].strip() == ГОТОВО:
+                return CodeProcedure(span[0], span[1], "Сборка", number)
         return None
 
-    def якорь_дополнения(self, procedure):
+    def extension_anchor(self, procedure):
         return f"«{ГОТОВО}»"
 
-    def дополнение(self, строки, procedure, настройки):
-        return [s for s in строки if s.strip() and not s.startswith("Сборка = ")
+    def extension(self, lines, procedure, settings):
+        return [s for s in lines if s.strip() and not s.startswith("Сборка = ")
                 and s.strip() != ГОТОВО]
 
-    def перемещение(self, следующий):
-        return f'Сборка.Перед("{следующий}")'
+    def movement(self, next_):
+        return f'Сборка.Перед("{next_}")'
 
-    def находки(self, edits, настройки):
+    def findings(self, edits, settings):
         if any(a.title for a in edits.attributes):
             return [Finding("ФОРМА-КОД-СБОРЩИК-ЗАГОЛОВОК", "сборщик не задаёт заголовок "
                             "реквизита", "реквизиты", Finding.WARNING)]
         return []
 
 
-ДИАЛЕКТ = Сборщик()
+DIALECT = Сборщик()

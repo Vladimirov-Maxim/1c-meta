@@ -46,8 +46,8 @@ class ExternalDump(DesignerDump):
     def _folder(self, container):
         if container in vocabulary.EXTERNAL_CONTAINERS:
             return self.root
-        вид = next((k for k, v in vocabulary.FOLDERS.items() if v == container), container)
-        raise Refuse(f"в выгрузке внешней обработки объектов вида «{вид}» нет: "
+        kind = next((k for k, v in vocabulary.FOLDERS.items() if v == container), container)
+        raise Refuse(f"в выгрузке внешней обработки объектов вида «{kind}» нет: "
                      "в ней только внешние обработка и отчёт и их части")
 
     def form_paths(self, owner, name):
@@ -60,23 +60,23 @@ class ExternalDump(DesignerDump):
 
     def external_cards(self):
         """Карточки внешних объектов в корне: [путь]."""
-        найдено = []
-        for имя in sorted(os.listdir(self.root)):
-            путь = os.path.join(self.root, имя)
-            if имя.lower().endswith(".xml") and os.path.isfile(путь):
-                with open(путь, "rb") as source:
+        found = []
+        for name in sorted(os.listdir(self.root)):
+            path = os.path.join(self.root, name)
+            if name.lower().endswith(".xml") and os.path.isfile(path):
+                with open(path, "rb") as source:
                     head = source.read(self.EOL_HEAD)
                 if any(root in head for root in EXTERNAL_ROOTS):
-                    найдено.append(путь)
-        return найдено
+                    found.append(path)
+        return found
 
     def configuration_name(self):
         return None
 
     def format_version(self):
         """Версия формата — у первой карточки в корне; пустой каталог — `None`."""
-        for путь in self.external_cards():
-            with open(путь, encoding="utf-8-sig") as source:
+        for path in self.external_cards():
+            with open(path, encoding="utf-8-sig") as source:
                 found = self.VERSION.search(source.read(self.EOL_HEAD))
             if found:
                 return found.group(1)
@@ -97,10 +97,10 @@ def is_external(root):
     """В корне есть карточка внешнего объекта."""
     if not os.path.isdir(root):
         return False
-    for имя in os.listdir(root):
-        путь = os.path.join(root, имя)
-        if имя.lower().endswith(".xml") and os.path.isfile(путь):
-            with open(путь, "rb") as source:
+    for name in os.listdir(root):
+        path = os.path.join(root, name)
+        if name.lower().endswith(".xml") and os.path.isfile(path):
+            with open(path, "rb") as source:
                 if re.search(rb"<External(DataProcessor|Report) ", source.read(4096)):
                     return True
     return False

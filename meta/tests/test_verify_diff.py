@@ -16,7 +16,7 @@ import pytest
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, ROOT)
 
-from .test_verify import ПРОФИЛЬ, git, выгрузка, зафиксировать, коды, написать, проверить  # noqa: E402
+from .test_verify import ПРОФИЛЬ, check, git, выгрузка, зафиксировать, коды, написать  # noqa: E402
 
 МОДУЛЬ = "CommonModules/Чужой/Ext/Module.bsl"
 ЧУЖАЯ = "Процедура Б() Экспорт // {[+](фрагмент ДОБАВЛЕН), 01.01.2025, #TEAM Иванов #TASK-0"
@@ -30,9 +30,9 @@ from .test_verify import ПРОФИЛЬ, git, выгрузка, зафиксир
 
 @pytest.fixture
 def профиль(tmp_path):
-    путь = tmp_path / "профиль.json"
-    путь.write_text(json.dumps(ПРОФИЛЬ, ensure_ascii=False), encoding="utf-8")
-    return str(путь)
+    path = tmp_path / "профиль.json"
+    path.write_text(json.dumps(ПРОФИЛЬ, ensure_ascii=False), encoding="utf-8")
+    return str(path)
 
 
 def test_a_new_method_after_a_nested_insertion_is_not_an_edit_inside_another_tasks_insertion(
@@ -42,5 +42,5 @@ def test_a_new_method_after_a_nested_insertion_is_not_an_edit_inside_another_tas
     написать(root, МОДУЛЬ, БЫЛО)
     зафиксировать(root, "чужой метод")
     написать(root, МОДУЛЬ, СТАЛО)
-    _, текст, данные = проверить(capsys, профиль, root, "--задача", "TASK-1")
-    assert "ПРАВКА-В-ЧУЖОЙ-ВСТАВКЕ" not in коды(данные), текст
+    _, text, данные = check(capsys, профиль, root, "--задача", "TASK-1")
+    assert "ПРАВКА-В-ЧУЖОЙ-ВСТАВКЕ" not in коды(данные), text

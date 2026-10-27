@@ -67,8 +67,8 @@ def parse(data):
         text = text[:-1]
         if text.endswith("\r"):
             text = text[:-1]
-    lines = tuple(строка[:-1] if строка.endswith("\r") else строка
-                  for строка in text.split("\n")) if text else ()
+    lines = tuple(line[:-1] if line.endswith("\r") else line
+                  for line in text.split("\n")) if text else ()
     return FileText(bom, lines, crlf, lf, final)
 
 
@@ -108,12 +108,12 @@ def indent_blank_lines(lines, only=None):
             j += 1
         if j >= len(out):
             continue
-        следующая = out[j]
-        отступ = следующая[:len(следующая) - len(следующая.lstrip(" \t"))]
-        if DEDENT.match(следующая.strip()):
-            отступ += "    " if отступ and "\t" not in отступ else "\t"
-        if отступ and line != отступ:
-            out[i] = отступ
+        next_one = out[j]
+        indent = next_one[:len(next_one) - len(next_one.lstrip(" \t"))]
+        if DEDENT.match(next_one.strip()):
+            indent += "    " if indent and "\t" not in indent else "\t"
+        if indent and line != indent:
+            out[i] = indent
     return out
 
 
@@ -126,9 +126,9 @@ def restore_trailing(lines, old_lines, pairs):
     for o, n in pairs:
         if not (1 <= o <= len(old_lines) and 1 <= n <= len(out)):
             continue
-        было, стало = old_lines[o - 1], out[n - 1]
-        if было != стало and было.rstrip() == стало.rstrip():
-            out[n - 1] = было
+        before, after_ = old_lines[o - 1], out[n - 1]
+        if before != after_ and before.rstrip() == after_.rstrip():
+            out[n - 1] = before
             restored += 1
     return out, restored
 
@@ -151,11 +151,11 @@ def normalized(data, old_data=None, pairs=(), added=None, eol=None, module=False
         fixes.append("BOM")
     elif not bom and cur.bom:
         fixes.append("снять BOM")
-    цель = eol or cur.eol_word or "CRLF"
+    target = eol or cur.eol_word or "CRLF"
     if cur.crlf and cur.lf:
         fixes.append(f"смешанные переводы строк ({cur.crlf} CRLF / {cur.lf} LF)")
-    elif cur.eol_word and cur.eol_word != цель:
-        fixes.append(f"переводы строк {cur.eol_word} -> {цель}")
+    elif cur.eol_word and cur.eol_word != target:
+        fixes.append(f"переводы строк {cur.eol_word} -> {target}")
     final = cur.final_eol
     if old_data is not None:
         old = parse(old_data)
@@ -169,10 +169,10 @@ def normalized(data, old_data=None, pairs=(), added=None, eol=None, module=False
     if module:
         before = lines
         lines = indent_blank_lines(lines, None if old_data is None else set(added or ()))
-        отступов = sum(1 for a, b in zip(before, lines, strict=True) if a != b)
-        if отступов:
-            fixes.append(f"отступ пустых строк: {отступов}")
+        indents = sum(1 for a, b in zip(before, lines, strict=True) if a != b)
+        if indents:
+            fixes.append(f"отступ пустых строк: {indents}")
     if not fixes:
         return data, []
-    result = render(lines, цель, bom, final)
+    result = render(lines, target, bom, final)
     return (data, []) if result == data else (result, fixes)

@@ -128,11 +128,11 @@ def code_job_from_json(job):
         m.revert and not m.edits and m.rename is None for m in modules)
     # Недостающие — все разом: отказ по одному звал бы на второй круг ради
     # второго поля.
-    нет = [key for key in (("task",) if только_откат else ("task", "date", "author"))
+    missing = [key for key in (("task",) if только_откат else ("task", "date", "author"))
            if not job.get(key)]
-    if нет:
-        raise Refuse("в задании на код " + ("нужно поле " if len(нет) == 1 else "нужны поля ")
-                     + ", ".join(f"«{key}»" for key in нет)
+    if missing:
+        raise Refuse("в задании на код " + ("нужно поле " if len(missing) == 1 else "нужны поля ")
+                     + ", ".join(f"«{key}»" for key in missing)
                      + ": вставка подписывается задачей, датой и автором")
     date, author = job.get("date") or "", job.get("author") or ""
     # Подпись проверяется: «#TEAM Автор» дал бы в метке «#TEAM #TEAM Автор», а дата

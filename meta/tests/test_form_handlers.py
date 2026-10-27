@@ -44,28 +44,28 @@ def test_code_apply_warns_about_event_named_procedures_without_binding(tmp_path,
     задание = {"repo": str(root), "task": "TASK-1", "date": "31.08.2026", "author": "Автор",
                "modules": [{"модуль": "Документ.мой_Наш.Форма.ФормаДокумента", "edits": [
                    {"line": 4, "lines": 0, "code": НОВОЕ}]}]}
-    путь = tmp_path / "код.json"
-    путь.write_text(json.dumps(задание, ensure_ascii=False), encoding="utf-8")
+    path = tmp_path / "код.json"
+    path.write_text(json.dumps(задание, ensure_ascii=False), encoding="utf-8")
     профиль = tmp_path / "профиль.json"
     профиль.write_text(json.dumps(ПРОФИЛЬ, ensure_ascii=False), encoding="utf-8")
     capsys.readouterr()
-    assert main(["--apply", str(путь), "--профиль", str(профиль)]) == 0
-    текст = capsys.readouterr().out
-    assert "«ПередЗакрытием» названа как событие формы «ПередЗакрытием»" in текст, текст
-    assert "«НомерПриИзменении» названа как событие «ПриИзменении» элемента «Номер»" in текст
-    assert "«Посчитать»" not in текст
+    assert main(["--apply", str(path), "--профиль", str(профиль)]) == 0
+    text = capsys.readouterr().out
+    assert "«ПередЗакрытием» названа как событие формы «ПередЗакрытием»" in text, text
+    assert "«НомерПриИзменении» названа как событие «ПриИзменении» элемента «Номер»" in text
+    assert "«Посчитать»" not in text
 
     ответ = tmp_path / "ответ.json"
     main(["--проверить", str(root), "--задача", "TASK-1", "--профиль", str(профиль), "--json", str(ответ)])
-    находки = [f for f in json.loads(ответ.read_text(encoding="utf-8"))["находки"]
+    findings = [f for f in json.loads(ответ.read_text(encoding="utf-8"))["находки"]
                if f["код"] == "ФОРМА-ОБРАБОТЧИК-НЕ-ПРИВЯЗАН"]
-    assert sorted(f["текст"].split("»")[0] for f in находки) == ["процедура «НомерПриИзменении",
+    assert sorted(f["текст"].split("»")[0] for f in findings) == ["процедура «НомерПриИзменении",
                                                                  "процедура «ПередЗакрытием"]
-    assert all(f["уровень"] == "предупреждение" and f["строка"] for f in находки)
+    assert all(f["уровень"] == "предупреждение" and f["строка"] for f in findings)
 
 
 def test_bindings_are_read_from_an_edt_form():
-    текст = """<?xml version="1.0" encoding="UTF-8"?>
+    text = """<?xml version="1.0" encoding="UTF-8"?>
 <form:Form xmlns:form="http://g5.1c.ru/v8/dt/form">
   <items xsi:type="form:FormField">
     <name>Номер</name>
@@ -88,7 +88,7 @@ def test_bindings_are_read_from_an_edt_form():
   </formCommands>
 </form:Form>
 """
-    привязаны, элементы = form_bindings.bindings(текст)
+    привязаны, элементы = form_bindings.bindings(text)
     assert привязаны == {"НомерПриИзменении", "ПередЗакрытием", "ПосчитатьКоманда"}
     assert "Номер" in элементы
     assert form_bindings.form_file("Documents/Д/Forms/Ф/Module.bsl") == "Documents/Д/Forms/Ф/Form.form"

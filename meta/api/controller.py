@@ -37,12 +37,12 @@ class Controller:
         """Задание на формы моделями -> результат сценария."""
         return self._execute({"repo": repo, "forms": в_язык_заданий(формы)}, apply_now)
 
-    def code(self, repo, task, date, author, модули, перенос=None, apply_now=False, base=None):
+    def code(self, repo, task, date, author, modules, перенос=None, apply_now=False, base=None):
         """Задание на код моделями -> результат сценария правки вставками."""
         job = {"repo": repo, "task": task, "date": date, "author": author}
         if base:
             job["base"] = base
-        job.update(код_в_язык_заданий(модули, перенос))
+        job.update(код_в_язык_заданий(modules, перенос))
         return self._execute(job, apply_now)
 
     def metadata(self, job, apply_now=False):
@@ -54,7 +54,7 @@ class Controller:
         if isinstance(job, dict) and job.get("forms"):
             raise Refuse("формы — инструментами forms_check и forms_apply, "
                          "здесь задания на объекты и их части")
-        if isinstance(job, dict) and any(job.get(ключ) for ключ in
+        if isinstance(job, dict) and any(job.get(key) for key in
                                          ("modules", "модуль", "path", "move_method")):
             raise Refuse("код — инструментами code_check и code_apply, "
                          "здесь задания на объекты и их части")
@@ -89,9 +89,9 @@ class Controller:
     def plan_check(self, objects, repo=None, base="HEAD", rev=None, baseline=None, target=None,
                    only_declared=False):
         """Сверка плана с фактом: объекты плана моделями -> язык плана -> сценарий."""
-        план = план_из_json({"объекты": план_в_язык_плана(objects)})
+        plan = план_из_json({"объекты": план_в_язык_плана(objects)})
         сценарий = self.plan_check_case(repo=repo, base=base, rev=rev, baseline=baseline, target=target)
-        return сценарий.execute(план, только_заявленные=only_declared)
+        return сценарий.execute(plan, declared_only=only_declared)
 
     def plan_emit(self, repo=None, base="HEAD", rev=None, baseline=None, target=None):
         """План по факту задачи."""

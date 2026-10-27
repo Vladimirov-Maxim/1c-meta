@@ -61,9 +61,9 @@ class Controller:
     def plan_check(self, plan, repo=None, base="HEAD", rev=None, baseline=None, target=None,
                    only_declared=False):
         """Сверка плана с фактом: план JSON-ом (словарь или текст) -> язык плана -> сценарий."""
-        план = план_из_json(plan)
+        parsed_plan = план_из_json(plan)
         сценарий = self.plan_check_case(repo=repo, base=base, rev=rev, baseline=baseline, target=target)
-        return сценарий.execute(план, только_заявленные=only_declared)
+        return сценарий.execute(parsed_plan, declared_only=only_declared)
 
     def plan_emit(self, repo=None, base="HEAD", rev=None, baseline=None, target=None):
         """План по факту задачи."""

@@ -15,28 +15,28 @@ def _где(f):
 
 
 def plan_check_lines(result):
-    строки = [f"Сверка плана изменений: {result.source}",
-              f"Объектов в плане: {len(result.plan.объекты)}, тронуто задачей: {len(result.touched)}"]
-    строки += [f"   {пояснение}" for пояснение in result.notes]
+    lines = [f"Сверка плана изменений: {result.source}",
+              f"Объектов в плане: {len(result.plan.objects)}, тронуто задачей: {len(result.touched)}"]
+    lines += [f"   {пояснение}" for пояснение in result.notes]
     if result.findings:
-        строки.append("")
+        lines.append("")
         for f in result.findings:
-            где = _где(f)
-            строки.append(f"   {f.level:14} [{f.code}] {f.message}" + (f"   ({где})" if где else ""))
-    строки.append("")
+            where = _где(f)
+            lines.append(f"   {f.level:14} [{f.code}] {f.message}" + (f"   ({where})" if where else ""))
+    lines.append("")
     ошибок, предупреждений = len(result.errors), len(result.warnings)
     if ошибок:
-        строки.append(f"РАСХОЖДЕНИЙ: {ошибок}, предупреждений: {предупреждений}")
+        lines.append(f"РАСХОЖДЕНИЙ: {ошибок}, предупреждений: {предупреждений}")
     else:
-        строки.append("СОВПАДАЕТ" + (f" (предупреждений: {предупреждений})" if предупреждений else ""))
-    return строки
+        lines.append("СОВПАДАЕТ" + (f" (предупреждений: {предупреждений})" if предупреждений else ""))
+    return lines
 
 
 def plan_check_json(result):
     """Находки того же вида, что у проверки правок, и `объект` — «Вид.Имя»."""
     return {
         "источник": result.source,
-        "находки": [{"код": f.code, "уровень": f.level, "объект": f.объект, "файл": f.path,
+        "находки": [{"код": f.code, "уровень": f.level, "объект": f.obj, "файл": f.path,
                      "строка": f.line, "текст": f.message} for f in result.findings],
         "пропущено": [],
         "пояснения": list(result.notes),

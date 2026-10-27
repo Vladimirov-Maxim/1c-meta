@@ -27,30 +27,30 @@ from meta.domain.model import Refuse  # noqa: E402
 def выгрузка(tmp_path, версия=None):
     """Выгрузка конфигуратора с двумя документами; `версия` — подменить формат."""
     root = tmp_path / "cf"
-    for имя, эталон in (("Configuration.xml", "Configuration.xml"),
+    for name, эталон in (("Configuration.xml", "Configuration.xml"),
                         (f"Documents/{ДОКУМЕНТ}.xml", f"{ДОКУМЕНТ}.до.xml"),
                         ("Documents/мой_ПробаНепроводимый.xml", "мой_ПробаНепроводимый.до.xml")):
-        путь = root.joinpath(*имя.split("/"))
-        путь.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(os.path.join(ЭТАЛОНЫ, эталон), путь)
+        path = root.joinpath(*name.split("/"))
+        path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(os.path.join(ЭТАЛОНЫ, эталон), path)
     if версия:
-        реестр = root / "Configuration.xml"
-        сырьё = реестр.read_bytes()
+        registry = root / "Configuration.xml"
+        сырьё = registry.read_bytes()
         assert b'version="2.21"' in сырьё
-        реестр.write_bytes(сырьё.replace(b'version="2.21"', f'version="{версия}"'.encode(), 1))
+        registry.write_bytes(сырьё.replace(b'version="2.21"', f'version="{версия}"'.encode(), 1))
     return root
 
 
-def задание(tmp_path, данные, имя="job.json"):
-    путь = tmp_path / имя
-    путь.write_text(json.dumps(данные, ensure_ascii=False), encoding="utf-8")
-    return str(путь)
+def задание(tmp_path, данные, name="job.json"):
+    path = tmp_path / name
+    path.write_text(json.dumps(данные, ensure_ascii=False), encoding="utf-8")
+    return str(path)
 
 
 def снимок(root):
-    return {путь: open(путь, "rb").read()
-            for путь in (os.path.join(папка, имя) for папка, _, имена in os.walk(root)
-                         for имя in имена)}
+    return {path: open(path, "rb").read()
+            for path in (os.path.join(папка, name) for папка, _, names in os.walk(root)
+                         for name in names)}
 
 
 # --- запись не своего формата -----------------------------------------------
@@ -67,10 +67,10 @@ def test_a_dump_of_another_format_is_not_written(tmp_path, операция):
     «Неизвестная версия формата 2.21». Поэтому — отказ до записи, и на диске
     не меняется ни байта."""
     root = выгрузка(tmp_path, "2.20")
-    до = снимок(root)
+    before_ = снимок(root)
     with pytest.raises(Refuse, match="выгрузка формата 2.20, а инструмент пишет формат 2.21"):
         main(["--apply", задание(tmp_path, dict(операция, repo=str(root)))])
-    assert снимок(root) == до
+    assert снимок(root) == before_
 
 
 def test_the_own_format_is_written(tmp_path):
@@ -93,14 +93,14 @@ def test_the_version_is_the_roots_not_the_declarations(tmp_path):
 def test_code_is_edited_in_a_dump_of_any_format(tmp_path):
     """Текст модуля от формата выгрузки не зависит — правка вставками идёт."""
     root = выгрузка(tmp_path, "2.20")
-    модуль = root / "Documents" / ДОКУМЕНТ / "Ext" / "ObjectModule.bsl"
-    модуль.parent.mkdir(parents=True)
-    модуль.write_bytes("﻿Процедура Проба()\r\n\tВозврат;\r\nКонецПроцедуры\r\n".encode())
+    module = root / "Documents" / ДОКУМЕНТ / "Ext" / "ObjectModule.bsl"
+    module.parent.mkdir(parents=True)
+    module.write_bytes("﻿Процедура Проба()\r\n\tВозврат;\r\nКонецПроцедуры\r\n".encode())
     данные = {"repo": str(root), "task": "TASK-1", "date": "06.10.2026", "author": "Автор",
               "modules": [{"модуль": f"Документ.{ДОКУМЕНТ}.МодульОбъекта",
                            "edits": [{"line": 2, "lines": 0, "code": "\tА = 1;"}]}]}
     assert main(["--apply", задание(tmp_path, данные)]) == 0
-    assert "\tА = 1;" in модуль.read_text(encoding="utf-8-sig")
+    assert "\tА = 1;" in module.read_text(encoding="utf-8-sig")
 
 
 # --- подписка: сигнатура обработчика --------------------------------------------
@@ -110,13 +110,13 @@ def с_подпиской(tmp_path):
     """Справочник, модуль с обработчиком документа (четыре параметра) и
     подписка документа на него — исправная, без замечаний."""
     root = выгрузка(tmp_path)
-    объекты = {"repo": str(root), "objects": [
+    objects = {"repo": str(root), "objects": [
         {"вид": "Справочник", "поля": {"имя": "мой_Партнеры", "синоним": "Партнеры"}},
         {"вид": "ОбщийМодуль", "поля": {
             "имя": "мой_ЗаявкиСервер", "синоним": "Заявки, сервер",
             "текст": "Процедура ЗаявкаПередЗаписью(Источник, Отказ, РежимЗаписи, РежимПроведения) "
                      "Экспорт\nКонецПроцедуры"}}]}
-    assert main(["--apply", задание(tmp_path, объекты, "1.json")]) == 0
+    assert main(["--apply", задание(tmp_path, objects, "1.json")]) == 0
     подписка = {"repo": str(root), "objects": [{"вид": "ПодпискаНаСобытие", "поля": {
         "имя": "мой_ЗаявкаПередЗаписью", "синоним": "Заявка перед записью",
         "источник": [{"вид": "Документ", "имя": ДОКУМЕНТ}], "событие": "ПередЗаписью",
@@ -148,15 +148,15 @@ def test_a_change_of_unrelated_field_does_not_ask_about_the_rest(tmp_path, capsy
     assert "ПОДПИСКА-" not in capsys.readouterr().out
 
 
-@pytest.mark.parametrize("источник", ["Справочник.мой_Партнеры", "Справочник.мой_Партнеры (Объект)"])
-def test_a_single_source_without_a_list_is_checked_not_crashed(tmp_path, capsys, источник):
+@pytest.mark.parametrize("source", ["Справочник.мой_Партнеры", "Справочник.мой_Партнеры (Объект)"])
+def test_a_single_source_without_a_list_is_checked_not_crashed(tmp_path, capsys, source):
     """Одно обозначение строкой — так источник печатает показ — проверяется,
     как и список, а не падает с `TypeError: object of type 'TypeRef' has no len()`."""
     root = с_подпиской(tmp_path)
     capsys.readouterr()
     данные = {"repo": str(root), "objects": [{"вид": "ПодпискаНаСобытие", "поля": {
         "имя": "мой_ПартнерыПередЗаписью", "синоним": "Партнеры перед записью",
-        "источник": источник, "событие": "ПередЗаписью",
+        "источник": source, "событие": "ПередЗаписью",
         "обработчик": "мой_ЗаявкиСервер.ЗаявкаПередЗаписью"}}]}
     assert main([задание(tmp_path, данные, "3.json")]) == 0
     вывод = capsys.readouterr().out
@@ -214,5 +214,5 @@ def test_the_button_reference_names_where_buttons_go():
     """Справка по кнопке называет, куда её класть: панель формы и панель таблицы."""
     from meta.report.forms import element_properties
 
-    текст = "\n".join(element_properties("Кнопка"))
-    assert "«ФормаКоманднаяПанель»" in текст and "«<Таблица>КоманднаяПанель»" in текст
+    text = "\n".join(element_properties("Кнопка"))
+    assert "«ФормаКоманднаяПанель»" in text and "«<Таблица>КоманднаяПанель»" in text

@@ -48,8 +48,8 @@ SATELLITES = {"extendedTooltip": "ExtendedTooltip", "contextMenu": "ContextMenu"
               "viewStatusAddition": "ViewStatusAddition", "searchControlAddition": "SearchControlAddition"}
 
 #: Слово группировки по значению EDT — обратное к словарю свойств формы.
-LAYOUT = {англ: рус for словарь in ("ГруппировкаПодчиненныхЭлементовФормы", "ГруппировкаКолонок")
-          for рус, англ in fp.ENUMS.get(словарь, {}).items()}
+LAYOUT = {англ: рус for vocabulary in ("ГруппировкаПодчиненныхЭлементовФормы", "ГруппировкаКолонок")
+          for рус, англ in fp.ENUMS.get(vocabulary, {}).items()}
 
 TREE = LxmlCardTree()
 
@@ -86,17 +86,17 @@ def _kind_tag(item):
     пишет (`ButtonGroup` у группы, `Picture` у декорации) — он берётся из
     метамодели."""
     класс = item.attrs.get("xsi:type", "").partition(":")[2]
-    вид = _text(item, "type")
-    if вид is None:
+    kind = _text(item, "type")
+    if kind is None:
         f = edt_model.feature(FORM + класс, "type")
-        вид = edt_model.default_text(f) if f is not None else None
+        kind = edt_model.default_text(f) if f is not None else None
     if класс == "Decoration":
-        return DECORATIONS.get(вид, вид)
+        return DECORATIONS.get(kind, kind)
     if класс == "Button":
         return "Button"
     if класс == "Table":
         return "Table"
-    return вид or класс
+    return kind or класс
 
 
 def _command(item):
@@ -137,45 +137,45 @@ def view(root, owner, name):
     def walk(node, parent):
         for child in node.children:
             if child.tag == "items":
-                имя = _text(child, "name")
+                item_name = _text(child, "name")
                 tag = _kind_tag(child)
-                путь = _by_tag(child, "dataPath")
-                elements[имя] = fm.ViewItem(
+                path = _by_tag(child, "dataPath")
+                elements[item_name] = fm.ViewItem(
                     voc.DOMAIN_KIND.get(tag, tag), parent,
-                    _text(путь, "segments") if путь is not None else None,
+                    _text(path, "segments") if path is not None else None,
                     _command(child) if tag == "Button" else None,
                     _events(child), False, _layout(child))
-                order.append(имя)
-                walk(child, имя)
+                order.append(item_name)
+                walk(child, item_name)
             elif child.tag in SATELLITES and _text(child, "name"):
-                имя = _text(child, "name")
+                item_name = _text(child, "name")
                 tag = SATELLITES[child.tag]
-                elements[имя] = fm.ViewItem(voc.DOMAIN_KIND.get(tag, tag), parent, None, None, (), True)
-                order.append(имя)
-                walk(child, имя)
+                elements[item_name] = fm.ViewItem(voc.DOMAIN_KIND.get(tag, tag), parent, None, None, (), True)
+                order.append(item_name)
+                walk(child, item_name)
 
     walk(root, None)
     attributes, dynamic_lists, main, main_type = {}, set(), None, ""
     for attribute in (c for c in root.children if c.tag == "attributes"):
-        имя = _text(attribute, "name")
+        item_name = _text(attribute, "name")
         тип_узел = _by_tag(attribute, "valueType")
         слова = " ".join(c.text or "" for c in тип_узел.children if c.tag == "types") if тип_узел else ""
         if "DynamicList" in слова:
-            attributes[имя] = dm.PlatformType(fm.DYNAMIC_LIST)
-            dynamic_lists.add(имя)
+            attributes[item_name] = dm.PlatformType(fm.DYNAMIC_LIST)
+            dynamic_lists.add(item_name)
         else:
-            attributes[имя] = mdo.type_of(тип_узел) if тип_узел is not None else None
+            attributes[item_name] = mdo.type_of(тип_узел) if тип_узел is not None else None
         if _text(attribute, "main") == "true":
-            main, main_type = имя, слова
+            main, main_type = item_name, слова
     commands, actions = [], {}
     for command in (c for c in root.children if c.tag == "formCommands"):
-        имя = _text(command, "name")
-        commands.append(имя)
-        действие = _by_tag(command, "action")
-        обработчик = _by_tag(действие, "handler") if действие is not None else None
-        actions[имя] = _text(обработчик, "name") if обработчик is not None else None
-    events = {voc.FORM_EVENTS_BACK.get(событие, событие): обработчик
-              for событие, обработчик in ((_text(h, "event"), _text(h, "name"))
+        item_name = _text(command, "name")
+        commands.append(item_name)
+        action = _by_tag(command, "action")
+        обработчик = _by_tag(action, "handler") if action is not None else None
+        actions[item_name] = _text(обработчик, "name") if обработчик is not None else None
+    events = {voc.FORM_EVENTS_BACK.get(event, event): обработчик
+              for event, обработчик in ((_text(h, "event"), _text(h, "name"))
                                           for h in root.children if h.tag == "handlers")}
     return fm.FormView(owner, name, elements, attributes, commands, events, main,
                        _assignment_of(main, main_type, name, owner), dynamic_lists, order, actions)
@@ -189,10 +189,10 @@ def _assignment_of(main, main_type, name, owner):
     if "DynamicList" in main_type:
         by_name = fm.assignment_for(name, owner[0] if owner else None)
         return by_name if by_name in fm.LIST_ASSIGNMENTS else "Списка"
-    for слово, назначение in (("RecordManager", "Записи"), ("DocumentObject", "Документа"),
+    for word, purpose in (("RecordManager", "Записи"), ("DocumentObject", "Документа"),
                               ("DataProcessorObject", "Обработки"), ("ReportObject", "Отчета")):
-        if слово in main_type:
-            return назначение
+        if word in main_type:
+            return purpose
     if "CatalogObject" in main_type:
         return "Группы" if name == "ФормаГруппы" else "Элемента"
     return "Произвольная"
@@ -204,8 +204,8 @@ def designer_text(edt_text):
     from .registry import for_version  # реестр знает и эту реализацию
     try:
         дерево = edt_form.ReverseForm().form(edt_xml.parse(edt_text.encode("utf-8")))
-    except ValueError as беда:
-        raise Refuse(f"форма EDT не перекладывается в форму выгрузки: {беда}") from беда
+    except ValueError as problem:
+        raise Refuse(f"форма EDT не перекладывается в форму выгрузки: {problem}") from problem
     return for_version("2.21").document_text(дерево)
 
 
@@ -214,10 +214,10 @@ def edt_files(form_xml):
     текст} — настройки динамических списков). Чего перекладка не умеет — отказ."""
     дерево = TREE.parse(form_xml)
     файлы = {}
-    for реквизит in дерево.iter(f"{{{LOGFORM}}}Attribute"):
-        настройки = реквизит.find(f"{{{LOGFORM}}}Settings/{{{LOGFORM}}}ListSettings")
-        if настройки is not None:
-            файлы[f"Attributes/{реквизит.get('name')}/ExtInfo/ListSettings.dcss"] = dcss_text(настройки)
+    for attribute in дерево.iter(f"{{{LOGFORM}}}Attribute"):
+        settings = attribute.find(f"{{{LOGFORM}}}Settings/{{{LOGFORM}}}ListSettings")
+        if settings is not None:
+            файлы[f"Attributes/{attribute.get('name')}/ExtInfo/ListSettings.dcss"] = dcss_text(settings)
     перекладка = edt_form.FormTranslation()
     форма = перекладка.form(TREE.to_node(дерево))
     if перекладка.problems:
@@ -228,17 +228,17 @@ def edt_files(form_xml):
 def dcss_text(list_settings):
     """`<ListSettings>` формы выгрузки -> текст `ListSettings.dcss`: те же узлы
     отдельным документом, пространство настроек — по умолчанию."""
-    текст = etree.tostring(list_settings, encoding="unicode")
-    тело = текст[текст.index(">") + 1:текст.rindex("</")]
-    тело = re.sub(r"(</?)dcsset:", r"\1", тело)
-    тело = тело.replace('"dcsset:', '"')
-    строки = []
-    for строка in тело.split("\n"):
-        if строка.startswith("\t" * LIST_SETTINGS_DEPTH):
-            строка = строка[LIST_SETTINGS_DEPTH:]
-        строки.append(строка)
-    тело = "\n".join(строки).rstrip("\t")
-    return '<?xml version="1.0" encoding="UTF-8"?>\n' + DCSS_ROOT + тело + "</Settings>\n"
+    text = etree.tostring(list_settings, encoding="unicode")
+    body = text[text.index(">") + 1:text.rindex("</")]
+    body = re.sub(r"(</?)dcsset:", r"\1", body)
+    body = body.replace('"dcsset:', '"')
+    lines = []
+    for line in body.split("\n"):
+        if line.startswith("\t" * LIST_SETTINGS_DEPTH):
+            line = line[LIST_SETTINGS_DEPTH:]
+        lines.append(line)
+    body = "\n".join(lines).rstrip("\t")
+    return '<?xml version="1.0" encoding="UTF-8"?>\n' + DCSS_ROOT + body + "</Settings>\n"
 
 
 class FormatEdt:

@@ -34,7 +34,7 @@ from .test_code import ВЕНДОРСКИЙ, запустить, одна, пр�
              "Функция Выгрузить(Каталог) Экспорт", "\t", "\tВозврат Каталог;", "", "КонецФункции"]
 
 
-def находки(root):
+def findings(root):
     ответ = os.path.join(os.path.dirname(root), "ответ.json")
     add.main(["--проверить", root, "--задача", "TASK-1", "--json", ответ])
     return [f["код"] for f in json.load(open(ответ, encoding="utf-8"))["находки"]]
@@ -42,32 +42,32 @@ def находки(root):
 
 def test_an_added_query_line_has_no_blank_lines_around_its_markers(репо):
     root = репо(ЗАПРОС)
-    код, текст = запустить(root, path=ВЕНДОРСКИЙ, edits=[правка(6, code="\t|\tТ.Дата,")])
-    assert код == 0, текст
-    строки = прочитать(root, ВЕНДОРСКИЙ)[0]
-    assert строки[3:9] == ["\t\"ВЫБРАТЬ", "\t|\tТ.Номер,", "\t" + ОТКРЫТА, "\t|\tТ.Дата,", "\t" + ЗАКРЫТА,
+    code, text = запустить(root, path=ВЕНДОРСКИЙ, edits=[правка(6, code="\t|\tТ.Дата,")])
+    assert code == 0, text
+    lines = прочитать(root, ВЕНДОРСКИЙ)[0]
+    assert lines[3:9] == ["\t\"ВЫБРАТЬ", "\t|\tТ.Номер,", "\t" + ОТКРЫТА, "\t|\tТ.Дата,", "\t" + ЗАКРЫТА,
                            "\t|\tТ.Сумма"]
 
 
 def test_a_changed_query_line_has_no_blank_lines_inside_the_insertion(репо):
     root = репо(ЗАПРОС)
-    код, текст = запустить(root, path=ВЕНДОРСКИЙ, edits=[одна("\t|\tТ.Сумма", "\t|\tТ.Сумма КАК Итого") | {"line": 6}])
-    assert код == 0, текст
-    строки = прочитать(root, ВЕНДОРСКИЙ)[0]
-    assert строки[4:10] == ["\t|\tТ.Номер,", "\t" + ИЗМЕНЕН, "\t//|\tТ.Сумма", "\t|\tТ.Сумма КАК Итого",
+    code, text = запустить(root, path=ВЕНДОРСКИЙ, edits=[одна("\t|\tТ.Сумма", "\t|\tТ.Сумма КАК Итого") | {"line": 6}])
+    assert code == 0, text
+    lines = прочитать(root, ВЕНДОРСКИЙ)[0]
+    assert lines[4:10] == ["\t|\tТ.Номер,", "\t" + ИЗМЕНЕН, "\t//|\tТ.Сумма", "\t|\tТ.Сумма КАК Итого",
                             "\t" + ЗАКРЫТА, "\t|ИЗ"]
 
 
 def test_a_signature_change_wraps_only_the_declaration_under_its_description(репо):
     root = репо(СИГНАТУРА)
-    код, текст = запустить(root, path=ВЕНДОРСКИЙ, edits=[
+    code, text = запустить(root, path=ВЕНДОРСКИЙ, edits=[
         одна("Функция Выгрузить(Каталог) Экспорт", "Функция Выгрузить(Каталог, Период = Неопределено) Экспорт")
         | {"line": 6}])
-    assert код == 0, текст
-    строки = прочитать(root, ВЕНДОРСКИЙ)[0]
-    assert строки[4:10] == ["//", ИЗМЕНЕН, "//Функция Выгрузить(Каталог) Экспорт",
+    assert code == 0, text
+    lines = прочитать(root, ВЕНДОРСКИЙ)[0]
+    assert lines[4:10] == ["//", ИЗМЕНЕН, "//Функция Выгрузить(Каталог) Экспорт",
                             "Функция Выгрузить(Каталог, Период = Неопределено) Экспорт", ЗАКРЫТА, "\t"]
-    assert находки(root) == []
+    assert findings(root) == []
 
 
 def test_a_continued_expression_does_not_warn_about_a_lost_tab():
@@ -96,8 +96,8 @@ def test_a_new_method_without_markers_is_separated_from_its_neighbours(репо)
     # модуль «создан задачей»: в базовой ревизии его нет
     subprocess.run(["git", "-C", root, "rm", "-q", "--cached", ВЕНДОРСКИЙ], check=True)
     subprocess.run(["git", "-C", root, "commit", "-q", "-m", "без модуля"], check=True)
-    код, текст = запустить(root, path=ВЕНДОРСКИЙ, edits=[правка(4, code="Процедура Новая()\nКонецПроцедуры")])
-    assert код == 0, текст
+    code, text = запустить(root, path=ВЕНДОРСКИЙ, edits=[правка(4, code="Процедура Новая()\nКонецПроцедуры")])
+    assert code == 0, text
     assert прочитать(root, ВЕНДОРСКИЙ)[0] == ["#Область Служебные", "Процедура Старая()", "КонецПроцедуры", "",
                                                "Процедура Новая()", "КонецПроцедуры", "", "#КонецОбласти"]
 
@@ -107,10 +107,10 @@ def test_every_problem_of_one_edit_comes_at_once(репо):
     """Беды одной правки — одним отказом: неверная последняя строка якоря и
     ёлочки в коде видны сразу, а не по кругу на каждую."""
     root = репо(["Процедура Тест()", "\tЗначение = 1;", "\tДругое = 2;", "КонецПроцедуры"])
-    код, текст = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[
+    code, text = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[
         правка(2, 2, "\tЗначение = 1;", "\tДругое = 3;", "\tА = «б»;")])
-    assert код == 1 and "в правке бед 2" in текст, текст
-    assert "кавычки-ёлочки" in текст and "ожидалось" in текст
+    assert code == 1 and "в правке бед 2" in text, text
+    assert "кавычки-ёлочки" in text and "ожидалось" in text
 
 
 ОДНА = "\t// {[+](фрагмент ДОБАВЛЕН), 31.08.2026, #TEAM Петров Петр #TASK-1"
@@ -125,22 +125,22 @@ def test_one_own_insertion_is_reverted_by_its_line(репо):
     from .test_code import написать
     root = репо(["Процедура Тест()", "	Значение = 1;", "	Другое = 2;", "КонецПроцедуры"])
     написать(root, ВЕНДОРСКИЙ, ДВЕ)                    # обе вставки — правки задачи поверх базы
-    код, текст = запустить(root, path=ВЕНДОРСКИЙ, revert=5)
-    assert код == 0, текст
+    code, text = запустить(root, path=ВЕНДОРСКИЙ, revert=5)
+    assert code == 0, text
     assert прочитать(root, ВЕНДОРСКИЙ)[0] == ["Процедура Тест()", "\tЗначение = 1;", "\tДругое = 2;", "",
                                                ОДНА, "\tОстаётся();", КОНЕЦ, "", "КонецПроцедуры"]
 
 
 def test_a_line_outside_own_insertions_is_refused_for_a_single_revert(репо):
     root = репо(ДВЕ)
-    код, текст = запустить(root, path=ВЕНДОРСКИЙ, revert=8)
-    assert код != 0 and "своей вставки задачи TASK-1 здесь нет" in текст, текст
+    code, text = запустить(root, path=ВЕНДОРСКИЙ, revert=8)
+    assert code != 0 and "своей вставки задачи TASK-1 здесь нет" in text, text
 
 
 def test_an_edit_touching_an_own_marker_is_refused(репо):
     """Удаление своей вставки правкой с захватом соседней пустой строки дало бы
     блок УДАЛЕН с закомментированными своими метками — отказ с подсказкой."""
     root = репо(ДВЕ)
-    код, текст = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[
+    code, text = запустить(root, apply=False, path=ВЕНДОРСКИЙ, edits=[
         правка(3, 4, "", КОНЕЦ, "")])
-    assert код != 0 and "задевает метку своей вставки" in текст and "revert" in текст, текст
+    assert code != 0 and "задевает метку своей вставки" in text and "revert" in text, text

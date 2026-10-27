@@ -18,69 +18,69 @@ import re
 from dataclasses import dataclass, field
 
 from .changes import ADDED, DELETED
-from .model import Finding, запись_типа
+from .model import Finding, type_record
 from .modules import SINGLE_MODULE
 
 #: Группы состава объекта — те же слова, что в задании на объект.
-ГРУППЫ = ("реквизиты", "измерения", "ресурсы", "табличныеЧасти", "значения", "предопределенные")
+GROUPS = ("реквизиты", "измерения", "ресурсы", "табличныеЧасти", "значения", "предопределенные")
 #: Группы без типов: у табличной части, значения перечисления и
 #: предопределённого элемента типа нет.
-БЕЗ_ТИПОВ = ("табличныеЧасти", "значения", "предопределенные")
+WITHOUT_TYPES = ("табличныеЧасти", "значения", "предопределенные")
 #: Группы, которые читает не всякий формат: предопределённые проекта EDT лежат в
 #: карточке, а у выгрузки конфигуратора — отдельным файлом, которого сверка не
 #: читает. Нет группы в факте — не «не сделано», а «сверять не с чем».
-НЕ_ВЕЗДЕ = ("предопределенные",)
+NOT_EVERYWHERE = ("предопределенные",)
 #: Член группы в единственном числе — для текста находки: слово и окончание
 #: причастия («заявлен», «заявлено», «заявлена»).
-ЧЛЕН = {"реквизиты": ("реквизит", ""), "измерения": ("измерение", "о"),
+MEMBER = {"реквизиты": ("реквизит", ""), "измерения": ("измерение", "о"),
         "ресурсы": ("ресурс", ""), "табличныеЧасти": ("табличная часть", "а"),
         "значения": ("значение", "о"), "предопределенные": ("предопределённый элемент", "")}
 
-СОЗДАТЬ, ИЗМЕНИТЬ, УДАЛИТЬ = "создать", "изменить", "удалить"
-ДЕЙСТВИЯ = (СОЗДАТЬ, ИЗМЕНИТЬ, УДАЛИТЬ)
+CREATE, CHANGE, DELETE = "создать", "изменить", "удалить"
+ACTIONS = (CREATE, CHANGE, DELETE)
 
 #: Виды, которые правятся попутно: право на новый объект выдаётся в роли,
 #: место в интерфейсе — в подсистеме. Не заявлены — предупреждение.
-ПОПУТНЫЕ = ("Роль", "Подсистема")
+INCIDENTAL = ("Роль", "Подсистема")
 
 #: Ссылочные виды. Тип ссылки пишут и «Справочник.Имя» — как задание и показ,
 #: и «СправочникСсылка.Имя» — как синтакс-помощник; это один тип.
-ССЫЛОЧНЫЕ = ("Справочник", "Документ", "Перечисление", "ПланВидовХарактеристик", "ПланСчетов",
+REFERENCE_KINDS = ("Справочник", "Документ", "Перечисление", "ПланВидовХарактеристик", "ПланСчетов",
              "ПланВидовРасчета", "ПланОбмена", "БизнесПроцесс", "Задача")
 
 # --- коды правил ---------------------------------------------------------------------
 
-ОБЪЕКТ_НЕ_СДЕЛАН = "ПЛАН-ОБЪЕКТ-НЕ-СДЕЛАН"
-ОБЪЕКТ_УЖЕ_БЫЛ = "ПЛАН-ОБЪЕКТ-УЖЕ-БЫЛ"
-ОБЪЕКТ_ОСТАЛСЯ = "ПЛАН-ОБЪЕКТ-ОСТАЛСЯ"
-ОБЪЕКТ_БЕЗ_ПРАВОК = "ПЛАН-ОБЪЕКТ-БЕЗ-ПРАВОК"
-ОБЪЕКТ_НЕ_ЗАЯВЛЕН = "ПЛАН-ОБЪЕКТ-НЕ-ЗАЯВЛЕН"
-ПОПУТНОЕ_НЕ_ЗАЯВЛЕНО = "ПЛАН-ПОПУТНОЕ-НЕ-ЗАЯВЛЕНО"
-КАРТОЧКА_НЕ_ЧИТАЕТСЯ = "ПЛАН-КАРТОЧКА-НЕ-ЧИТАЕТСЯ"
-ЧЛЕН_НЕ_СДЕЛАН = "ПЛАН-ЧЛЕН-НЕ-СДЕЛАН"
-ЧЛЕН_НЕ_ЗАЯВЛЕН = "ПЛАН-ЧЛЕН-НЕ-ЗАЯВЛЕН"
-ТИПЫ_РАСХОДЯТСЯ = "ПЛАН-ТИПЫ-РАСХОДЯТСЯ"
-МОДУЛЬ_НЕ_СДЕЛАН = "ПЛАН-МОДУЛЬ-НЕ-СДЕЛАН"
-МЕТОД_НЕ_СДЕЛАН = "ПЛАН-МЕТОД-НЕ-СДЕЛАН"
-МЕТОД_НЕ_ЗАЯВЛЕН = "ПЛАН-МЕТОД-НЕ-ЗАЯВЛЕН"
+OBJECT_NOT_DONE = "ПЛАН-ОБЪЕКТ-НЕ-СДЕЛАН"
+OBJECT_EXISTED = "ПЛАН-ОБЪЕКТ-УЖЕ-БЫЛ"
+OBJECT_REMAINED = "ПЛАН-ОБЪЕКТ-ОСТАЛСЯ"
+OBJECT_UNCHANGED = "ПЛАН-ОБЪЕКТ-БЕЗ-ПРАВОК"
+OBJECT_UNDECLARED = "ПЛАН-ОБЪЕКТ-НЕ-ЗАЯВЛЕН"
+INCIDENTAL_UNDECLARED = "ПЛАН-ПОПУТНОЕ-НЕ-ЗАЯВЛЕНО"
+CARD_UNREADABLE = "ПЛАН-КАРТОЧКА-НЕ-ЧИТАЕТСЯ"
+MEMBER_NOT_DONE = "ПЛАН-ЧЛЕН-НЕ-СДЕЛАН"
+MEMBER_UNDECLARED = "ПЛАН-ЧЛЕН-НЕ-ЗАЯВЛЕН"
+TYPES_DIFFER = "ПЛАН-ТИПЫ-РАСХОДЯТСЯ"
+MODULE_NOT_DONE = "ПЛАН-МОДУЛЬ-НЕ-СДЕЛАН"
+METHOD_NOT_DONE = "ПЛАН-МЕТОД-НЕ-СДЕЛАН"
+METHOD_UNDECLARED = "ПЛАН-МЕТОД-НЕ-ЗАЯВЛЕН"
 
-ОШИБКА, ПРЕДУПРЕЖДЕНИЕ = Finding.ERROR, Finding.WARNING
+ERROR, WARNING = Finding.ERROR, Finding.WARNING
 
 #: Код -> (уровень по умолчанию, что правило требует).
-ПРАВИЛА = {
-    ОБЪЕКТ_НЕ_СДЕЛАН: (ОШИБКА, "объект, заявленный к созданию или изменению, есть в выгрузке"),
-    ОБЪЕКТ_УЖЕ_БЫЛ: (ОШИБКА, "объект, заявленный к созданию, до задачи не существовал"),
-    ОБЪЕКТ_ОСТАЛСЯ: (ОШИБКА, "объект, заявленный к удалению, удалён"),
-    ОБЪЕКТ_БЕЗ_ПРАВОК: (ПРЕДУПРЕЖДЕНИЕ, "в объекте, заявленном к изменению, есть правки"),
-    ОБЪЕКТ_НЕ_ЗАЯВЛЕН: (ОШИБКА, "объект, который задача создала, изменила или удалила, заявлен"),
-    ПОПУТНОЕ_НЕ_ЗАЯВЛЕНО: (ПРЕДУПРЕЖДЕНИЕ, "роль или подсистема, которую задача правила, заявлена"),
-    КАРТОЧКА_НЕ_ЧИТАЕТСЯ: (ОШИБКА, "карточка заявленного объекта читается"),
-    ЧЛЕН_НЕ_СДЕЛАН: (ОШИБКА, "заявленный член объекта есть в выгрузке"),
-    ЧЛЕН_НЕ_ЗАЯВЛЕН: (ОШИБКА, "член, который появился в задаче, заявлен"),
-    ТИПЫ_РАСХОДЯТСЯ: (ОШИБКА, "типы члена — заявленные"),
-    МОДУЛЬ_НЕ_СДЕЛАН: (ОШИБКА, "модуль, где заявлены методы, есть"),
-    МЕТОД_НЕ_СДЕЛАН: (ОШИБКА, "заявленный метод объявлен в модуле"),
-    МЕТОД_НЕ_ЗАЯВЛЕН: (ПРЕДУПРЕЖДЕНИЕ, "экспортный метод, появившийся в задаче, заявлен"),
+RULES = {
+    OBJECT_NOT_DONE: (ERROR, "объект, заявленный к созданию или изменению, есть в выгрузке"),
+    OBJECT_EXISTED: (ERROR, "объект, заявленный к созданию, до задачи не существовал"),
+    OBJECT_REMAINED: (ERROR, "объект, заявленный к удалению, удалён"),
+    OBJECT_UNCHANGED: (WARNING, "в объекте, заявленном к изменению, есть правки"),
+    OBJECT_UNDECLARED: (ERROR, "объект, который задача создала, изменила или удалила, заявлен"),
+    INCIDENTAL_UNDECLARED: (WARNING, "роль или подсистема, которую задача правила, заявлена"),
+    CARD_UNREADABLE: (ERROR, "карточка заявленного объекта читается"),
+    MEMBER_NOT_DONE: (ERROR, "заявленный член объекта есть в выгрузке"),
+    MEMBER_UNDECLARED: (ERROR, "член, который появился в задаче, заявлен"),
+    TYPES_DIFFER: (ERROR, "типы члена — заявленные"),
+    MODULE_NOT_DONE: (ERROR, "модуль, где заявлены методы, есть"),
+    METHOD_NOT_DONE: (ERROR, "заявленный метод объявлен в модуле"),
+    METHOD_UNDECLARED: (WARNING, "экспортный метод, появившийся в задаче, заявлен"),
 }
 
 
@@ -88,63 +88,63 @@ from .modules import SINGLE_MODULE
 
 
 @dataclass(frozen=True)
-class ОбъектПлана:
+class PlanObject:
     """Объект в плане: вид, имя, действие; `члены` — {группа: {имя: (типы,) или
     None — типы не сверяются}}; `модули` — {модуль: (имена методов,)}. У
     изменяемого объекта перечисляется только то, что задача добавляет."""
 
-    вид: str
-    имя: str
-    действие: str
-    члены: dict = field(default_factory=dict)
-    модули: dict = field(default_factory=dict)
+    kind: str
+    name: str
+    action: str
+    members: dict = field(default_factory=dict)
+    modules: dict = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
-class План:
-    объекты: tuple = ()
+class Plan:
+    objects: tuple = ()
 
 
 @dataclass(frozen=True)
-class Состав:
+class Composition:
     """Что объект содержит: {группа: {имя: (типы домена,)}}; `сломан` — почему
     карточка не прочиталась."""
 
-    члены: dict = field(default_factory=dict)
-    сломан: str | None = None
+    members: dict = field(default_factory=dict)
+    broken: str | None = None
 
 
 @dataclass(frozen=True)
-class МодульФакта:
+class FactModule:
     """Модуль объекта до и после задачи: {имя: (экспортный, строка)}; `после`
     None — файла модуля нет."""
 
-    путь: str | None
-    после: dict | None
-    до: dict = field(default_factory=dict)
+    path: str | None
+    after: dict | None
+    before_: dict = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
-class ФактОбъекта:
+class ObjectFact:
     """Объект в выгрузке до и после задачи. `после`/`до` — `Состав` или None:
     карточки нет; `карточка` — путь карточки от корня выгрузки; `модули` —
-    {модуль: `МодульФакта`}."""
+    {модуль: `FactModule`}."""
 
-    вид: str
-    имя: str
-    карточка: str | None
-    после: Состав | None
-    до: Состав | None
-    модули: dict = field(default_factory=dict)
+    kind: str
+    name: str
+    card: str | None
+    after: Composition | None
+    before_: Composition | None
+    modules: dict = field(default_factory=dict)
 
 
-class НаходкаПлана(Finding):
+class PlanFinding(Finding):
     """Расхождение плана и факта: объект, файл (карточка или модуль) и строка,
     если она есть, — у членов карточки строки нет."""
 
-    def __init__(self, code, объект, message, path=None, line=None):
-        super().__init__(code, f"{объект} — {message}", None, ПРАВИЛА[code][0])
-        self.объект = объект
+    def __init__(self, code, obj, message, path=None, line=None):
+        super().__init__(code, f"{obj} — {message}", None, RULES[code][0])
+        self.obj = obj
         self.path = path
         self.line = line
 
@@ -154,168 +154,168 @@ class НаходкаПлана(Finding):
 
 # --- типы ---------------------------------------------------------------------------
 
-_С_УТОЧНЕНИЕМ = re.compile(r"^(Строка|Число)\s*\(.*\)$")
-_ПРЕЖНЯЯ_ССЫЛКА = re.compile(r"^(\w+)Ссылка\.(.+)$")
-_ДАТЫ = ("Дата", "ДатаВремя", "Время")
+_WITH_REFINEMENT = re.compile(r"^(Строка|Число)\s*\(.*\)$")
+_PREVIOUS_REFERENCE = re.compile(r"^(\w+)Ссылка\.(.+)$")
+_DATES = ("Дата", "ДатаВремя", "Время")
 
 
-def род_типа(тип):
+def type_genus(type_):
     """Тип записью — как в плане или в показе — без уточнений: «Строка(50)» ->
     «Строка», «ДатаВремя» -> «Дата», «СправочникСсылка.Х» -> «Справочник.Х».
 
     Длина, точность и состав даты не сверяются: план описывает устройство
     данных, а не их разрядность, и уточнений в планах обычно не пишут.
     """
-    текст = " ".join(str(тип).split())
-    найдено = _С_УТОЧНЕНИЕМ.match(текст)
-    if найдено:
-        return найдено.group(1)
-    if текст in _ДАТЫ:
+    text = " ".join(str(type_).split())
+    found = _WITH_REFINEMENT.match(text)
+    if found:
+        return found.group(1)
+    if text in _DATES:
         return "Дата"
-    найдено = _ПРЕЖНЯЯ_ССЫЛКА.match(текст)
-    if найдено and найдено.group(1) in ССЫЛОЧНЫЕ:
-        return f"{найдено.group(1)}.{найдено.group(2)}"
-    return текст
+    found = _PREVIOUS_REFERENCE.match(text)
+    if found and found.group(1) in REFERENCE_KINDS:
+        return f"{found.group(1)}.{found.group(2)}"
+    return text
 
 
-def записи_типов(типы):
+def type_records(types):
     """Типы домена (один или список) -> записи показа по одной на тип."""
-    if типы is None:
+    if types is None:
         return ()
-    return tuple(запись_типа(т) for т in (типы if isinstance(типы, (list, tuple)) else [типы]))
+    return tuple(type_record(tk) for tk in (types if isinstance(types, (list, tuple)) else [types]))
 
 
 # --- сверка ---------------------------------------------------------------------------
 
 
-def сверить(план, факты, затронутые, только_заявленные=False):
+def reconcile(plan, facts, touched, declared_only=False):
     """План против факта: расхождения в обе стороны.
 
-    `факты` — {(вид, имя): `ФактОбъекта`} по объектам плана; `затронутые` —
+    `факты` — {(вид, имя): `ObjectFact`} по объектам плана; `затронутые` —
     {(вид, имя): статусы файлов объекта} — объекты, файлы которых задача
     добавила, изменила или удалила; у карточки статус свой, у прочих файлов —
     «изменён».
 
-    `только_заявленные` — сверка урезанного плана (круг задачи с частью
+    `declared_only` — сверка урезанного плана (круг задачи с частью
     объектов): тронутое, но не заявленное находкой не считается — его
     называет `незаявленные`.
     """
-    находки, заявленные = [], set()
-    for объект in план.объекты:
-        ключ = (объект.вид, объект.имя)
-        заявленные.add(ключ)
-        находки += _объект(объект, факты[ключ], ключ in затронутые)
-    if только_заявленные:
-        return находки
-    for (вид, имя), статусы in sorted(затронутые.items()):
-        if (вид, имя) in заявленные:
+    findings, declared_items = [], set()
+    for obj in plan.objects:
+        key = (obj.kind, obj.name)
+        declared_items.add(key)
+        findings += _object(obj, facts[key], key in touched)
+    if declared_only:
+        return findings
+    for (kind, name), statuses in sorted(touched.items()):
+        if (kind, name) in declared_items:
             continue
-        что = "новый объект" if ADDED in статусы else "удалён" if DELETED in статусы else "изменён"
-        код = ПОПУТНОЕ_НЕ_ЗАЯВЛЕНО if вид in ПОПУТНЫЕ else ОБЪЕКТ_НЕ_ЗАЯВЛЕН
-        находки.append(НаходкаПлана(код, f"{вид}.{имя}", f"{что}, в плане не заявлен"))
-    return находки
+        what = "новый объект" if ADDED in statuses else "удалён" if DELETED in statuses else "изменён"
+        code = INCIDENTAL_UNDECLARED if kind in INCIDENTAL else OBJECT_UNDECLARED
+        findings.append(PlanFinding(code, f"{kind}.{name}", f"{what}, в плане не заявлен"))
+    return findings
 
 
-def незаявленные(план, затронутые):
+def undeclared(plan, touched):
     """«Вид.Имя» объектов, которые задача тронула, а план не называет."""
-    заявленные = {(объект.вид, объект.имя) for объект in план.объекты}
-    return [f"{вид}.{имя}" for вид, имя in sorted(затронутые) if (вид, имя) not in заявленные]
+    declared_items = {(obj.kind, obj.name) for obj in plan.objects}
+    return [f"{kind}.{name}" for kind, name in sorted(touched) if (kind, name) not in declared_items]
 
 
-def _объект(объект, факт, тронут):
-    кто = f"{объект.вид}.{объект.имя}"
-    карточка = факт.карточка if факт.после is not None else None
-    if объект.действие == УДАЛИТЬ:
-        if факт.после is not None:
-            return [НаходкаПлана(ОБЪЕКТ_ОСТАЛСЯ, кто, "заявлен к удалению, но в выгрузке остался",
-                                 факт.карточка)]
+def _object(obj, fact, is_touched):
+    who = f"{obj.kind}.{obj.name}"
+    card = fact.card if fact.after is not None else None
+    if obj.action == DELETE:
+        if fact.after is not None:
+            return [PlanFinding(OBJECT_REMAINED, who, "заявлен к удалению, но в выгрузке остался",
+                                 fact.card)]
         return []
-    находки = []
-    if факт.после is None:
-        к_чему = "к созданию" if объект.действие == СОЗДАТЬ else "к изменению"
-        return [НаходкаПлана(ОБЪЕКТ_НЕ_СДЕЛАН, кто, f"заявлен {к_чему}, в выгрузке нет")]
-    if объект.действие == СОЗДАТЬ and факт.до is not None:
-        находки.append(НаходкаПлана(ОБЪЕКТ_УЖЕ_БЫЛ, кто, "заявлен к созданию, но уже был в базе",
-                                    карточка))
-    if объект.действие == ИЗМЕНИТЬ and not тронут:
-        находки.append(НаходкаПлана(ОБЪЕКТ_БЕЗ_ПРАВОК, кто, "заявлен к изменению, правок в объекте нет",
-                                    карточка))
-    if факт.после.сломан:
-        return находки + [НаходкаПлана(КАРТОЧКА_НЕ_ЧИТАЕТСЯ, кто,
-                                       f"карточка не читается: {факт.после.сломан}", карточка)]
-    база = факт.до if факт.до is not None and not факт.до.сломан else None
-    for группа in ГРУППЫ:
-        if группа in НЕ_ВЕЗДЕ and группа not in факт.после.члены:
+    findings = []
+    if fact.after is None:
+        applies_to = "к созданию" if obj.action == CREATE else "к изменению"
+        return [PlanFinding(OBJECT_NOT_DONE, who, f"заявлен {applies_to}, в выгрузке нет")]
+    if obj.action == CREATE and fact.before_ is not None:
+        findings.append(PlanFinding(OBJECT_EXISTED, who, "заявлен к созданию, но уже был в базе",
+                                    card))
+    if obj.action == CHANGE and not is_touched:
+        findings.append(PlanFinding(OBJECT_UNCHANGED, who, "заявлен к изменению, правок в объекте нет",
+                                    card))
+    if fact.after.broken:
+        return findings + [PlanFinding(CARD_UNREADABLE, who,
+                                       f"карточка не читается: {fact.after.broken}", card)]
+    base = fact.before_ if fact.before_ is not None and not fact.before_.broken else None
+    for group in GROUPS:
+        if group in NOT_EVERYWHERE and group not in fact.after.members:
             continue
-        находки += _группа(кто, группа, объект.члены.get(группа) or {}, факт.после.члены.get(группа, {}),
-                           None if база is None else база.члены.get(группа, {}), карточка)
-    for модуль, имена in объект.модули.items():
-        находки += _модуль(кто, объект.вид, модуль, имена, факт.модули.get(модуль))
-    return находки
+        findings += _group(who, group, obj.members.get(group) or {}, fact.after.members.get(group, {}),
+                           None if base is None else base.members.get(group, {}), card)
+    for module, names in obj.modules.items():
+        findings += _module(who, obj.kind, module, names, fact.modules.get(module))
+    return findings
 
 
-def _группа(кто, группа, заявлено, есть, было, карточка):
-    слово, окончание = ЧЛЕН[группа]
-    находки = []
-    for имя, типы in заявлено.items():
-        if имя not in есть:
-            находки.append(НаходкаПлана(ЧЛЕН_НЕ_СДЕЛАН, кто, f"{слово} «{имя}» заявлен{окончание}, "
-                                        "в выгрузке нет", карточка))
+def _group(who, group, declared_set, exists, before, card):
+    word, ending = MEMBER[group]
+    findings = []
+    for name, types in declared_set.items():
+        if name not in exists:
+            findings.append(PlanFinding(MEMBER_NOT_DONE, who, f"{word} «{name}» заявлен{ending}, "
+                                        "в выгрузке нет", card))
             continue
-        if not типы:
+        if not types:
             continue
-        в_плане = {род_типа(т): т for т in типы}
-        в_выгрузке = {род_типа(т): т for т in записи_типов(есть[имя])}
-        нет = [в_плане[р] for р in в_плане if р not in в_выгрузке]
-        лишние = [в_выгрузке[р] for р in в_выгрузке if р not in в_плане]
-        if нет or лишние:
-            подробно = (("; в плане, но не в выгрузке: " + ", ".join(нет)) if нет else "") + \
-                       (("; в выгрузке, но не в плане: " + ", ".join(лишние)) if лишние else "")
-            находки.append(НаходкаПлана(ТИПЫ_РАСХОДЯТСЯ, кто, f"{слово} «{имя}»: типы расходятся{подробно}",
-                                        карточка))
-    for имя in есть:
-        if имя not in заявлено and (было is None or имя not in было):
-            находки.append(НаходкаПлана(ЧЛЕН_НЕ_ЗАЯВЛЕН, кто, f"{слово} «{имя}» есть в выгрузке, "
-                                        f"в плане не заявлен{окончание}", карточка))
-    return находки
+        in_plan = {type_genus(tk): tk for tk in types}
+        in_dump = {type_genus(tk): tk for tk in type_records(exists[name])}
+        missing = [in_plan[rr] for rr in in_plan if rr not in in_dump]
+        extra = [in_dump[rr] for rr in in_dump if rr not in in_plan]
+        if missing or extra:
+            detailed = (("; в плане, но не в выгрузке: " + ", ".join(missing)) if missing else "") + \
+                       (("; в выгрузке, но не в плане: " + ", ".join(extra)) if extra else "")
+            findings.append(PlanFinding(TYPES_DIFFER, who, f"{word} «{name}»: типы расходятся{detailed}",
+                                        card))
+    for name in exists:
+        if name not in declared_set and (before is None or name not in before):
+            findings.append(PlanFinding(MEMBER_UNDECLARED, who, f"{word} «{name}» есть в выгрузке, "
+                                        f"в плане не заявлен{ending}", card))
+    return findings
 
 
-def _модуль(кто, вид, модуль, имена, факт):
-    какой = "" if SINGLE_MODULE.get(вид) == модуль else f" ({модуль})"
-    if факт is None or факт.после is None:
-        return [НаходкаПлана(МОДУЛЬ_НЕ_СДЕЛАН, кто, f"заявлены методы модуля{какой}, а модуля нет")]
-    находки = [НаходкаПлана(МЕТОД_НЕ_СДЕЛАН, кто, f"метод {имя}{какой} заявлен, в модуле нет", факт.путь)
-               for имя in имена if имя not in факт.после]
-    for имя, (экспорт, строка) in факт.после.items():
-        if экспорт and имя not in имена and имя not in факт.до:
-            находки.append(НаходкаПлана(МЕТОД_НЕ_ЗАЯВЛЕН, кто, f"экспортный метод {имя}{какой} есть "
-                                        "в модуле, в плане не заявлен", факт.путь, строка))
-    return находки
+def _module(who, kind, module, names, fact):
+    which = "" if SINGLE_MODULE.get(kind) == module else f" ({module})"
+    if fact is None or fact.after is None:
+        return [PlanFinding(MODULE_NOT_DONE, who, f"заявлены методы модуля{which}, а модуля нет")]
+    findings = [PlanFinding(METHOD_NOT_DONE, who, f"метод {name}{which} заявлен, в модуле нет", fact.path)
+               for name in names if name not in fact.after]
+    for name, (export, line) in fact.after.items():
+        if export and name not in names and name not in fact.before_:
+            findings.append(PlanFinding(METHOD_UNDECLARED, who, f"экспортный метод {name}{which} есть "
+                                        "в модуле, в плане не заявлен", fact.path, line))
+    return findings
 
 
 # --- план по факту ---------------------------------------------------------------------
 
 
-def план_по_факту(факты):
+def plan_from_fact(facts):
     """Факт задачи -> план того же вида: объекты, их новые члены с типами —
     записью показа, с уточнениями, — и новые методы модулей, все, а не только
-    экспортные. `факты` — [`ФактОбъекта`] в порядке, в каком их называть."""
-    объекты = []
-    for факт in факты:
-        действие = УДАЛИТЬ if факт.после is None else СОЗДАТЬ if факт.до is None else ИЗМЕНИТЬ
-        члены, модули = {}, {}
-        if факт.после is not None and not факт.после.сломан:
-            база = факт.до if факт.до is not None and not факт.до.сломан else None
-            for группа in ГРУППЫ:
-                было = {} if база is None else база.члены.get(группа, {})
-                новые = {имя: (None if группа in БЕЗ_ТИПОВ else записи_типов(типы))
-                         for имя, типы in факт.после.члены.get(группа, {}).items() if имя not in было}
-                if новые:
-                    члены[группа] = новые
-        if факт.после is not None:
-            for модуль, мф in факт.модули.items():
-                новые = tuple(имя for имя in (мф.после or {}) if имя not in мф.до)
-                if новые:
-                    модули[модуль] = новые
-        объекты.append(ОбъектПлана(факт.вид, факт.имя, действие, члены, модули))
-    return План(tuple(объекты))
+    экспортные. `факты` — [`ObjectFact`] в порядке, в каком их называть."""
+    objects = []
+    for fact in facts:
+        action = DELETE if fact.after is None else CREATE if fact.before_ is None else CHANGE
+        members, modules = {}, {}
+        if fact.after is not None and not fact.after.broken:
+            base = fact.before_ if fact.before_ is not None and not fact.before_.broken else None
+            for group in GROUPS:
+                before = {} if base is None else base.members.get(group, {})
+                new_items = {name: (None if group in WITHOUT_TYPES else type_records(types))
+                         for name, types in fact.after.members.get(group, {}).items() if name not in before}
+                if new_items:
+                    members[group] = new_items
+        if fact.after is not None:
+            for module, mf in fact.modules.items():
+                new_items = tuple(name for name in (mf.after or {}) if name not in mf.before_)
+                if new_items:
+                    modules[module] = new_items
+        objects.append(PlanObject(fact.kind, fact.name, action, members, modules))
+    return Plan(tuple(objects))

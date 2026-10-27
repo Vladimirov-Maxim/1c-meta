@@ -32,7 +32,7 @@ from ..domain.changes import (
 )
 from ..domain.model import Refuse
 from ..domain.modules import COMMAND_MARK, CONFIGURATION, FORM_MARK, ModuleAddress
-from ..domain.plan import Состав
+from ..domain.plan import Composition
 from . import form_bindings, git, layout
 from .repository import Plan
 from .tree_lxml import LxmlCardTree
@@ -54,7 +54,7 @@ def split_lines(data):
         text = text[:-1]
     if not text:
         return []
-    return [строка[:-1] if строка.endswith("\r") else строка for строка in text.split("\n")]
+    return [line[:-1] if line.endswith("\r") else line for line in text.split("\n")]
 
 
 def read_composition(data, edt=False):
@@ -64,8 +64,8 @@ def read_composition(data, edt=False):
     tree = LxmlCardTree()
     try:
         документ = tree.parse(data.decode("utf-8-sig", "replace").replace("\r\n", "\n"))
-    except Refuse as отказ:
-        return Состав(сломан=str(отказ))
+    except Refuse as refusal:
+        return Composition(broken=str(refusal))
     узел = tree.to_node(документ)
     return mdo.composition_from_node(узел) if edt else mapping.composition_from_node(узел)
 
@@ -103,7 +103,7 @@ class _Layout(ChangeSource):
 
     def format_notes(self):
         if self.layout.edt:
-            return [f"правило {rules.СЛУЖЕБНЫЙ_ФАЙЛ} не применяется: в проекте EDT служебного файла "
+            return [f"правило {rules.SERVICE_FILE} не применяется: в проекте EDT служебного файла "
                     "выгрузки нет"]
         return []
 
@@ -111,8 +111,8 @@ class _Layout(ChangeSource):
         return self.layout.is_module(path)
 
     def form_bindings(self, path):
-        описание = form_bindings.form_file(path)
-        данные = self.data(описание, AFTER) if описание else None
+        description = form_bindings.form_file(path)
+        данные = self.data(description, AFTER) if description else None
         if данные is None:
             return None
         привязаны, элементы = form_bindings.bindings(данные.decode("utf-8-sig", "replace"))
@@ -134,16 +134,16 @@ class _Layout(ChangeSource):
         return self.layout.card_path(kind, name)
 
     def composition(self, kind, name, side):
-        путь = self.layout.card_path(kind, name)
-        данные = self.data(путь, side) if путь else None
+        path = self.layout.card_path(kind, name)
+        данные = self.data(path, side) if path else None
         return None if данные is None else read_composition(данные, self.layout.edt)
 
     def module_of(self, path):
-        адрес = self._modules.address_of_file(path.split("/"))
-        if адрес is None or адрес.sub is not None or адрес.module in (FORM_MARK, COMMAND_MARK) \
-                or адрес.kind == CONFIGURATION:
+        address = self._modules.address_of_file(path.split("/"))
+        if address is None or address.sub is not None or address.module in (FORM_MARK, COMMAND_MARK) \
+                or address.kind == CONFIGURATION:
             return None
-        return адрес.kind, адрес.name, адрес.module
+        return address.kind, address.name, address.module
 
     def module_path(self, kind, name, module):
         if kind not in module_files.CONTAINERS or module not in module_files.OWN_FILES:
@@ -157,16 +157,16 @@ class _Layout(ChangeSource):
         """{объект: [(роль, право)]} по упоминаниям: `mentions` — {объект: [файлы
         прав]}, `read(файл)` — его байты. Упоминание ещё не право: блок объекта
         может перечислять права со значением false."""
-        tree, выдано, итог = LxmlCardTree(), {}, {}
-        for объект in objects:
-            имя = self.layout.rights_name(*объект)
-            for файл in sorted(set(mentions.get(объект, ()))):
+        tree, выдано, result = LxmlCardTree(), {}, {}
+        for obj in objects:
+            rights_name = self.layout.rights_name(*obj)
+            for файл in sorted(set(mentions.get(obj, ()))):
                 if файл not in выдано:
-                    текст = (read(файл) or b"").decode("utf-8-sig", "replace").replace("\r\n", "\n")
-                    выдано[файл] = {name for name, _ in tree.granted(tree.parse(текст))}
-                роль = self.layout.rights_file.match(файл).group(1)
-                итог.setdefault(объект, []).append((роль, имя in выдано[файл]))
-        return итог
+                    text = (read(файл) or b"").decode("utf-8-sig", "replace").replace("\r\n", "\n")
+                    выдано[файл] = {name for name, _ in tree.granted(tree.parse(text))}
+                role = self.layout.rights_file.match(файл).group(1)
+                result.setdefault(obj, []).append((role, rights_name in выдано[файл]))
+        return result
 
 
 class GitChanges(_Layout):
@@ -182,16 +182,16 @@ class GitChanges(_Layout):
         if not os.path.isdir(self.root):
             raise Refuse(f"каталога «{self.root}» не существует")
         self.layout = layout.layout_of(self.root)
-        внутри = self._git("rev-parse", "--is-inside-work-tree", why="не могу узнать, под git ли выгрузка")
-        if внутри is None:
+        inside = self._git("rev-parse", "--is-inside-work-tree", why="не могу узнать, под git ли выгрузка")
+        if inside is None:
             raise Refuse("git не найден — для сравнения с базой он нужен; без git сравнивайте парой "
                          "каталогов «эталон — копия»")
-        if внутри.returncode != 0:
-            raise Refuse(f"«{self.root}» не под git: {git.said(внутри)}")
+        if inside.returncode != 0:
+            raise Refuse(f"«{self.root}» не под git: {git.said(inside)}")
         for ревизия in filter(None, (self.base, self.rev)):
-            есть = self._git("rev-parse", "--verify", "--quiet", f"{ревизия}^{{commit}}",
+            exists = self._git("rev-parse", "--verify", "--quiet", f"{ревизия}^{{commit}}",
                              why=f"не могу проверить ревизию «{ревизия}»")
-            if есть.returncode != 0:
+            if exists.returncode != 0:
                 raise Refuse(f"ревизии «{ревизия}» в репозитории нет")
 
     def _git(self, *args, why):
@@ -205,18 +205,18 @@ class GitChanges(_Layout):
     def against_head(self):
         if self.rev:
             return None
-        база = self._git("rev-parse", "--verify", "--quiet", f"{self.base}^{{commit}}", why="не могу прочитать базу")
+        base = self._git("rev-parse", "--verify", "--quiet", f"{self.base}^{{commit}}", why="не могу прочитать базу")
         голова = self._git("rev-parse", "--verify", "--quiet", "HEAD^{commit}", why="не могу прочитать HEAD")
-        if база is None or голова is None or голова.returncode != 0 or база.stdout == голова.stdout:
+        if base is None or голова is None or голова.returncode != 0 or base.stdout == голова.stdout:
             return None
         return GitChanges(self.root, "HEAD")
 
     def describe(self):
         if self.rev:
-            что = f"ревизия {self.rev} против {self.base}"
+            what = f"ревизия {self.rev} против {self.base}"
         else:
-            что = f"рабочая копия против {self.base} (с новыми файлами)"
-        return f"{self.layout.name}: {что}" if self.layout.edt else что
+            what = f"рабочая копия против {self.base} (с новыми файлами)"
+        return f"{self.layout.name}: {what}" if self.layout.edt else what
 
     def changes(self):
         if "changes" in self._cache:
@@ -225,16 +225,16 @@ class GitChanges(_Layout):
         вывод = self._ok(self._git("diff", "--relative", "--no-renames", "--name-status", *ревизии,
                                    why="не могу получить состав правок"), "состав правок")
         files = {}
-        for строка in вывод.decode("utf-8", "replace").splitlines():
-            if not строка.strip():
+        for line in вывод.decode("utf-8", "replace").splitlines():
+            if not line.strip():
                 continue
-            статус, _, путь = строка.partition("\t")
-            files[git.unquote(путь)] = {"A": ADDED, "D": DELETED}.get(статус[:1], MODIFIED)
+            статус, _, path = line.partition("\t")
+            files[git.unquote(path)] = {"A": ADDED, "D": DELETED}.get(статус[:1], MODIFIED)
         неотслеживаемые = self._untracked() if not self.rev else set()
-        for путь in неотслеживаемые:
-            files[путь] = ADDED
+        for path in неотслеживаемые:
+            files[path] = ADDED
         self._cache["неотслеживаемые"] = неотслеживаемые
-        self._cache["changes"] = [FileChange(статус, путь) for путь, статус in sorted(files.items())]
+        self._cache["changes"] = [FileChange(статус, path) for path, статус in sorted(files.items())]
         return self._cache["changes"]
 
     def _untracked(self):
@@ -246,22 +246,22 @@ class GitChanges(_Layout):
         корня репозитория: выгрузка, лежащая в репозитории глубже, отрезает
         свою приставку.
         """
-        приставка = self._ok(self._git("rev-parse", "--show-prefix", why="не могу узнать место выгрузки"),
+        prefix = self._ok(self._git("rev-parse", "--show-prefix", why="не могу узнать место выгрузки"),
                              "место выгрузки").decode("utf-8", "replace").strip()
         вывод = self._ok(self._git("--no-optional-locks", "status", "--porcelain=v1", "-z",
                                    "--untracked-files=all", why="не могу получить новые файлы"), "новые файлы")
-        новые = set()
+        new_items = set()
         for запись in вывод.decode("utf-8", "replace").split("\0"):
-            if запись.startswith("?? ") and запись[3:].startswith(приставка):
-                новые.add(запись[3 + len(приставка):])
-        return новые
+            if запись.startswith("?? ") and запись[3:].startswith(prefix):
+                new_items.add(запись[3 + len(prefix):])
+        return new_items
 
     def _blob(self, ревизия, path):
-        ключ = ("blob", ревизия, path)
-        if ключ not in self._cache:
+        key = ("blob", ревизия, path)
+        if key not in self._cache:
             done = self._git("show", f"{ревизия}:./{path}", why=f"не могу прочитать «{path}» в {ревизия}")
-            self._cache[ключ] = done.stdout if done is not None and done.returncode == 0 else None
-        return self._cache[ключ]
+            self._cache[key] = done.stdout if done is not None and done.returncode == 0 else None
+        return self._cache[key]
 
     def data(self, path, side):
         if side == BEFORE:
@@ -275,9 +275,9 @@ class GitChanges(_Layout):
             return файл.read()
 
     def hunks(self, path):
-        ключ = ("hunks", path)
-        if ключ in self._cache:
-            return self._cache[ключ]
+        key = ("hunks", path)
+        if key in self._cache:
+            return self._cache[key]
         self.changes()
         if path in self._cache["неотслеживаемые"]:
             # новых файлов git diff не видит вовсе: добавлена каждая строка
@@ -292,12 +292,12 @@ class GitChanges(_Layout):
                                        "--diff-algorithm=histogram", "-U0", *ревизии, "--", path,
                                        why=f"не могу получить различия «{path}»"), f"различия «{path}»")
             found = []
-            for строка in вывод.splitlines():
-                m = HUNK.match(строка)
+            for line in вывод.splitlines():
+                m = HUNK.match(line)
                 if m:
                     found.append(Hunk(int(m.group(1)), int(m.group(2) or 1),
                                       int(m.group(3)), int(m.group(4) or 1)))
-        self._cache[ключ] = found
+        self._cache[key] = found
         return found
 
     def unchanged_pairs(self, path):
@@ -311,8 +311,8 @@ class GitChanges(_Layout):
                                 why="не могу получить образцы файлов")
             данные = []
             if образцы is not None and образцы.returncode == 0:
-                for путь in образцы.stdout.decode("utf-8", "replace").splitlines()[:EOL_SAMPLE]:
-                    полный = os.path.join(self.root, *git.unquote(путь).split("/"))
+                for path in образцы.stdout.decode("utf-8", "replace").splitlines()[:EOL_SAMPLE]:
+                    полный = os.path.join(self.root, *git.unquote(path).split("/"))
                     if os.path.isfile(полный):
                         with open(полный, "rb") as файл:
                             данные.append(файл.read())
@@ -352,13 +352,13 @@ class GitChanges(_Layout):
         новый — LF, если переводы строк задаёт git (в индексе он их сводит к
         LF), иначе принятых в репозитории."""
         if self.rev:
-            до = self._blob(self.base, path)
-            if до is not None:
-                crlf, lf = rules.eol_counts(до)
+            before_ = self._blob(self.base, path)
+            if before_ is not None:
+                crlf, lf = rules.eol_counts(before_)
                 if crlf and lf:
                     return None, None
-                слово = "CRLF" if crlf else "LF" if lf else None
-                return слово, f"в {self.base} файл с {слово}: коммит переписывает его целиком"
+                word = "CRLF" if crlf else "LF" if lf else None
+                return word, f"в {self.base} файл с {word}: коммит переписывает его целиком"
             if self._checkout_eol(path):
                 return "LF", "в истории git такие файлы хранит с LF (core.autocrlf, атрибуты)"
             return self._repository_eol()[0], None
@@ -373,9 +373,9 @@ class GitChanges(_Layout):
     def _repository_eol(self):
         crlf = lf = 0
         for данные in self._samples():
-            слово = eol_word(данные)
-            crlf += слово == "CRLF"
-            lf += слово == "LF"
+            word = eol_word(данные)
+            crlf += word == "CRLF"
+            lf += word == "LF"
         if not crlf and not lf:
             return None, "переводы строк не сверяются: в репозитории нет модулей и карточек, с которыми сверить"
         return ("CRLF" if crlf >= lf else "LF"), None
@@ -383,22 +383,22 @@ class GitChanges(_Layout):
     def accepted_bom(self):
         """BOM, принятый в репозитории: так, как у большинства его образцов; образцов
         нет — как принято в формате исходников."""
-        с, без = 0, 0
+        с, without = 0, 0
         for данные in self._samples():
-            есть = bom_word(данные)
-            с += есть is True
-            без += есть is False
-        if not с and not без:
+            exists = bom_word(данные)
+            с += exists is True
+            without += exists is False
+        if not с and not without:
             return self.layout.bom
-        return с >= без
+        return с >= without
 
     def roles_granting(self, objects):
         if not objects:
             return {}
-        имена = {self.layout.rights_name(*объект): объект for объект in objects}
+        names = {self.layout.rights_name(*obj): obj for obj in objects}
         аргументы = ["grep", "-F", "-o"]
-        for имя in имена:
-            аргументы += ["-e", f"<name>{имя}</name>"]
+        for name in names:
+            аргументы += ["-e", f"<name>{name}</name>"]
         if self.rev:
             аргументы += [self.rev, "--", layout.RIGHTS_FOLDER]
         else:
@@ -407,13 +407,13 @@ class GitChanges(_Layout):
         if done is None or done.returncode not in (0, 1):     # 1 — «ничего не найдено»
             raise Refuse(f"git: поиск в правах ролей: {git.said(done) if done else 'git не найден'}")
         упоминания = {}
-        for строка in done.stdout.decode("utf-8", "replace").splitlines():
-            if self.rev and строка.startswith(f"{self.rev}:"):
-                строка = строка[len(self.rev) + 1:]
-            файл, _, найдено = строка.partition(":<name>")
-            имя = найдено.removesuffix("</name>")
-            if имя in имена and self.layout.rights_file.match(файл):
-                упоминания.setdefault(имена[имя], []).append(файл)
+        for line in done.stdout.decode("utf-8", "replace").splitlines():
+            if self.rev and line.startswith(f"{self.rev}:"):
+                line = line[len(self.rev) + 1:]
+            файл, _, found = line.partition(":<name>")
+            name = found.removesuffix("</name>")
+            if name in names and self.layout.rights_file.match(файл):
+                упоминания.setdefault(names[name], []).append(файл)
         return self._granting(objects, упоминания, lambda файл: self.data(файл, AFTER))
 
     def target_eol(self, path):
@@ -428,8 +428,8 @@ class GitChanges(_Layout):
         if self.rev:
             raise Refuse(f"ревизию {self.rev} не переписывают — нормализуется рабочая копия")
         plan = Plan()
-        for путь, данные in items:
-            plan.add(os.path.join(self.root, *путь.split("/")), данные, False)
+        for path, данные in items:
+            plan.add(os.path.join(self.root, *path.split("/")), данные, False)
         return plan
 
 
@@ -441,9 +441,9 @@ class DirectoryChanges(_Layout):
     def __init__(self, baseline, target):
         self.baseline = os.path.abspath(baseline)
         self.target = os.path.abspath(target)
-        for каталог, что in ((self.baseline, "эталона"), (self.target, "копии")):
+        for каталог, what in ((self.baseline, "эталона"), (self.target, "копии")):
             if not os.path.isdir(каталог):
-                raise Refuse(f"каталога {что} «{каталог}» не существует")
+                raise Refuse(f"каталога {what} «{каталог}» не существует")
         self._changes = None
         self.layout = layout.layout_of(self.target, layout.layout_of(self.baseline))
 
@@ -453,23 +453,23 @@ class DirectoryChanges(_Layout):
     @staticmethod
     def _files(root):
         found = {}
-        for папка, _, имена in os.walk(root):
-            for имя in имена:
-                полный = os.path.join(папка, имя)
+        for папка, _, names in os.walk(root):
+            for name in names:
+                полный = os.path.join(папка, name)
                 found[os.path.relpath(полный, root).replace(os.sep, "/")] = полный
         return found
 
     def changes(self):
         if self._changes is None:
-            было, стало = self._files(self.baseline), self._files(self.target)
+            before, after_ = self._files(self.baseline), self._files(self.target)
             out = []
-            for путь in sorted(set(было) | set(стало)):
-                if путь not in было:
-                    out.append(FileChange(ADDED, путь))
-                elif путь not in стало:
-                    out.append(FileChange(DELETED, путь))
-                elif _read(было[путь]) != _read(стало[путь]):
-                    out.append(FileChange(MODIFIED, путь))
+            for path in sorted(set(before) | set(after_)):
+                if path not in before:
+                    out.append(FileChange(ADDED, path))
+                elif path not in after_:
+                    out.append(FileChange(DELETED, path))
+                elif _read(before[path]) != _read(after_[path]):
+                    out.append(FileChange(MODIFIED, path))
             self._changes = out
         return self._changes
 
@@ -478,14 +478,14 @@ class DirectoryChanges(_Layout):
         return _read(полный) if os.path.isfile(полный) else None
 
     def hunks(self, path):
-        до, после = self.lines(path, BEFORE), self.lines(path, AFTER)
-        if после is None:
+        before_, after = self.lines(path, BEFORE), self.lines(path, AFTER)
+        if after is None:
             return []
-        return whole_file(после) if до is None else hunks_between(до, после)
+        return whole_file(after) if before_ is None else hunks_between(before_, after)
 
     def unchanged_pairs(self, path):
-        до, после = self.lines(path, BEFORE), self.lines(path, AFTER)
-        return pairs_by_content(до or [], после or [])
+        before_, after = self.lines(path, BEFORE), self.lines(path, AFTER)
+        return pairs_by_content(before_ or [], after or [])
 
     def accepted_eol(self):
         return None, None
@@ -496,19 +496,19 @@ class DirectoryChanges(_Layout):
         return self.layout.bom
 
     def roles_granting(self, objects):
-        роли = os.path.join(self.target, layout.RIGHTS_FOLDER)
+        roles = os.path.join(self.target, layout.RIGHTS_FOLDER)
         if not self.layout.is_configuration(self.target):
             return None                     # обработка вне конфигурации: ролей нет
         упоминания = {}
-        if os.path.isdir(роли):
-            for роль in sorted(os.listdir(роли)):
-                файл = self.layout.rights_path(роль)
+        if os.path.isdir(roles):
+            for role in sorted(os.listdir(roles)):
+                файл = self.layout.rights_path(role)
                 данные = self.data(файл, AFTER)
                 if данные is None:
                     continue
-                for объект in objects:
-                    if f"<name>{self.layout.rights_name(*объект)}</name>".encode() in данные:
-                        упоминания.setdefault(объект, []).append(файл)
+                for obj in objects:
+                    if f"<name>{self.layout.rights_name(*obj)}</name>".encode() in данные:
+                        упоминания.setdefault(obj, []).append(файл)
         return self._granting(objects, упоминания, lambda файл: self.data(файл, AFTER))
 
     def target_eol(self, path):
@@ -527,13 +527,13 @@ class DirectoryChanges(_Layout):
     def target_bom(self, path):
         """Как у эталона; нового файла в эталоне нет — как принято в формате."""
         эталон = self.data(path, BEFORE)
-        есть = bom_word(эталон) if эталон is not None else None
-        return self.layout.bom if есть is None else есть
+        exists = bom_word(эталон) if эталон is not None else None
+        return self.layout.bom if exists is None else exists
 
     def prepare_rewrites(self, items):
         plan = Plan()
-        for путь, данные in items:
-            plan.add(os.path.join(self.target, *путь.split("/")), данные, False)
+        for path, данные in items:
+            plan.add(os.path.join(self.target, *path.split("/")), данные, False)
         return plan
 
 

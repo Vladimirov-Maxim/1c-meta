@@ -151,8 +151,8 @@ def _command_of(node):
 
 
 #: Слово группировки по тегу `Group` — обратное к словарю свойств формы.
-_LAYOUT = {англ: рус for словарь in ("ГруппировкаПодчиненныхЭлементовФормы", "ГруппировкаКолонок")
-           for рус, англ in fp.ENUMS.get(словарь, {}).items()}
+_LAYOUT = {англ: рус for vocabulary in ("ГруппировкаПодчиненныхЭлементовФормы", "ГруппировкаКолонок")
+           for рус, англ in fp.ENUMS.get(vocabulary, {}).items()}
 
 
 def view(root, owner, name):
@@ -553,9 +553,9 @@ class Editor:
     def _picture_node(tag, value):
         """Картинка: ссылка плюс `LoadTransparent` — так её пишет платформа во
         всех 27 797 случаях корпуса."""
-        источник, имя = value
+        source, name = value
         return Node(tag, children=[
-            Node("xr:Ref", text=f"{voc.PICTURE_PREFIX[источник]}.{имя}"),
+            Node("xr:Ref", text=f"{voc.PICTURE_PREFIX[source]}.{name}"),
             Node("xr:LoadTransparent", text="true"),
         ])
 
@@ -565,31 +565,31 @@ class Editor:
         внешнее `Presentation` пустое, состояние 0, а представление и значение
         лежат внутри `Value` вида `FormChoiceListDesTimeValue`."""
         children = []
-        for значение, представление in items:
+        for value, presentation in items:
             children.append(Node("xr:Item", children=[
                 Node("xr:Presentation"),
                 Node("xr:CheckState", text="0"),
                 Node("xr:Value", attrs={"xsi:type": "FormChoiceListDesTimeValue"}, children=[
-                    multilang("Presentation", представление) if представление
+                    multilang("Presentation", presentation) if presentation
                     else Node("Presentation"),
-                    Editor._choice_value_node(значение),
+                    Editor._choice_value_node(value),
                 ]),
             ]))
         return Node(tag, children=children)
 
     @staticmethod
-    def _choice_value_node(значение):
+    def _choice_value_node(value):
         """Значение списка со своим `xsi:type` — по тому, что это за значение."""
-        if isinstance(значение, bool):
+        if isinstance(value, bool):
             return Node("Value", attrs={"xsi:type": "xs:boolean"},
-                        text="true" if значение else "false")
-        if isinstance(значение, (int, float)):
-            return Node("Value", attrs={"xsi:type": "xs:decimal"}, text=str(значение))
-        if значение.startswith("Перечисление."):
-            _, вид, имя = значение.split(".")
+                        text="true" if value else "false")
+        if isinstance(value, (int, float)):
+            return Node("Value", attrs={"xsi:type": "xs:decimal"}, text=str(value))
+        if value.startswith("Перечисление."):
+            _, kind, name = value.split(".")
             return Node("Value", attrs={"xsi:type": "xr:DesignTimeRef"},
-                        text=f"Enum.{вид}.EnumValue.{имя}")
-        return Node("Value", attrs={"xsi:type": "xs:string"}, text=значение)
+                        text=f"Enum.{kind}.EnumValue.{name}")
+        return Node("Value", attrs={"xsi:type": "xs:string"}, text=value)
 
     def _satellite_node(self, tag, element_name):
         """Спутник с именем и номером; дополнения таблицы — с содержимым."""

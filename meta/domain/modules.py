@@ -162,12 +162,12 @@ def top_regions(lines):
     """
     found, depth, open_at = [], 0, None
     for number, line in enumerate(lines, start=1):
-        слово = line.strip()
-        if слово.startswith("#Область"):
+        word = line.strip()
+        if word.startswith("#Область"):
             if depth == 0:
-                open_at = (слово[len("#Область"):].strip(), number)
+                open_at = (word[len("#Область"):].strip(), number)
             depth += 1
-        elif слово.startswith("#КонецОбласти") and depth:
+        elif word.startswith("#КонецОбласти") and depth:
             depth -= 1
             if depth == 0 and open_at:
                 found.append((open_at[0], open_at[1], number))
@@ -182,20 +182,20 @@ def regions(lines):
     «#КонецОбласти»)] по порядку начала. Незакрытая кончается концом модуля."""
     found, stack = [], []
     for number, line in enumerate(lines, start=1):
-        слово = line.strip()
-        if слово.startswith("#Область"):
-            stack.append((слово[len("#Область"):].strip(), number))
-        elif слово.startswith("#КонецОбласти") and stack:
-            имя, начало = stack.pop()
-            found.append((имя, начало, number))
-    found.extend((имя, начало, len(lines)) for имя, начало in stack)
-    return sorted(found, key=lambda область: область[1])
+        word = line.strip()
+        if word.startswith("#Область"):
+            stack.append((word[len("#Область"):].strip(), number))
+        elif word.startswith("#КонецОбласти") and stack:
+            name, start = stack.pop()
+            found.append((name, start, number))
+    found.extend((name, start, len(lines)) for name, start in stack)
+    return sorted(found, key=lambda region: region[1])
 
 
 def _rank(region):
-    for место, имя in enumerate(FORM_MODULE_REGIONS):
-        if region == имя or (имя == _TABLE_REGION and region.startswith(имя)):
-            return место
+    for place, name in enumerate(FORM_MODULE_REGIONS):
+        if region == name or (name == _TABLE_REGION and region.startswith(name)):
+            return place
     return None
 
 
@@ -206,22 +206,22 @@ def region_place(lines, region):
     искать самому. Соседи — по шаблону стандарта, номера строк — по модулю
     как есть.
     """
-    области = top_regions(lines)
-    for имя, начало, конец in области:
-        if имя == region:
-            return f"в область «{region}» (строки {начало}-{конец})"
-    место = _rank(region)
-    известные = [(имя, начало, конец) for имя, начало, конец in области
-                 if _rank(имя) is not None]
-    if место is None or not известные:
+    regions = top_regions(lines)
+    for name, start, end in regions:
+        if name == region:
+            return f"в область «{region}» (строки {start}-{end})"
+    place = _rank(region)
+    known = [(name, start, end) for name, start, end in regions
+                 if _rank(name) is not None]
+    if place is None or not known:
         return (f"области «{region}» в модуле нет — заведите её; областей шаблона "
                 "стандарта #std455 в модуле нет, место — по смыслу")
-    раньше = [о for о in известные if _rank(о[0]) <= место]
-    позже = [о for о in известные if _rank(о[0]) > место]
-    куда = []
-    if раньше:
-        куда.append(f"после «{раньше[-1][0]}» (её #КонецОбласти — строка {раньше[-1][2]})")
-    if позже:
-        куда.append(f"перед «{позже[0][0]}» (строка {позже[0][1]})")
-    return (f"области «{region}» в модуле нет — заведите её {', '.join(куда)}: "
+    earlier = [ob for ob in known if _rank(ob[0]) <= place]
+    later = [ob for ob in known if _rank(ob[0]) > place]
+    destination = []
+    if earlier:
+        destination.append(f"после «{earlier[-1][0]}» (её #КонецОбласти — строка {earlier[-1][2]})")
+    if later:
+        destination.append(f"перед «{later[0][0]}» (строка {later[0][1]})")
+    return (f"области «{region}» в модуле нет — заведите её {', '.join(destination)}: "
             "порядок областей модуля формы — шаблон стандарта #std455")

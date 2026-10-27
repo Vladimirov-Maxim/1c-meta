@@ -67,8 +67,8 @@ class Feature:
 def _table():
     try:
         from .edt_metamodel import METAMODEL
-    except ImportError as нет:
-        raise Refuse(NO_TABLE) from нет
+    except ImportError as missing:
+        raise Refuse(NO_TABLE) from missing
     return METAMODEL
 
 
@@ -103,25 +103,25 @@ def class_of(uri, local):
 @functools.cache
 def features(cls):
     """Сохраняемые свойства класса по порядку записи; класса нет — None."""
-    все = classes()
-    if cls not in все:
+    all_items = classes()
+    if cls not in all_items:
         return None
-    собрано, имена = [], set()
+    собрано, names = [], set()
 
-    def обойти(имя, виденные):
-        if имя in виденные or имя not in все:
+    def обойти(name, виденные):
+        if name in виденные or name not in all_items:
             return
-        виденные.add(имя)
-        for супер in все[имя]["supers"]:
+        виденные.add(name)
+        for супер in all_items[name]["supers"]:
             обойти(супер, виденные)
-        for f in все[имя]["features"]:
-            if f["name"] not in имена and not f["service"]:
-                имена.add(f["name"])
+        for f in all_items[name]["features"]:
+            if f["name"] not in names and not f["service"]:
+                names.add(f["name"])
                 собрано.append(Feature(f["name"], f["type"], f["kind"], f["many"], f["required"],
                                        f["default"], f["unsettable"], f["id"]))
 
     обойти(cls, set())
-    первые = [f for имя in FIRST for f in собрано if f.name == имя]
+    первые = [f for name in FIRST for f in собрано if f.name == name]
     return tuple(первые + [f for f in собрано if f.name not in FIRST])
 
 

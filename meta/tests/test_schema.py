@@ -263,22 +263,22 @@ def test_dataset_names_a_source_that_exists(dump):
     Без проверки опечатка прошла бы молча: набор пишется, отчёт не работает.
     Проверять есть чем — источники лежат в той же схеме.
     """
-    итог = add(dump, SCHEMA_ADDRESS, "НаборДанных",
+    result = add(dump, SCHEMA_ADDRESS, "НаборДанных",
                {"имя": "Новый", "источникДанных": "ИсточникДанных9",
                 "запрос": "ВЫБРАТЬ 3"}, apply_now=False)
-    коды = [f.code for f in итог.findings]
+    коды = [f.code for f in result.findings]
     assert коды == ["НАБОР-ИСТОЧНИК-НЕИЗВЕСТЕН"], коды
     # и назван тот, который есть, — иначе догадываться о правильном имени
-    assert "ИсточникДанных1" in итог.findings[0].message
+    assert "ИсточникДанных1" in result.findings[0].message
     assert "<name>Новый</name>" not in schema_of(dump)
 
 
 def test_a_source_that_exists_passes(dump):
     """Обратная половина: верное имя замечаний не вызывает."""
-    итог = add(dump, SCHEMA_ADDRESS, "НаборДанных",
+    result = add(dump, SCHEMA_ADDRESS, "НаборДанных",
                {"имя": "Новый", "источникДанных": "ИсточникДанных1",
                 "запрос": "ВЫБРАТЬ 3"}, apply_now=False)
-    assert [f.code for f in итог.findings] == []
+    assert [f.code for f in result.findings] == []
 
 
 def test_addition_into_a_missing_host_is_refused(dump):
@@ -337,8 +337,8 @@ def test_schema_resource_is_added_with_its_groupings(dump):
 
 
 def test_schema_resource_needs_an_expression(dump):
-    итог = add(dump, SCHEMA_ADDRESS, "РесурсСхемы", {"путь": "Сумма"}, apply_now=False)
-    assert [(f.code, f.field) for f in итог.findings] == [("МД-ПОЛЕ-ПУСТО", "выражение")]
+    result = add(dump, SCHEMA_ADDRESS, "РесурсСхемы", {"путь": "Сумма"}, apply_now=False)
+    assert [(f.code, f.field) for f in result.findings] == [("МД-ПОЛЕ-ПУСТО", "выражение")]
 
 
 # --- создание отчёта --------------------------------------------------------
@@ -748,25 +748,25 @@ def test_the_schema_matches_what_the_platform_wrote_back():
 
         from meta.application.add_object.use_case import AddObjectUseCase
 
-        адрес = "Отчет.мой_ПробаСКД.Макет.ОсновнаяСхема"
-        вариант = адрес + ".ВариантНастроек.Основной"
+        address = "Отчет.мой_ПробаСКД.Макет.ОсновнаяСхема"
+        вариант = address + ".ВариантНастроек.Основной"
         AddObjectUseCase(DesignerDump(root)).execute(
             [job_dialect.spec_from_json({"вид": "Отчет", "поля": {
                 "имя": "мой_ПробаСКД", "синоним": "(Мой) Проба СКД",
                 "стандартныеКоманды": True,
                 "включатьСправкуВСодержание": False,
-                "схема": "ОсновнаяСхема", "основнаяСхема": адрес}})],
+                "схема": "ОсновнаяСхема", "основнаяСхема": address}})],
             apply_now=True)
 
-        add(root, адрес, "НаборДанных", {
+        add(root, address, "НаборДанных", {
             "имя": "Продажи", "источникДанных": "ИсточникДанных1",
             "запрос": "ВЫБРАТЬ\n\tмой_ЭталонДокумент.Ссылка КАК Ссылка,"
                       "\n\tмой_ЭталонДокумент.Дата КАК Дата"
                       "\nИЗ\n\tДокумент.мой_ЭталонДокумент КАК мой_ЭталонДокумент"})
-        add(root, адрес, "Параметр", {
+        add(root, address, "Параметр", {
             "имя": "НачалоПериода", "заголовок": "Начало периода",
             "типЗначения": {"вид": "Дата", "состав": "Дата"}})
-        add(root, адрес, "Параметр", {
+        add(root, address, "Параметр", {
             "имя": "ТолькоПроведённые", "заголовок": "Только проведённые",
             "типЗначения": {"вид": "Булево"}, "значение": True})
         add(root, вариант, "ВыбираемоеПоле",
@@ -796,8 +796,8 @@ def test_the_schema_matches_what_the_platform_wrote_back():
 
 
 def правка_фрагментом(dump, *фрагменты, apply_now=True):
-    _, поля = job_dialect.change_job_from_json({"путь": ADDRESS, "поля": {"запрос": list(фрагменты)}})
-    return change(dump, ADDRESS, поля, apply_now=apply_now)
+    _, fields = job_dialect.change_job_from_json({"путь": ADDRESS, "поля": {"запрос": list(фрагменты)}})
+    return change(dump, ADDRESS, fields, apply_now=apply_now)
 
 
 def test_a_query_is_edited_by_a_fragment(dump):
@@ -807,8 +807,8 @@ def test_a_query_is_edited_by_a_fragment(dump):
     change(dump, ADDRESS, {"запрос": "ВЫБРАТЬ\n\tСсылка\nИЗ\n\tСправочник.Товары"})
     result = правка_фрагментом(dump, {"line": 2, "lines": 1, "first_line": "\tСсылка", "last_line": "\tСсылка",
                                       "code": "\tСсылка,\n\tКод"}, apply_now=False)
-    показ = "\n".join(result.plan.describe())
-    assert "«запрос» правится фрагментами" in показ and "+\tКод" in показ, показ
+    shown = "\n".join(result.plan.describe())
+    assert "«запрос» правится фрагментами" in shown and "+\tКод" in shown, shown
     правка_фрагментом(dump, {"line": 2, "lines": 1, "first_line": "\tСсылка", "last_line": "\tСсылка",
                              "code": "\tСсылка,\n\tКод"})
     text = schema_of(dump)
@@ -829,6 +829,6 @@ def test_a_fragment_with_a_wrong_anchor_or_unbalanced_brackets_is_refused(dump):
 
 def test_a_new_query_in_the_batch_is_a_warning():
     from meta.domain import query_text
-    ошибки, предупреждения = query_text.problems("ВЫБРАТЬ 1", "ВЫБРАТЬ 1\n;\nВЫБРАТЬ 2")
-    assert ошибки == [] and "число запросов пакета меняется" in предупреждения[0]
+    errors, warnings = query_text.problems("ВЫБРАТЬ 1", "ВЫБРАТЬ 1\n;\nВЫБРАТЬ 2")
+    assert errors == [] and "число запросов пакета меняется" in warnings[0]
     assert query_text.problems('ВЫБРАТЬ "(" // )', 'ВЫБРАТЬ "(" // )') == ([], [])

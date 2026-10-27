@@ -470,8 +470,8 @@ def test_a_data_composition_schema_holds_the_reference(dump):
     СКД, удалился бы с вердиктом «ссылок нет».
     """
     _template(dump, SCHEMA_TEMPLATE)
-    кто = DesignerDump(dump).references_to([("Справочник", "мой_Цель")])
-    assert кто == ["Отчет.мой_Отчёт.Макет.Схема.Параметр.Организация (типЗначения)"]
+    who = DesignerDump(dump).references_to([("Справочник", "мой_Цель")])
+    assert who == ["Отчет.мой_Отчёт.Макет.Схема.Параметр.Организация (типЗначения)"]
     result = delete(dump, "Справочник.мой_Цель", apply_now=False)
     assert [f.code for f in result.errors] == ["УДАЛЕНИЕ-ЕСТЬ-ССЫЛКИ"]
 
@@ -572,7 +572,7 @@ def test_the_whole_object_guard_does_not_depend_on_order(dump):
                      "Справочник.мой_Свободный"]):
         with pytest.raises(Refuse) as refusal:
             DeleteUseCase(DesignerDump(dump)).execute(
-                [job_dialect.delete_job_from_json(а) for а in порядок],
+                [job_dialect.delete_job_from_json(aa) for aa in порядок],
                 apply_now=True)
         assert "удаляется целиком" in str(refusal.value), порядок
 

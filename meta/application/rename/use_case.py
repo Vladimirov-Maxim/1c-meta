@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from ...domain.conventions import НЕЙТРАЛЬНЫЕ, Соглашения
+from ...domain.conventions import NEUTRAL, Conventions
 from ...domain.kinds import kind_of
 from ...domain.model import Finding, Refuse, Spec
 from ..dto import Result
@@ -25,7 +25,7 @@ class RenameUseCase:
     """
 
     platform: Platform
-    соглашения: Соглашения = НЕЙТРАЛЬНЫЕ
+    conventions: Conventions = NEUTRAL
 
     def execute(self, renames, apply_now=False):
         """`renames` — пары (адрес объекта, новое имя)."""
@@ -36,7 +36,7 @@ class RenameUseCase:
                 raise Refuse("переименовывать умеем объект целиком, "
                              f"а адрес «{address}» указывает глубже")
             kind_name, old_name = path[0]
-            kind = kind_of(kind_name, self.соглашения)
+            kind = kind_of(kind_name, self.conventions)
             findings = kind.check_rename(new_name, self.platform)
             findings.append(Finding(
                 "ПЕРЕИМЕНОВАНИЕ-КОД-НЕ-ПРОВЕРЕН",
@@ -47,7 +47,7 @@ class RenameUseCase:
                 level=Finding.WARNING))
             per_object.append((Spec(kind_name, {"имя": old_name}, existing=True), findings))
         # соглашения команды: выключенные правила — прочь, уровни — из профиля
-        per_object = [(x, self.соглашения.применить(f)) for x, f in per_object]
+        per_object = [(x, self.conventions.apply(f)) for x, f in per_object]
         if any(f.blocking for _, findings in per_object for f in findings):
             return Result(per_object)
 

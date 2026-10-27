@@ -34,12 +34,12 @@ from meta.tests import corpus  # noqa: E402
 def выгрузка():
     """Выгрузка из двух документов — как в тестах форм."""
     root = tempfile.mkdtemp(prefix="meta-mcp-")
-    for имя, эталон in (("Configuration.xml", "Configuration.xml"),
+    for name, эталон in (("Configuration.xml", "Configuration.xml"),
                         ("Documents/мой_ПробаСДвижениями.xml", "мой_ПробаСДвижениями.до.xml"),
                         ("Documents/мой_ПробаНепроводимый.xml", "мой_ПробаНепроводимый.до.xml")):
-        путь = os.path.join(root, *имя.split("/"))
-        os.makedirs(os.path.dirname(путь), exist_ok=True)
-        shutil.copyfile(os.path.join(ЭТАЛОНЫ, эталон), путь)
+        path = os.path.join(root, *name.split("/"))
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        shutil.copyfile(os.path.join(ЭТАЛОНЫ, эталон), path)
     yield root
     shutil.rmtree(root, ignore_errors=True)
 
@@ -83,10 +83,10 @@ def test_every_schema_passes_the_api_key_rule():
     правило = re.compile(r"^[a-zA-Z0-9_.-]{1,64}$")
     нарушения = []
     for инструмент in asyncio.run(mcp_server(roots=[]).list_tools()):
-        схема = инструмент.inputSchema
-        for ключ in list(схема.get("properties", {})) + list(схема.get("$defs", {})):
-            if not правило.match(ключ):
-                нарушения.append(f"{инструмент.name}: {ключ}")
+        schema = инструмент.inputSchema
+        for key in list(schema.get("properties", {})) + list(schema.get("$defs", {})):
+            if not правило.match(key):
+                нарушения.append(f"{инструмент.name}: {key}")
     assert not нарушения, нарушения
 
 
@@ -94,11 +94,11 @@ def test_the_form_job_comes_with_its_schema():
     """Формат задания на форму агент получает от сервера, а не из README:
     схема инструмента построена из модели, с теми же русскими ключами."""
     инструменты = {и.name: и for и in asyncio.run(mcp_server(roots=[]).list_tools())}
-    схема = инструменты["forms_check"].inputSchema
-    assert {"repo", "forms"} <= set(схема["properties"])
-    текст = str(схема)
-    for ключ in ("форма", "создать", "реквизиты", "элементы", "родитель", "перед", "свойства"):
-        assert ключ in текст, ключ
+    schema = инструменты["forms_check"].inputSchema
+    assert {"repo", "forms"} <= set(schema["properties"])
+    text = str(schema)
+    for key in ("форма", "создать", "реквизиты", "элементы", "родитель", "перед", "свойства"):
+        assert key in text, key
 
 
 def test_check_writes_nothing_and_apply_writes(выгрузка):
@@ -171,9 +171,9 @@ def test_a_refusal_comes_back_as_text(выгрузка):
         {"форма": ФОРМА, "создать": {"назначение": "Документа"},
          "элементы": [{"вид": "ПолеВвда", "имя": "мой_Т"}]}])
     assert опечатка.startswith("ОТКАЗ:") and "не знаю вида элемента" in опечатка
-    лишнее = вызвать(сервер, "forms_check", repo=выгрузка,
+    surplus = вызвать(сервер, "forms_check", repo=выгрузка,
                      forms=[{"форма": ФОРМА, "создатъ": {}}])
-    assert лишнее.startswith("ОТКАЗ:") and "создатъ" in лишнее
+    assert surplus.startswith("ОТКАЗ:") and "создатъ" in surplus
     формы_не_туда = вызвать(сервер, "metadata_check", repo=выгрузка, forms=НОВАЯ)
     assert формы_не_туда.startswith("ОТКАЗ:") and "forms_check" in формы_не_туда
     assert "нечего делать" in вызвать(сервер, "metadata_check", repo=выгрузка)
@@ -216,9 +216,9 @@ def test_the_help_shows_item_formats_and_atomic_roles():
     полей вида: без этого формат «поля» и `additions` угадывают попытками."""
     сервер = mcp_server(roots=[])
     обзор = вызвать(сервер, "fields")
-    for ключ in ("objects", "attributes", "additions", "changes", "deletions", "renames",
+    for key in ("objects", "attributes", "additions", "changes", "deletions", "renames",
                  "atomic_roles"):
-        assert re.search(rf"(?m)^   {ключ}\s", обзор), ключ
+        assert re.search(rf"(?m)^   {key}\s", обзор), key
     assert обзор.count("пункт: ") >= 7 and '"путь": "Документ.мой_Заявка"' in обзор
     assert "атомарныеРоли" in вызвать(сервер, "fields", kind="РегистрСведений")
 
@@ -256,19 +256,19 @@ def test_a_typical_form_snippet_after_a_neighbour_with_guidance():
         pytest.skip("не задана выгрузка META_CORPUS")
     сервер = mcp_server(roots=[SRC])
 
-    def проверить(имя):
+    def check(name):
         return вызвать(сервер, "forms_check", repo=SRC, forms=[{
             "форма": АВАНСОВЫЙ, "код": True,
-            "элементы": [{"вид": "Надпись", "имя": имя, "родитель": "ГруппаКомментарий",
+            "элементы": [{"вид": "Надпись", "имя": name, "родитель": "ГруппаКомментарий",
                           "после": "Комментарий", "свойства": {"Заголовок": "Приложите чеки"}}]}])
 
-    ответ = проверить("мой_НадписьЧеки")
+    ответ = check("мой_НадписьЧеки")
     # «после» превращается в «перед» следующим соседом
     assert "Форма.Элементы.Ответственный);" in ответ, ответ
     assert "ЭтотОбъект" in ответ and "code_apply" in ответ and ".py" not in ответ
     # без приставки — ошибка, как у метаданных (МД-ПРЕФИКС), а не предупреждение,
     # которое принимается через accepted
-    ответ = проверить("НадписьЧеки")
+    ответ = check("НадписьЧеки")
     assert ответ.startswith("ОТКАЗ:") and "ФОРМА-БЕЗ-ПРИСТАВКИ" in ответ, ответ
 
 
@@ -320,9 +320,9 @@ def test_a_document_shows_which_table_has_which_attributes():
     if not os.path.isfile(os.path.join(SRC, "Documents", "АвансовыйОтчет.xml")):
         pytest.skip("не задана выгрузка META_CORPUS")
     ответ = вызвать(mcp_server(roots=[SRC]), "show", repo=SRC, address="Документ.АвансовыйОтчет")
-    строки = ответ.splitlines()
-    k = строки.index("      Товары:")
-    assert строки[k + 1].startswith("         реквизиты: ")
+    lines = ответ.splitlines()
+    k = lines.index("      Товары:")
+    assert lines[k + 1].startswith("         реквизиты: ")
 
 
 # --- формы: обработчики, место соседа, поле по типу реквизита -----------------------
@@ -373,13 +373,13 @@ def test_show_marks_a_handler_without_a_procedure(выгрузка):
         "реквизиты": [{"имя": "мой_Флаг", "тип": "Булево"}],
         "элементы": [{"вид": "ПолеФлажка", "имя": "мой_Флаг", "путь": "мой_Флаг",
                       "обработчики": {"ПриИзменении": True}}]})])
-    модуль = os.path.join(выгрузка, "Documents", "мой_ПробаСДвижениями", "Forms", "мой_Проба",
+    module = os.path.join(выгрузка, "Documents", "мой_ПробаСДвижениями", "Forms", "мой_Проба",
                           "Ext", "Form", "Module.bsl")
     assert "@ПриИзменении=мой_ФлагПриИзменении" in вызвать(сервер, "show", repo=выгрузка, address=ФОРМА)
-    with open(модуль, encoding="utf-8-sig") as файл:
-        текст = файл.read()
-    with open(модуль, "w", encoding="utf-8-sig") as файл:
-        файл.write(текст.replace("мой_ФлагПриИзменении", "Другое"))
+    with open(module, encoding="utf-8-sig") as файл:
+        text = файл.read()
+    with open(module, "w", encoding="utf-8-sig") as файл:
+        файл.write(text.replace("мой_ФлагПриИзменении", "Другое"))
     assert ("@ПриИзменении=мой_ФлагПриИзменении (процедуры в модуле нет)"
             in вызвать(сервер, "show", repo=выгрузка, address=ФОРМА))
 
@@ -395,7 +395,7 @@ def test_a_type_set_is_read_and_not_lost():
     from meta.domain import model as dm
 
     def прочитать(*узлы):
-        return dm.запись_типа(mapping._тип_из_узлов(list(узлы)))
+        return dm.type_record(mapping._тип_из_узлов(list(узлы)))
 
     assert прочитать(Node("v8:TypeSet", text="cfg:DefinedType.ДенежнаяСумма")) == \
         "ОпределяемыйТип.ДенежнаяСумма"
@@ -459,9 +459,9 @@ def test_the_metadata_job_is_typed_and_takes_the_short_type(выгрузка):
     # без verbose — один план, без текстов
     assert "── изменить" not in вызвать(сервер, "metadata_check", **задание)
     # схема инструмента — типами: операции и пункты видны агенту без примеров
-    схема = next(t for t in asyncio.run(сервер.list_tools()) if t.name == "metadata_check")
+    schema = next(t for t in asyncio.run(сервер.list_tools()) if t.name == "metadata_check")
     assert {"repo", "objects", "attributes", "additions", "changes", "deletions", "renames",
-            "atomic_roles", "accepted", "verbose"} == set(схема.inputSchema["properties"])
+            "atomic_roles", "accepted", "verbose"} == set(schema.inputSchema["properties"])
 
 
 def соседи_просмотра(сервер, выгрузка):
@@ -485,8 +485,8 @@ def test_role_rights_advice_is_a_warning_not_a_plan_step(выгрузка):
         {"вид": "Документ", "поля": {
             "имя": "мой_Отметки", "синоним": "Отметки", "атомарныеРоли": ["Просмотр"]}}])
     assert not ответ.startswith("ОТКАЗ"), ответ
-    план = ответ[ответ.index("\nПлан:"):]
-    assert "не правило" not in план, план
+    plan = ответ[ответ.index("\nПлан:"):]
+    assert "не правило" not in plan, plan
     assert "РОЛЬ-ШАБЛОН-НЕ-ПРАВИЛО" in ответ[:ответ.index("\nПлан:")]
 
 
@@ -499,12 +499,12 @@ def test_a_repeated_element_is_refused_and_places_are_given(выгрузка):
     # Заводит надпись настоящим вызовом: повтором считается только вызов,
     # который заводит элемент. Два параметра — процедуры доработки формы в
     # ней не узнать, и имя занято.
-    текст = ("#Область ПрограммныйИнтерфейс\n\nПроцедура Доработать(Форма, Режим) Экспорт\n"
+    text = ("#Область ПрограммныйИнтерфейс\n\nПроцедура Доработать(Форма, Режим) Экспорт\n"
              "\tФорма.Элементы.Добавить(\"мой_Надпись\", Тип(\"ДекорацияФормы\"));\n"
              "КонецПроцедуры\n\n#КонецОбласти")
     ответ = вызвать(сервер, "metadata_apply", repo=выгрузка, objects=[
         {"вид": "ОбщийМодуль", "поля": {"имя": "мой_ПробаФормы", "синоним": "Проба формы",
-                                         "текст": текст}}])
+                                         "текст": text}}])
     assert not ответ.startswith("ОТКАЗ"), ответ
     вызвать(сервер, "forms_apply", repo=выгрузка, forms=НОВАЯ)
     надпись = {"вид": "Надпись", "имя": "мой_Надпись", "свойства": {"Заголовок": "Проба"}}
@@ -516,10 +516,10 @@ def test_a_repeated_element_is_refused_and_places_are_given(выгрузка):
     ответ = вызвать(сервер, "forms_check", repo=выгрузка, forms=[
         {"форма": ФОРМА, "код": {"модуль": "ОбщийМодуль.мой_ПробаФормы"}, "элементы": [свежая]}])
     assert "процедура — вставкой перед строкой 7 модуля «мой_ПробаФормы»" in ответ, ответ
-    занято = вызвать(сервер, "forms_check", repo=выгрузка, forms=[
+    taken = вызвать(сервер, "forms_check", repo=выгрузка, forms=[
         {"форма": ФОРМА, "код": {"модуль": "ОбщийМодуль.мой_ПробаФормы",
                                  "процедура": "Доработать"}, "элементы": [свежая]}])
-    assert "ФОРМА-КОД-ИМЯ-ЗАНЯТО" in занято and "та же доработка, она уже внесена" in занято
+    assert "ФОРМА-КОД-ИМЯ-ЗАНЯТО" in taken and "та же доработка, она уже внесена" in taken
 
 
 def test_a_checkbox_on_a_string_is_refused(выгрузка):
@@ -560,8 +560,8 @@ def test_no_service_notes_reach_the_tool_schemas():
     import json
 
     for tool in asyncio.run(mcp_server(roots=[]).list_tools()):
-        схема = json.dumps(tool.inputSchema, ensure_ascii=False).lower()
-        assert "прогон" not in схема and "испытани" not in схема, tool.name
+        schema = json.dumps(tool.inputSchema, ensure_ascii=False).lower()
+        assert "прогон" not in schema and "испытани" not in schema, tool.name
 
 
 def test_forms_check_shows_the_xml_on_verbose(выгрузка):
@@ -579,27 +579,27 @@ def форма_с_модулем(выгрузка):
     """Форма, чей модуль сам добавляет элемент кодом, и общий модуль для
     процедуры доработки формы — как у авансового отчёта."""
     сервер = mcp_server(roots=[выгрузка])
-    текст = "#Область ПрограммныйИнтерфейс\n\n#КонецОбласти"
+    text = "#Область ПрограммныйИнтерфейс\n\n#КонецОбласти"
     ответ = вызвать(сервер, "metadata_apply", repo=выгрузка, objects=[
         {"вид": "ОбщийМодуль", "поля": {"имя": "мой_ПробаФормы", "синоним": "Проба формы",
-                                         "сервер": True, "текст": текст}}])
+                                         "сервер": True, "текст": text}}])
     assert not ответ.startswith("ОТКАЗ"), ответ
     вызвать(сервер, "forms_apply", repo=выгрузка, forms=НОВАЯ)
-    модуль = ["#Область ОбработчикиСобытийФормы", "", "&НаСервере",
+    module = ["#Область ОбработчикиСобытийФормы", "", "&НаСервере",
               "Процедура ПриСозданииНаСервере(Отказ, СтандартнаяОбработка)",
               "\t//Элементы.Добавить(\"мой_Старое\", Тип(\"ПолеФормы\"));",
               "\tЭлементы.Добавить(\"мой_ИтогоВыдано\", Тип(\"ПолеФормы\"));",
               "КонецПроцедуры", "", "#КонецОбласти"]
-    путь = os.path.join(выгрузка, *МОДУЛЬ_ФОРМЫ.split("/"))
-    os.makedirs(os.path.dirname(путь), exist_ok=True)       # у свежей формы модуля нет
-    with open(путь, "w", encoding="utf-8-sig", newline="") as файл:
-        файл.write("\r\n".join(модуль))
+    path = os.path.join(выгрузка, *МОДУЛЬ_ФОРМЫ.split("/"))
+    os.makedirs(os.path.dirname(path), exist_ok=True)       # у свежей формы модуля нет
+    with open(path, "w", encoding="utf-8-sig", newline="") as файл:
+        файл.write("\r\n".join(module))
     return сервер
 
 
-def надпись(имя, заголовок="Приложите чеки"):
+def надпись(name, title="Приложите чеки"):
     return {"форма": ФОРМА, "код": {"модуль": "ОбщийМодуль.мой_ПробаФормы"},
-            "элементы": [{"вид": "Надпись", "имя": имя, "свойства": {"Заголовок": заголовок}}]}
+            "элементы": [{"вид": "Надпись", "имя": name, "свойства": {"Заголовок": title}}]}
 
 
 def test_an_element_the_form_module_adds_itself_is_refused(выгрузка):
@@ -635,15 +635,15 @@ def test_the_ready_edits_go_to_code_check_as_they_are(выгрузка):
     # и что forms_apply здесь незачем — порядок «check, затем apply» к нему
     # подталкивает
     assert "Запись формы не нужна" in ответ, ответ
-    начало = ответ.index('{"modules": [')
-    блок = json.loads(ответ[начало:ответ.index("\n]}", начало) + 3])
+    start = ответ.index('{"modules": [')
+    блок = json.loads(ответ[start:ответ.index("\n]}", start) + 3])
     assert [м["module"] for м in блок["modules"]] == [
         "ОбщийМодуль.мой_ПробаФормы", "Документ.мой_ПробаСДвижениями.Форма.мой_Проба"]
     подпись = {"task": "TASK-1", "date": "31.08.2026", "author": "Кто"}
-    код = вызвать(сервер, "code_check", repo=выгрузка, modules=блок["modules"], **подпись)
-    assert not код.startswith("ОТКАЗ"), код
-    assert "(в конце области «ПрограммныйИнтерфейс»)" in код
-    assert "(в конце метода «ПриСозданииНаСервере»)" in код
+    code = вызвать(сервер, "code_check", repo=выгрузка, modules=блок["modules"], **подпись)
+    assert not code.startswith("ОТКАЗ"), code
+    assert "(в конце области «ПрограммныйИнтерфейс»)" in code
+    assert "(в конце метода «ПриСозданииНаСервере»)" in code
     вызвать(сервер, "code_apply", repo=выгрузка, modules=блок["modules"], **подпись)
     файл = os.path.join(выгрузка, "CommonModules", "мой_ПробаФормы", "Ext", "Module.bsl")
     assert "Процедура мой_Проба_ПриСозданииНаСервере(Форма) Экспорт" in open(
@@ -684,11 +684,11 @@ def test_every_description_fits_what_the_client_shows():
     for tool in asyncio.run(сервер.list_tools()):
         assert len(tool.description or "") <= ПРЕДЕЛ_ОПИСАНИЯ, (tool.name, len(tool.description))
     assert len(сервер.instructions or "") <= ПРЕДЕЛ_ОПИСАНИЯ
-    правила = вызвать(сервер, "fields", kind="Код")
-    assert "Метка — комментарий" in правила and "revert" in правила and "verbose=true" in правила
+    rules = вызвать(сервер, "fields", kind="Код")
+    assert "Метка — комментарий" in rules and "revert" in rules and "verbose=true" in rules
     # справка говорит то же, что делает инструмент: плоское тело — отказ, а не
     # предупреждение
-    assert "вровень с объявлением, — отказ" in правила and "предупреждение" not in правила
+    assert "вровень с объявлением, — отказ" in rules and "предупреждение" not in rules
     assert "Метка — комментарий" in через_терминал(["--поля", "Код"])
 
 
@@ -698,8 +698,8 @@ def test_a_job_that_will_not_pass_starts_with_a_refusal(выгрузка):
     сервер = mcp_server(roots=[выгрузка])
     ответ = вызвать(сервер, "metadata_check", repo=выгрузка, objects=[
         {"вид": "Справочник", "поля": {"имя": "БезПриставки", "синоним": "Проба"}}])
-    первая, вторая = ответ.split("\n")[:2]
-    assert первая.startswith("ОТКАЗ: ошибок 1") and "задание не пройдёт" in первая, ответ
+    first, вторая = ответ.split("\n")[:2]
+    assert first.startswith("ОТКАЗ: ошибок 1") and "задание не пройдёт" in first, ответ
     assert вторая.startswith("Выгрузка:") and "НЕ ВЫПОЛНЕНО" not in ответ
 
 
@@ -724,12 +724,12 @@ def test_a_role_shows_only_the_objects_it_grants_something():
     from meta.domain.model import Spec
     from meta.report.objects import shown_object
 
-    роль = Spec("Роль", {"имя": "мой_Проба", "права": [
+    role = Spec("Роль", {"имя": "мой_Проба", "права": [
         {"объект": "Справочник.А", "права": ["Чтение"]},
         {"объект": "Справочник.Б", "права": []}, {"объект": "Справочник.В", "права": []}]})
-    показ = "\n".join(shown_object(роль, "Roles/мой_Проба.xml"))
-    assert "Справочник.А: Чтение" in показ and "Справочник.Б" not in показ
-    assert "ещё объектов: 2 — названы в файле прав, но ни одного права на них не выдано" in показ
+    shown = "\n".join(shown_object(role, "Roles/мой_Проба.xml"))
+    assert "Справочник.А: Чтение" in shown and "Справочник.Б" not in shown
+    assert "ещё объектов: 2 — названы в файле прав, но ни одного права на них не выдано" in shown
 
 
 def test_the_role_advice_names_the_other_compositions(выгрузка):
@@ -756,9 +756,9 @@ def test_verbose_and_accepted_are_described_in_every_schema():
     показа у каждого инструмента свой, а формат кода в accepted иначе угадывают."""
     for tool in asyncio.run(mcp_server(roots=[]).list_tools()):
         свойства = tool.inputSchema.get("properties", {})
-        for имя in ("verbose", "accepted"):
-            if имя in свойства:
-                assert свойства[имя].get("description"), (tool.name, имя)
+        for name in ("verbose", "accepted"):
+            if name in свойства:
+                assert свойства[name].get("description"), (tool.name, name)
 
 
 def test_only_a_creating_call_makes_a_name_taken(выгрузка):
@@ -768,23 +768,23 @@ def test_only_a_creating_call_makes_a_name_taken(выгрузка):
     «Элементы.Найти». Элемент и реквизит с одним именем — законно: пространства
     разные."""
     сервер = форма_с_модулем(выгрузка)
-    путь = os.path.join(выгрузка, *МОДУЛЬ_ФОРМЫ.split("/"))
-    модуль = open(путь, encoding="utf-8-sig").read().replace(
+    path = os.path.join(выгрузка, *МОДУЛЬ_ФОРМЫ.split("/"))
+    module = open(path, encoding="utf-8-sig").read().replace(
         "\tЭлементы.Добавить(\"мой_ИтогоВыдано\"",
         "\tОповещение = Новый ОписаниеОповещения(\"мой_Подбор\", ЭтотОбъект);\r\n"
         "\tГруппа = Элементы.Найти(\"мой_Итоги\");\r\n"
         "\tЭлементы.Добавить(\"мой_Итоги\", Тип(\"ГруппаФормы\"));\r\n"
         "\tЭлементы.Добавить(\"мой_ИтогоВыдано\"")
-    with open(путь, "w", encoding="utf-8-sig", newline="") as файл:
-        файл.write(модуль)
+    with open(path, "w", encoding="utf-8-sig", newline="") as файл:
+        файл.write(module)
     ответ = вызвать(сервер, "forms_check", repo=выгрузка, forms=[надпись("мой_Подбор")])
     assert "ФОРМА-КОД-УЖЕ-В-МОДУЛЕ" not in ответ, ответ
     ответ = вызвать(сервер, "forms_check", repo=выгрузка, forms=[надпись("мой_Итоги")])
     # строка 8 — «Элементы.Добавить», а не 7 — «Элементы.Найти»
     assert "элемент «мой_Итоги» уже заводится кодом в модуле формы (строка 8)" in ответ, ответ
-    реквизит = {"форма": ФОРМА, "код": {"модуль": "ОбщийМодуль.мой_ПробаФормы"},
+    attribute = {"форма": ФОРМА, "код": {"модуль": "ОбщийМодуль.мой_ПробаФормы"},
                 "реквизиты": [{"имя": "мой_ИтогоВыдано", "тип": "Булево"}]}
-    ответ = вызвать(сервер, "forms_check", repo=выгрузка, forms=[реквизит])
+    ответ = вызвать(сервер, "forms_check", repo=выгрузка, forms=[attribute])
     assert "ФОРМА-КОД-УЖЕ-В-МОДУЛЕ" not in ответ, ответ
 
 
@@ -793,21 +793,21 @@ def test_a_client_or_server_call_module_cannot_hold_the_form_code(выгрузк
     «Сервер»: клиент-серверный модуль и модуль вызова сервера — находки, а не
     «замечаний нет»."""
     сервер = форма_с_модулем(выгрузка)
-    for имя, флаги in (("мой_ПробаКлиентСервер", {"клиентУправляемоеПриложение": True,
+    for name, flags in (("мой_ПробаКлиентСервер", {"клиентУправляемоеПриложение": True,
                                                   "клиентОбычноеПриложение": True,
                                                   "сервер": True, "внешнееСоединение": True}),
                        ("мой_ПробаВызовСервера", {"сервер": True, "вызовСервера": True})):
         ответ = вызвать(сервер, "metadata_apply", repo=выгрузка, objects=[
-            {"вид": "ОбщийМодуль", "поля": dict({"имя": имя, "синоним": "Проба",
+            {"вид": "ОбщийМодуль", "поля": dict({"имя": name, "синоним": "Проба",
                                                  "текст": "#Область ПрограммныйИнтерфейс\n\n"
-                                                          "#КонецОбласти"}, **флаги)}])
+                                                          "#КонецОбласти"}, **flags)}])
         assert not ответ.startswith("ОТКАЗ"), ответ
-    def проверить(модуль):
+    def check(module):
         return вызвать(сервер, "forms_check", repo=выгрузка, forms=[
-            dict(надпись("мой_Чеки"), **{"код": {"модуль": f"ОбщийМодуль.{модуль}"}})])
-    assert "ФОРМА-КОД-МОДУЛЬ-КЛИЕНТ" in проверить("мой_ПробаКлиентСервер")
-    assert "ФОРМА-КОД-МОДУЛЬ-ВЫЗОВ-СЕРВЕРА" in проверить("мой_ПробаВызовСервера")
-    assert "замечаний нет" in проверить("мой_ПробаФормы")
+            dict(надпись("мой_Чеки"), **{"код": {"модуль": f"ОбщийМодуль.{module}"}})])
+    assert "ФОРМА-КОД-МОДУЛЬ-КЛИЕНТ" in check("мой_ПробаКлиентСервер")
+    assert "ФОРМА-КОД-МОДУЛЬ-ВЫЗОВ-СЕРВЕРА" in check("мой_ПробаВызовСервера")
+    assert "замечаний нет" in check("мой_ПробаФормы")
 
 
 def test_a_second_procedure_is_warned_and_the_addition_keeps_a_blank(выгрузка):
@@ -820,13 +820,13 @@ def test_a_second_procedure_is_warned_and_the_addition_keeps_a_blank(выгру�
     подпись = {"task": "TASK-1", "date": "31.08.2026", "author": "Кто"}
 
     def готовые(ответ):
-        начало = ответ.index('{"modules": [')
-        return json.loads(ответ[начало:ответ.index("\n]}", начало) + 3])["modules"]
+        start = ответ.index('{"modules": [')
+        return json.loads(ответ[start:ответ.index("\n]}", start) + 3])["modules"]
 
-    первая = вызвать(сервер, "forms_check", repo=выгрузка, forms=[надпись("мой_Чеки")])
+    first = вызвать(сервер, "forms_check", repo=выгрузка, forms=[надпись("мой_Чеки")])
     # описание без перечня элементов: дополнение его не трогает
-    assert '// Дорабатывает форму "Документ.мой_ПробаСДвижениями.мой_Проба".' in первая, первая
-    вызвать(сервер, "code_apply", repo=выгрузка, modules=готовые(первая), **подпись)
+    assert '// Дорабатывает форму "Документ.мой_ПробаСДвижениями.мой_Проба".' in first, first
+    вызвать(сервер, "code_apply", repo=выгрузка, modules=готовые(first), **подпись)
     вторая = вызвать(сервер, "forms_check", repo=выгрузка, forms=[надпись("мой_Чеки2")])
     assert готовые(вторая)[0]["edits"][0]["code"].endswith(";\n\t"), вторая
     другая = вызвать(сервер, "forms_check", repo=выгрузка, forms=[dict(
@@ -855,25 +855,25 @@ def test_a_second_change_extends_the_procedure(выгрузка):
     подпись = {"task": "TASK-1", "date": "31.08.2026", "author": "Кто"}
 
     def готовые(ответ):
-        начало = ответ.index('{"modules": [')
-        return json.loads(ответ[начало:ответ.index("\n]}", начало) + 3])["modules"]
+        start = ответ.index('{"modules": [')
+        return json.loads(ответ[start:ответ.index("\n]}", start) + 3])["modules"]
 
-    первая = вызвать(сервер, "forms_check", repo=выгрузка, forms=[надпись("мой_Чеки")])
-    вызвать(сервер, "code_apply", repo=выгрузка, modules=готовые(первая), **подпись)
+    first = вызвать(сервер, "forms_check", repo=выгрузка, forms=[надпись("мой_Чеки")])
+    вызвать(сервер, "code_apply", repo=выгрузка, modules=готовые(first), **подпись)
     вторая = вызвать(сервер, "forms_check", repo=выгрузка, forms=[надпись("мой_Чеки2", "Ещё")])
     assert "дополнение процедуры «мой_Проба_ПриСозданииНаСервере»" in вторая, вторая
     assert "вызов в модуле формы уже есть" in вторая and "Процедура мой_Проба" not in вторая
-    модули = готовые(вторая)
-    assert [м["module"] for м in модули] == ["ОбщийМодуль.мой_ПробаФормы"]
+    modules = готовые(вторая)
+    assert [м["module"] for м in modules] == ["ОбщийМодуль.мой_ПробаФормы"]
     # якорь — конец процедуры, внесённой первой доработкой (с её закрывающей меткой)
-    assert модули[0]["edits"][0]["first_line"].startswith("КонецПроцедуры"), модули
-    код = вызвать(сервер, "code_check", repo=выгрузка, modules=модули, **подпись)
-    assert not код.startswith("ОТКАЗ"), код
-    вызвать(сервер, "code_apply", repo=выгрузка, modules=модули, **подпись)
-    текст = open(os.path.join(выгрузка, "CommonModules", "мой_ПробаФормы", "Ext", "Module.bsl"),
+    assert modules[0]["edits"][0]["first_line"].startswith("КонецПроцедуры"), modules
+    code = вызвать(сервер, "code_check", repo=выгрузка, modules=modules, **подпись)
+    assert not code.startswith("ОТКАЗ"), code
+    вызвать(сервер, "code_apply", repo=выгрузка, modules=modules, **подпись)
+    text = open(os.path.join(выгрузка, "CommonModules", "мой_ПробаФормы", "Ext", "Module.bsl"),
                  encoding="utf-8-sig").read()
-    assert текст.count("Процедура мой_Проба_ПриСозданииНаСервере") == 1
-    assert '"мой_Чеки2"' in текст
+    assert text.count("Процедура мой_Проба_ПриСозданииНаСервере") == 1
+    assert '"мой_Чеки2"' in text
     форма = open(os.path.join(выгрузка, *МОДУЛЬ_ФОРМЫ.split("/")), encoding="utf-8-sig").read()
     assert форма.count("мой_Проба_ПриСозданииНаСервере(ЭтотОбъект)") == 1
     без_модуля = вызвать(сервер, "forms_check", repo=выгрузка, forms=[
@@ -884,10 +884,10 @@ def test_a_second_change_extends_the_procedure(выгрузка):
 
 # --- события и обработчики, свой модуль объекта, ветка показа, отступ ----------------
 
-def флажок(обработчики, имя="мой_Флаг", создать=True):
+def флажок(обработчики, name="мой_Флаг", создать=True):
     return [dict(НОВАЯ[0] if создать else {"форма": ФОРМА}, **{
-        "реквизиты": [{"имя": имя, "тип": "Булево"}],
-        "элементы": [{"вид": "ПолеФлажка", "имя": имя, "путь": имя,
+        "реквизиты": [{"имя": name, "тип": "Булево"}],
+        "элементы": [{"вид": "ПолеФлажка", "имя": name, "путь": name,
                       "обработчики": обработчики}]})]
 
 
@@ -911,12 +911,12 @@ def test_an_existing_procedure_must_fit_the_handler(выгрузка):
     серверная «УправлениеФормой()» без параметров клиентским обработчиком
     элемента молча не проходит: находка называет и имеющуюся процедуру, и нужную."""
     сервер = форма_с_модулем(выгрузка)
-    путь = os.path.join(выгрузка, *МОДУЛЬ_ФОРМЫ.split("/"))
-    модуль = open(путь, encoding="utf-8-sig").read().replace(
+    path = os.path.join(выгрузка, *МОДУЛЬ_ФОРМЫ.split("/"))
+    module = open(path, encoding="utf-8-sig").read().replace(
         "#КонецОбласти", "&НаСервере\r\nПроцедура УправлениеФормой()\r\nКонецПроцедуры\r\n\r\n"
         "&НаКлиенте\r\nПроцедура Подходит(Элемент)\r\nКонецПроцедуры\r\n\r\n#КонецОбласти")
-    with open(путь, "w", encoding="utf-8-sig", newline="") as файл:
-        файл.write(модуль)
+    with open(path, "w", encoding="utf-8-sig", newline="") as файл:
+        файл.write(module)
     ответ = вызвать(сервер, "forms_check", repo=выгрузка,
                     forms=флажок({"ПриИзменении": "УправлениеФормой"}, создать=False))
     assert "ФОРМА-ОБРАБОТЧИК-НЕ-ТОТ" in ответ and "«&НаСервере Процедура УправлениеФормой()»" \
@@ -977,9 +977,9 @@ def test_show_narrows_a_typical_form_to_one_branch():
     терминал = через_терминал(["--показать", SRC, АВАНСОВЫЙ, "ГруппаШапкаПравая"])
     assert "Ветка «ГруппаШапкаПравая»" in терминал and "без третьего аргумента --показать" \
         in терминал, терминал
-    объект = вызвать(сервер, "show", repo=SRC, address="Документ.АвансовыйОтчет",
+    obj = вызвать(сервер, "show", repo=SRC, address="Документ.АвансовыйОтчет",
                      element="ГруппаШапка")
-    assert "у объекта не применяется" in объект
+    assert "у объекта не применяется" in obj
 
 
 def test_the_ready_edits_say_who_puts_the_indent(выгрузка):
@@ -1024,6 +1024,6 @@ def test_an_apply_schema_refers_to_its_check_and_has_no_pydantic_noise():
     запись = инструменты["metadata_apply"].inputSchema
     assert "$defs" not in запись
     assert запись["properties"]["objects"] == {"description": "то же, что «objects» у metadata_check"}
-    текст = json.dumps([и.inputSchema for и in инструменты.values()], ensure_ascii=False)
-    assert '"title"' not in текст
-    assert ', {"type": "null"}]' not in текст and '[{"type": "null"}' not in текст      # anyOf с null
+    text = json.dumps([и.inputSchema for и in инструменты.values()], ensure_ascii=False)
+    assert '"title"' not in text
+    assert ', {"type": "null"}]' not in text and '[{"type": "null"}' not in text      # anyOf с null

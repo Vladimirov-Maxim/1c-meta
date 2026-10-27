@@ -70,8 +70,8 @@ OBJECT_FOLDERS = {
 }
 
 #: Вид по-русски -> каталог и слово вида в правах роли.
-FOLDER_OF = {вид: каталог for каталог, (вид, _) in OBJECT_FOLDERS.items()}
-RIGHTS_WORD = {вид: слово for _, (вид, слово) in OBJECT_FOLDERS.items()}
+FOLDER_OF = {kind: каталог for каталог, (kind, _) in OBJECT_FOLDERS.items()}
+RIGHTS_WORD = {kind: word for _, (kind, word) in OBJECT_FOLDERS.items()}
 
 #: Карточка объекта верхнего уровня: `Catalogs/Имя.xml`.
 CARD = re.compile(r"^([A-Za-z]+)/([^/]+)\.xml$")
@@ -107,18 +107,18 @@ def object_of(path):
 def owner_of(path):
     """(вид, имя) объекта, которому принадлежит файл: карточка `Catalogs/Имя.xml`
     и всё внутри `Catalogs/Имя/` — модули, формы, макеты, права роли; иначе None."""
-    части = path.split("/")
-    if len(части) < 2 or части[0] not in OBJECT_FOLDERS:
+    parts = path.split("/")
+    if len(parts) < 2 or parts[0] not in OBJECT_FOLDERS:
         return None
-    if len(части) == 2:
+    if len(parts) == 2:
         return object_of(path)
-    return OBJECT_FOLDERS[части[0]][0], части[1]
+    return OBJECT_FOLDERS[parts[0]][0], parts[1]
 
 
-def card_path(вид, имя):
+def card_path(kind, name):
     """Путь карточки объекта от корня выгрузки; вид без каталога — None."""
-    каталог = FOLDER_OF.get(вид)
-    return f"{каталог}/{имя}.xml" if каталог else None
+    каталог = FOLDER_OF.get(kind)
+    return f"{каталог}/{name}.xml" if каталог else None
 
 
 def is_service(path):
@@ -133,9 +133,9 @@ def is_module(path):
     return path.lower().endswith(MODULE_SUFFIX)
 
 
-def rights_name(вид, имя):
+def rights_name(kind, name):
     """Как объект назван в файле прав роли: `Catalog.Имя`."""
-    return f"{RIGHTS_WORD[вид]}.{имя}"
+    return f"{RIGHTS_WORD[kind]}.{name}"
 
 
 class Layout:
@@ -158,8 +158,8 @@ class Layout:
     def owner_of(self, path):
         return owner_of(path)
 
-    def card_path(self, вид, имя):
-        return card_path(вид, имя)
+    def card_path(self, kind, name):
+        return card_path(kind, name)
 
     def is_service(self, path):
         return is_service(path)
@@ -170,11 +170,11 @@ class Layout:
     def is_module(self, path):
         return is_module(path)
 
-    def rights_path(self, роль):
-        return f"{RIGHTS_FOLDER}/{роль}/Ext/Rights.xml"
+    def rights_path(self, role):
+        return f"{RIGHTS_FOLDER}/{role}/Ext/Rights.xml"
 
-    def rights_name(self, вид, имя):
-        return rights_name(вид, имя)
+    def rights_name(self, kind, name):
+        return rights_name(kind, name)
 
     def is_configuration(self, root):
         """Корень — исходники этого формата."""
@@ -196,14 +196,14 @@ class EdtLayout(Layout):
         return OBJECT_FOLDERS[found.group(1)][0], found.group(2)
 
     def owner_of(self, path):
-        части = path.split("/")
-        if len(части) < 3 or части[0] not in OBJECT_FOLDERS:
+        parts = path.split("/")
+        if len(parts) < 3 or parts[0] not in OBJECT_FOLDERS:
             return None
-        return OBJECT_FOLDERS[части[0]][0], части[1]
+        return OBJECT_FOLDERS[parts[0]][0], parts[1]
 
-    def card_path(self, вид, имя):
-        каталог = FOLDER_OF.get(вид)
-        return f"{каталог}/{имя}/{имя}.mdo" if каталог else None
+    def card_path(self, kind, name):
+        каталог = FOLDER_OF.get(kind)
+        return f"{каталог}/{name}/{name}.mdo" if каталог else None
 
     def is_service(self, path):
         return False
@@ -211,8 +211,8 @@ class EdtLayout(Layout):
     def is_text(self, path):
         return path.lower().endswith(EDT_TEXT_SUFFIXES)
 
-    def rights_path(self, роль):
-        return f"{RIGHTS_FOLDER}/{роль}/Rights.rights"
+    def rights_path(self, role):
+        return f"{RIGHTS_FOLDER}/{role}/Rights.rights"
 
     def is_configuration(self, root):
         return os.path.isfile(os.path.join(root, "Configuration", "Configuration.mdo"))

@@ -33,8 +33,8 @@ FAMILIES = (
 WHOLE_JOB = (
     ("code", code.CODE_KEYS, code.code_job_from_json),
 )
-JOB_KEYS = (tuple(ключ for _, ключи in FAMILIES for ключ, _ in ключи)
-            + tuple(ключ for _, ключи, _ in WHOLE_JOB for ключ in ключи))
+JOB_KEYS = (tuple(key for _, ключи in FAMILIES for key, _ in ключи)
+            + tuple(key for _, ключи, _ in WHOLE_JOB for key in ключи))
 #: Ключи верхнего уровня, общие для всех операций: выгрузка, принятые
 #: предупреждения, файл для кода доработки формы (терминал).
 COMMON_KEYS = ("repo", "принято", "файлКода")
@@ -66,34 +66,34 @@ def parse(job):
     давало бы разный результат от перестановки ключей.
     """
     for _, ключи in FAMILIES:
-        for ключ, _ in ключи:
-            значение = job.get(ключ)
-            if значение and not isinstance(значение, list):
+        for key, _ in ключи:
+            value = job.get(key)
+            if value and not isinstance(value, list):
                 # Словарь вместо списка перебирался бы по ключам, и пункт-строка
                 # роняла бы разбор исключением «'str' object has no attribute
                 # 'get'».
-                raise Refuse(f"«{ключ}» — список пунктов: [{{…}}, {{…}}]; получено "
-                             f"{'объект' if isinstance(значение, dict) else repr(значение)} — "
+                raise Refuse(f"«{key}» — список пунктов: [{{…}}, {{…}}]; получено "
+                             f"{'объект' if isinstance(value, dict) else repr(value)} — "
                              "оберните пункт в [ ]")
-    found = [(имя, [разбор(item) for ключ, разбор in ключи
-                    for item in job.get(ключ) or []])
-             for имя, ключи in FAMILIES
-             if any(job.get(ключ) for ключ, _ in ключи)]
+    found = [(name, [parsed(item) for key, parsed in ключи
+                    for item in job.get(key) or []])
+             for name, ключи in FAMILIES
+             if any(job.get(key) for key, _ in ключи)]
     if len(found) == 1:
         # ключи других операций — забота проверки «операция одна» ниже
-        лишние = [ключ for ключ in job if ключ not in COMMON_KEYS and ключ not in JOB_KEYS]
-        if лишние:
-            raise Refuse(f"в задании неизвестные ключи: {', '.join(лишние)}; на верхнем уровне — "
+        extra = [key for key in job if key not in COMMON_KEYS and key not in JOB_KEYS]
+        if extra:
+            raise Refuse(f"в задании неизвестные ключи: {', '.join(extra)}; на верхнем уровне — "
                          f"{', '.join(COMMON_KEYS)} и одна операция, поля объекта — внутри "
                          "её пунктов")
-    found += [(имя, [разбор(job)]) for имя, ключи, разбор in WHOLE_JOB
-              if any(job.get(ключ) for ключ in ключи)]
+    found += [(name, [parsed(job)]) for name, ключи, parsed in WHOLE_JOB
+              if any(job.get(key) for key in ключи)]
     if not found:
         raise Refuse("в задании нечего делать: нет ни объектов, ни реквизитов, "
                      "ни правок, ни удалений, ни переименований")
     if len(found) > 1:
-        было = [ключ for ключ in JOB_KEYS if job.get(ключ)]
+        before = [key for key in JOB_KEYS if job.get(key)]
         raise Refuse("создание, добавление, изменение, удаление и переименование — "
                      "разные операции; задание должно содержать что-то одно, "
-                     f"а здесь сразу: {', '.join(было)}")
+                     f"а здесь сразу: {', '.join(before)}")
     return found[0]

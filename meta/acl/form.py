@@ -87,8 +87,8 @@ def _хвост(tag):
     return tag.split(":")[-1]
 
 
-def _экранировать(текст):
-    return (str(текст).replace("&", "&amp;").replace("<", "&lt;")
+def _экранировать(text):
+    return (str(text).replace("&", "&amp;").replace("<", "&lt;")
             .replace(">", "&gt;").replace('"', "&quot;"))
 
 
@@ -96,21 +96,21 @@ class _Элемент:
     """Разобранный элемент формы: вид, имя, свойства и дети."""
 
     def __init__(self, узел):
-        self.вид = _хвост(узел.tag)
-        self.имя = узел.attrs.get("name", "")
+        self.kind = _хвост(узел.tag)
+        self.name = узел.attrs.get("name", "")
         self.свойства = {}
         self.дети = []
         for ребёнок in узел.children:
-            т = _хвост(ребёнок.tag)
-            if т == "ChildItems":
-                self.дети = [_Элемент(в) for в in ребёнок.children
-                             if _хвост(в.tag) not in СПУТНИКИ]
-            elif т in СПУТНИКИ:
+            tk = _хвост(ребёнок.tag)
+            if tk == "ChildItems":
+                self.дети = [_Элемент(vv) for vv in ребёнок.children
+                             if _хвост(vv.tag) not in СПУТНИКИ]
+            elif tk in СПУТНИКИ:
                 continue
             elif ребёнок.children:
-                self.свойства[т] = _текст(ребёнок)
+                self.свойства[tk] = _текст(ребёнок)
             else:
-                self.свойства[т] = ребёнок.text or ""
+                self.свойства[tk] = ребёнок.text or ""
 
     def подпись(self, реквизиты, извне=None):
         """Что платформа напишет слева от поля.
@@ -127,28 +127,28 @@ class _Элемент:
         4. последняя часть пути: «Объект.Ответственный» -> «Ответственный».
            Хуже подписи платформы, но много ближе, чем имя элемента.
         """
-        свой = self.свойства.get("Title")
-        if свой:
-            return свой
-        путь = self.свойства.get("DataPath", "")
-        if not путь:
-            return self.имя
-        части = путь.split(".")
-        if len(части) == 1:
-            return реквизиты.get(путь, {}).get("Title") or путь
-        снаружи = извне(путь) if извне else None
-        return снаружи or части[-1]
+        own_one = self.свойства.get("Title")
+        if own_one:
+            return own_one
+        path = self.свойства.get("DataPath", "")
+        if not path:
+            return self.name
+        parts = path.split(".")
+        if len(parts) == 1:
+            return реквизиты.get(path, {}).get("Title") or path
+        снаружи = извне(path) if извне else None
+        return снаружи or parts[-1]
 
 
-def _атрибуты_данных(элемент):
+def _атрибуты_данных(element):
     """Привязки, ради которых форма и существует: путь и команда."""
-    куски = []
+    chunks = []
     for свойство, атрибут in (("DataPath", "data-путь"),
                               ("CommandName", "data-команда")):
-        значение = элемент.свойства.get(свойство)
-        if значение:
-            куски.append(f' {атрибут}="{_экранировать(значение)}"')
-    return "".join(куски)
+        value = element.свойства.get(свойство)
+        if value:
+            chunks.append(f' {атрибут}="{_экранировать(value)}"')
+    return "".join(chunks)
 
 
 #: Виды, у которых подпись показывается слева от поля ввода.
@@ -160,7 +160,7 @@ def _атрибуты_данных(элемент):
               "CommandBar", "Popup", "Page", "Table")
 
 
-def _разметка(элемент, отступ=2, реквизиты=None, извне=None):
+def _разметка(element, indent=2, реквизиты=None, извне=None):
     """Один элемент формы -> строки HTML.
 
     Что показывать, а что нет, решено замером, а не вкусом: у 52 279 групп
@@ -168,58 +168,58 @@ def _разметка(элемент, отступ=2, реквизиты=None, �
     а `ShowTitle` выключен у 54 984. Рисовать рамку вокруг каждой группы
     и печатать имя каждого элемента значит показывать не форму, а её разбор.
     """
-    поля = "  " * отступ
-    тег, класс = ЭЛЕМЕНТЫ.get(элемент.вид, ("div", "неизвестный"))
-    свои = _атрибуты_данных(элемент)
-    if элемент.вид not in ЭЛЕМЕНТЫ:
+    fields = "  " * indent
+    тег, класс = ЭЛЕМЕНТЫ.get(element.kind, ("div", "неизвестный"))
+    own = _атрибуты_данных(element)
+    if element.kind not in ЭЛЕМЕНТЫ:
         # Незнакомое показывается, а не теряется: вид написан прямо в выводе.
-        свои += f' data-вид="{_экранировать(элемент.вид)}"'
-    подпись = элемент.подпись(реквизиты or {}, извне)
-    if элемент.вид in ("UsualGroup", "ColumnGroup", "ButtonGroup", "CommandBar"):
+        own += f' data-вид="{_экранировать(element.kind)}"'
+    подпись = element.подпись(реквизиты or {}, извне)
+    if element.kind in ("UsualGroup", "ColumnGroup", "ButtonGroup", "CommandBar"):
         # Направление потока — это и есть раскладка: у 1С «поток», в HTML флекс.
         # `AlwaysHorizontal` — 9145 групп, и без него каждая шестая группа
         # рисовалась бы вертикально вместо горизонтальной.
-        поток = элемент.свойства.get("Group", "")
+        поток = element.свойства.get("Group", "")
         направление = НАПРАВЛЕНИЕ.get(
-            поток, "Горизонтальная" if элемент.вид != "UsualGroup"
+            поток, "Горизонтальная" if element.kind != "UsualGroup"
             else "Вертикальная")
-        свои += f' data-направление="{_экранировать(направление)}"'
+        own += f' data-направление="{_экранировать(направление)}"'
         класс += " по-горизонтали" if направление == "Горизонтальная" else ""
-        рамка = элемент.свойства.get("Representation", "None")
+        рамка = element.свойства.get("Representation", "None")
         if рамка and рамка != "None":
             класс += " в-рамке"
-            свои += f' data-рамка="{_экранировать(рамка)}"'
-    строки = [f'{поля}<{тег} class="{класс}"{свои}>']
-    if элемент.вид in ПОЛЯ_С_ПОДПИСЬЮ:
+            own += f' data-рамка="{_экранировать(рамка)}"'
+    lines = [f'{fields}<{тег} class="{класс}"{own}>']
+    if element.kind in ПОЛЯ_С_ПОДПИСЬЮ:
         # Подпись прячется, когда её прячет и платформа: `TitleLocation`
         # равно `None` у 6534 полей ввода и 2788 полей-надписей.
-        где = элемент.свойства.get("TitleLocation", "Left")
-        if где != "None" and подпись:
-            класс_подписи = "подпись сверху" if где == "Top" else "подпись"
-            строки.append(f'{поля}  <span class="{класс_подписи}">'
+        where = element.свойства.get("TitleLocation", "Left")
+        if where != "None" and подпись:
+            класс_подписи = "подпись сверху" if where == "Top" else "подпись"
+            lines.append(f'{fields}  <span class="{класс_подписи}">'
                           f"{_экранировать(подпись)}</span>")
-        строки.append(f'{поля}  <input class="ввод" readonly value="">')
-    elif элемент.вид in ("LabelDecoration", "Button"):
-        строки.append(f"{поля}  {_экранировать(подпись)}")
-    elif элемент.вид in КОНТЕЙНЕРЫ:
+        lines.append(f'{fields}  <input class="ввод" readonly value="">')
+    elif element.kind in ("LabelDecoration", "Button"):
+        lines.append(f"{fields}  {_экранировать(подпись)}")
+    elif element.kind in КОНТЕЙНЕРЫ:
         # Платформа пишет `ShowTitle` только чтобы **спрятать** заголовок:
         # `false` стоит явно у 54 984 групп, а отсутствует тег у 5347 — и
         # у них заголовок виден. Трактовать отсутствие как «не показывать»
         # значило бы потерять заголовок у каждой одиннадцатой группы.
-        видно = элемент.свойства.get("ShowTitle", "true") != "false"
-        свой = элемент.свойства.get("Title")
-        if видно and свой:
-            сворачивается = элемент.свойства.get("Behavior") == "Collapsible"
+        видно = element.свойства.get("ShowTitle", "true") != "false"
+        own_one = element.свойства.get("Title")
+        if видно and own_one:
+            сворачивается = element.свойства.get("Behavior") == "Collapsible"
             значок = "▾ " if сворачивается else ""
-            строки.append(f'{поля}  <span class="заголовок">'
-                          f"{значок}{_экранировать(свой)}</span>")
+            lines.append(f'{fields}  <span class="заголовок">'
+                          f"{значок}{_экранировать(own_one)}</span>")
     else:
-        строки.append(f'{поля}  <span class="имя">'
-                      f'{_экранировать(подпись or элемент.вид)}</span>')
-    for ребёнок in элемент.дети:
-        строки.extend(_разметка(ребёнок, отступ + 1, реквизиты, извне))
-    строки.append(f"{поля}</{тег}>")
-    return строки
+        lines.append(f'{fields}  <span class="имя">'
+                      f'{_экранировать(подпись or element.kind)}</span>')
+    for ребёнок in element.дети:
+        lines.extend(_разметка(ребёнок, indent + 1, реквизиты, извне))
+    lines.append(f"{fields}</{тег}>")
+    return lines
 
 
 СТИЛЬ = """  :root { color-scheme: light dark; }
@@ -257,61 +257,61 @@ def _реквизиты_формы(узел):
     for раздел in узел.children:
         if _хвост(раздел.tag) != "Attributes":
             continue
-        for реквизит in раздел.children:
-            имя = реквизит.attrs.get("name")
-            if not имя:
+        for attribute in раздел.children:
+            name = attribute.attrs.get("name")
+            if not name:
                 continue
-            свои = {}
-            for свойство in реквизит.children:
-                т = _хвост(свойство.tag)
-                if т == "Title":
-                    свои["Title"] = _текст(свойство)
-                elif т == "Type":
-                    свои["Type"] = " ".join(
+            own = {}
+            for свойство in attribute.children:
+                tk = _хвост(свойство.tag)
+                if tk == "Title":
+                    own["Title"] = _текст(свойство)
+                elif tk == "Type":
+                    own["Type"] = " ".join(
                         (c.text or "").strip() for c in свойство.children)
-            собрано[имя] = свои
+            собрано[name] = own
     return собрано
 
 
-def html_from_node(узел, заголовок="", извне=None):
+def html_from_node(узел, title="", извне=None):
     """Разобранная форма -> страница HTML.
 
     Заголовок пишется в шапку, чтобы по вкладке браузера было видно,
     на какую форму смотришь.
     """
-    состав = [c for c in узел.children if _хвост(c.tag) == "ChildItems"]
+    composition = [c for c in узел.children if _хвост(c.tag) == "ChildItems"]
     верх = []
-    for ребёнок in (состав[0].children if состав else []):
+    for ребёнок in (composition[0].children if composition else []):
         if _хвост(ребёнок.tag) not in СПУТНИКИ:
             верх.append(_Элемент(ребёнок))
     направление = "по-горизонтали" if any(
         _хвост(c.tag) == "Group" and c.text == "Horizontal"
         for c in узел.children) else ""
-    строки = [
+    lines = [
         "<!doctype html>", '<html lang="ru"><head><meta charset="utf-8">',
-        f"<title>{_экранировать(заголовок or 'Форма')}</title>",
+        f"<title>{_экранировать(title or 'Форма')}</title>",
         "<style>", СТИЛЬ, "</style></head><body>",
-        f"<h1>{_экранировать(заголовок or 'Форма')}</h1>",
+        f"<h1>{_экранировать(title or 'Форма')}</h1>",
         f'<div class="форма группа {направление}">',
     ]
     реквизиты = _реквизиты_формы(узел)
-    for элемент in верх:
-        строки.extend(_разметка(элемент, 1, реквизиты, извне))
-    строки += ["</div>", "</body></html>"]
-    return "\n".join(строки)
+    for element in верх:
+        lines.extend(_разметка(element, 1, реквизиты, извне))
+    lines += ["</div>", "</body></html>"]
+    return "\n".join(lines)
 
 
 def kinds_of(узел):
     """Виды элементов, встреченные в форме, — для замера покрытия."""
-    найдено = set()
+    found = set()
 
-    def обойти(элемент):
-        найдено.add(элемент.вид)
-        for ребёнок in элемент.дети:
+    def обойти(element):
+        found.add(element.kind)
+        for ребёнок in element.дети:
             обойти(ребёнок)
 
-    состав = [c for c in узел.children if _хвост(c.tag) == "ChildItems"]
-    for ребёнок in (состав[0].children if состав else []):
+    composition = [c for c in узел.children if _хвост(c.tag) == "ChildItems"]
+    for ребёнок in (composition[0].children if composition else []):
         if _хвост(ребёнок.tag) not in СПУТНИКИ:
             обойти(_Элемент(ребёнок))
-    return найдено
+    return found

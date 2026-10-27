@@ -24,17 +24,17 @@ def _где(f):
 
 
 def _фильтр(result):
-    части = []
+    parts = []
     if result.only:
-        части.append("правила " + ", ".join(result.only))
+        parts.append("правила " + ", ".join(result.only))
     if result.paths:
-        части.append("файлы " + ", ".join(result.paths))
-    return "; ".join(части)
+        parts.append("файлы " + ", ".join(result.paths))
+    return "; ".join(parts)
 
 
 def _строка(f):
-    где = _где(f)
-    return f"   {f.level:14} [{f.code}] {где + ' — ' if где else ''}{f.message}"
+    where = _где(f)
+    return f"   {f.level:14} [{f.code}] {where + ' — ' if where else ''}{f.message}"
 
 
 def _находки(result):
@@ -43,51 +43,51 @@ def _находки(result):
     по_файлам = {}
     for f in result.findings:
         по_файлам.setdefault(f.path or "", []).append(f)
-    строки = [f"   Находок {len(result.findings)} в {len(по_файлам)} файлах — сводка; у файла показано не "
+    lines = [f"   Находок {len(result.findings)} в {len(по_файлам)} файлах — сводка; у файла показано не "
               f"больше {НА_ФАЙЛ}, все — в JSON; сузить — only, paths:"]
-    for путь, свои in sorted(по_файлам.items(), key=lambda п: (-len(п[1]), п[0])):
-        ошибок = len([f for f in свои if f.blocking])
-        строки.append(f"      {len(свои):5}  (ошибок {ошибок})  {путь or 'без файла'}")
-    строки.append("")
-    for путь, свои in по_файлам.items():
-        строки += [_строка(f) for f in свои[:НА_ФАЙЛ]]
-        if len(свои) > НА_ФАЙЛ:
-            строки.append(f"   … ещё {len(свои) - НА_ФАЙЛ} в {путь or 'находках без файла'}")
-    return строки
+    for path, own in sorted(по_файлам.items(), key=lambda pt: (-len(pt[1]), pt[0])):
+        ошибок = len([f for f in own if f.blocking])
+        lines.append(f"      {len(own):5}  (ошибок {ошибок})  {path or 'без файла'}")
+    lines.append("")
+    for path, own in по_файлам.items():
+        lines += [_строка(f) for f in own[:НА_ФАЙЛ]]
+        if len(own) > НА_ФАЙЛ:
+            lines.append(f"   … ещё {len(own) - НА_ФАЙЛ} в {path or 'находках без файла'}")
+    return lines
 
 
 def verify_lines(result):
-    строки = [f"Проверка правок: {result.source}",
+    lines = [f"Проверка правок: {result.source}",
               f"Файлов задачи: {len(result.files)}" + (" (по отбору paths)" if result.paths else "")]
     if result.filtered:
-        строки.insert(1, f"Фильтр: {_фильтр(result)} — остальное не проверялось")
+        lines.insert(1, f"Фильтр: {_фильтр(result)} — остальное не проверялось")
     if len(result.files) <= СОСТАВ_ЦЕЛИКОМ:
-        строки += [f"   {c.status}  {c.path}" for c in result.files]
+        lines += [f"   {c.status}  {c.path}" for c in result.files]
     else:
-        строки.append("   состав не печатается: больше 30 файлов — похоже на перезалив выгрузки")
-    строки += [f"   {пояснение}" for пояснение in result.notes]
+        lines.append("   состав не печатается: больше 30 файлов — похоже на перезалив выгрузки")
+    lines += [f"   {пояснение}" for пояснение in result.notes]
     if result.findings:
-        строки.append("")
-        строки += _находки(result)
+        lines.append("")
+        lines += _находки(result)
     if result.skipped:
-        строки.append("")
-        строки.append(f"Пропущено правил: {len(result.skipped)}")
-        строки += [f"   - {что}: {почему}" for что, почему in result.skipped]
-    строки.append("")
+        lines.append("")
+        lines.append(f"Пропущено правил: {len(result.skipped)}")
+        lines += [f"   - {what}: {почему}" for what, почему in result.skipped]
+    lines.append("")
     ошибок, предупреждений = len(result.errors), len(result.warnings)
     if ошибок:
-        строки.append(f"НАРУШЕНИЙ: {ошибок}, предупреждений: {предупреждений}")
+        lines.append(f"НАРУШЕНИЙ: {ошибок}, предупреждений: {предупреждений}")
     elif предупреждений:
-        строки.append(f"ПРЕДУПРЕЖДЕНИЙ: {предупреждений}; нарушений нет"
+        lines.append(f"ПРЕДУПРЕЖДЕНИЙ: {предупреждений}; нарушений нет"
                       + (" — но не всё проверено, см. «Пропущено»" if result.skipped else ""))
     elif result.skipped:
-        строки.append(f"НЕПОЛНЫЙ ПРОГОН: среди проверенного нарушений нет, но пропущено правил: "
+        lines.append(f"НЕПОЛНЫЙ ПРОГОН: среди проверенного нарушений нет, но пропущено правил: "
                       f"{len(result.skipped)} — «чисто» это не означает")
     elif result.filtered:
-        строки.append(f"ЧИСТО ПО ФИЛЬТРУ ({_фильтр(result)}): нарушений нет — остальное не проверялось")
+        lines.append(f"ЧИСТО ПО ФИЛЬТРУ ({_фильтр(result)}): нарушений нет — остальное не проверялось")
     else:
-        строки.append("ЧИСТО: нарушений нет, проверены все правила")
-    return строки
+        lines.append("ЧИСТО: нарушений нет, проверены все правила")
+    return lines
 
 
 def verify_json(result):
@@ -98,7 +98,7 @@ def verify_json(result):
         "источник": result.source,
         "находки": [{"код": f.code, "уровень": f.level, "файл": f.path, "строка": f.line,
                      "текст": f.message} for f in result.findings],
-        "пропущено": [{"что": что, "почему": почему} for что, почему in result.skipped],
+        "пропущено": [{"что": what, "почему": почему} for what, почему in result.skipped],
         "пояснения": list(result.notes),
         "фильтр": {"правила": list(result.only), "файлы": list(result.paths)},
     }

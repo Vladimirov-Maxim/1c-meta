@@ -44,9 +44,9 @@ repeatPeriodInDay="3600" weeksPeriod="1">
 
 
 def выполнить(src, tmp_path, **задание):
-    путь = tmp_path / "задание.json"
-    путь.write_text(json.dumps({"repo": str(src), **задание}, ensure_ascii=False), encoding="utf-8")
-    return main([str(путь), "--apply", "--профиль", ПРОФИЛЬ])
+    path = tmp_path / "задание.json"
+    path.write_text(json.dumps({"repo": str(src), **задание}, ensure_ascii=False), encoding="utf-8")
+    return main([str(path), "--apply", "--профиль", ПРОФИЛЬ])
 
 
 def файл(src):
@@ -79,8 +79,8 @@ def test_a_wrong_schedule_is_refused(проект, tmp_path, capsys):
     assert выполнить(проект, tmp_path, objects=[МОДУЛЬ]) == 0
     capsys.readouterr()
     assert выполнить(проект, tmp_path, objects=[задание]) != 0
-    текст = capsys.readouterr().out
-    assert "РАСПИСАНИЕ-НЕВЕРНО" in текст and "частота" in текст and "Понедельник" in текст
+    text = capsys.readouterr().out
+    assert "РАСПИСАНИЕ-НЕВЕРНО" in text and "частота" in text and "Понедельник" in text
 
 
 def test_a_schedule_is_read_and_written_back_byte_for_byte():
@@ -93,12 +93,12 @@ def test_a_schedule_is_read_and_written_back_byte_for_byte():
 def test_every_schedule_of_the_corpus_goes_round_byte_for_byte():
     задания = os.path.join(os.environ["META_EDT_CORPUS"], "ScheduledJobs")
     разошлись = []
-    for имя in sorted(os.listdir(задания)):
-        путь = os.path.join(задания, имя, "Schedule.schedule")
-        if os.path.isfile(путь):
-            текст = open(путь, encoding="utf-8").read().replace("\r\n", "\n")
-            if edt_schedule.render(edt_schedule.parse(текст)) != текст:
-                разошлись.append(имя)
+    for name in sorted(os.listdir(задания)):
+        path = os.path.join(задания, name, "Schedule.schedule")
+        if os.path.isfile(path):
+            text = open(path, encoding="utf-8").read().replace("\r\n", "\n")
+            if edt_schedule.render(edt_schedule.parse(text)) != text:
+                разошлись.append(name)
     assert разошлись == []
 
 
@@ -113,8 +113,8 @@ def test_a_configurator_dump_refuses_a_schedule(tmp_path):
         "\t\t\t<Name>Конфигурация</Name>\n\t\t</Properties>\n\t\t<ChildObjects/>\n\t</Configuration>\n"
         "</MetaDataObject>\n", encoding="utf-8-sig")
     площадка = DesignerDump(str(tmp_path))
-    поля = dict(ЗАДАНИЕ["поля"], расписание=РАСПИСАНИЕ)
-    карточка = площадка.translate_card(kind_of("РегламентноеЗадание").fill(Spec("РегламентноеЗадание", поля)),
+    fields = dict(ЗАДАНИЕ["поля"], расписание=РАСПИСАНИЕ)
+    card = площадка.translate_card(kind_of("РегламентноеЗадание").fill(Spec("РегламентноеЗадание", fields)),
                                        "7d1e2824-b889-41a0-a83e-d45103c58d47")
     with pytest.raises(Refuse, match="только в проект EDT"):
-        площадка.prepare([карточка])
+        площадка.prepare([card])

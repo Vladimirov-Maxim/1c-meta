@@ -109,7 +109,7 @@ class Host:
         return f"Host({self.kind!r}, {self.name!r}, exists={self.exists}, path={self.path!r})"
 
 
-def представление(spec):
+def presentation(spec):
     """Чем называть сущность в отчёте и в плане.
 
     У пункта настроек компоновки имени нет вовсе, и без этого вместо
@@ -119,10 +119,10 @@ def представление(spec):
     плану проверить нечего, кроме числа строк. Называем тем, чем сущность
     опознаётся: полем, левым операндом, путём к данным.
     """
-    for поле in ("имя", "путь", "поле", "левое", "путьКДанным"):
-        значение = spec.get(поле)
-        if значение:
-            return str(значение)
+    for field in ("имя", "путь", "поле", "левое", "путьКДанным"):
+        value = spec.get(field)
+        if value:
+            return str(value)
     return "без имени"
 
 
@@ -148,14 +148,14 @@ class ValueType:
         return str(self)
 
 
-def запись_типа(vtype):
+def type_record(vtype):
     """Тип или составной тип (список) -> краткая запись задания.
 
     Части составного — через «|», как их и пишут в задании: запятая уже
     занята внутри скобок («Число(15,2)»).
     """
     if isinstance(vtype, (list, tuple)):
-        return " | ".join(запись_типа(x) for x in vtype)
+        return " | ".join(type_record(x) for x in vtype)
     return str(vtype)
 
 
@@ -310,19 +310,19 @@ class TypeRef(ValueType):
 #: Синтетический вид — не выдумка про предметную область, а имя различию,
 #: которое в ней есть: сказать «реквизит табличной части» недостаточно,
 #: нужно знать, чьей.
-НЕХРАНИМАЯ_ТЧ = "ТабличнаяЧастьНехранимого"
+UNSTORED_TABLE = "ТабличнаяЧастьНехранимого"
 
 #: Виды, чьи табличные части хранятся в базе.
-ХРАНИМЫЕ = ("Справочник", "Документ", "ПланОбмена", "БизнесПроцесс",
+STORED = ("Справочник", "Документ", "ПланОбмена", "БизнесПроцесс",
             "ПланВидовХарактеристик", "Задача")
 
 
-def вид_табличной_части(владелец):
+def table_kind(owner):
     """Вид хозяина для реквизитов табличной части такого владельца."""
-    return "ТабличнаяЧасть" if владелец in ХРАНИМЫЕ else НЕХРАНИМАЯ_ТЧ
+    return "ТабличнаяЧасть" if owner in STORED else UNSTORED_TABLE
 
 
-class Собранные:
+class Collected:
     """Отказы копятся и предъявляются разом.
 
     Домен собирает все свои находки и печатает их вместе; отказы же — из
@@ -338,23 +338,23 @@ class Собранные:
     для всех и не тянет за собой ничего.
     """
 
-    def __init__(self, заголовок="не вышло"):
-        self.заголовок = заголовок
-        self.беды = []
+    def __init__(self, title="не вышло"):
+        self.title = title
+        self.problems = []
 
-    def добавить(self, что):
-        self.беды.append(что)
+    def add(self, what):
+        self.problems.append(what)
 
     def __bool__(self):
-        return bool(self.беды)
+        return bool(self.problems)
 
-    def предъявить(self):
-        if not self.беды:
+    def raise_collected(self):
+        if not self.problems:
             return
-        if len(self.беды) == 1:
-            raise Refuse(self.беды[0])
-        raise Refuse(f"{self.заголовок} ({len(self.беды)}):\n   "
-                     + "\n   ".join(self.беды))
+        if len(self.problems) == 1:
+            raise Refuse(self.problems[0])
+        raise Refuse(f"{self.title} ({len(self.problems)}):\n   "
+                     + "\n   ".join(self.problems))
 
 
 class TextEdit:
@@ -373,33 +373,33 @@ class TextEdit:
 
     def applied(self, current):
         """(новый текст | None, [беда]) против записанного `current`."""
-        строки = (current or "").split("\n")
-        беды, занято = [], []
+        lines = (current or "").split("\n")
+        problems, taken = [], []
         for e in sorted(self.edits, key=lambda e: e["line"]):
-            первая, сколько = e["line"], e["lines"]
-            последняя = первая + сколько - 1 if сколько else первая - 1
-            if первая < 1 or (сколько and последняя > len(строки)) or (not сколько and первая > len(строки) + 1):
-                беды.append(f"строка {первая}: вне текста (строк в нём {len(строки)})")
+            first, how_many = e["line"], e["lines"]
+            last = first + how_many - 1 if how_many else first - 1
+            if first < 1 or (how_many and last > len(lines)) or (not how_many and first > len(lines) + 1):
+                problems.append(f"строка {first}: вне текста (строк в нём {len(lines)})")
                 continue
-            for поле, номер in (("first_line", первая), ("last_line", последняя)):
-                ждём = e.get(поле)
-                if поле == "last_line" and номер == первая and e.get("first_line") is not None:
+            for field, number in (("first_line", first), ("last_line", last)):
+                expected = e.get(field)
+                if field == "last_line" and number == first and e.get("first_line") is not None:
                     continue                    # одна строка — один якорь, одно расхождение
-                if сколько and ждём is None:
-                    беды.append(f"строка {первая}: не задано «{поле}» — якорь без проверки не принимается")
-                elif сколько and ждём.rstrip() != строки[номер - 1].rstrip():
-                    беды.append(f"строка {номер}: «{поле}» — ожидалось «{ждём.strip()}», в тексте "
-                                f"«{строки[номер - 1].strip()}»")
-            if any(a <= последняя and первая <= b for a, b in занято if сколько):
-                беды.append(f"строка {первая}: фрагменты правки пересекаются")
-            занято.append((первая, max(первая, последняя)))
-        if беды:
-            return None, list(dict.fromkeys(беды))
-        новые = list(строки)
+                if how_many and expected is None:
+                    problems.append(f"строка {first}: не задано «{field}» — якорь без проверки не принимается")
+                elif how_many and expected.rstrip() != lines[number - 1].rstrip():
+                    problems.append(f"строка {number}: «{field}» — ожидалось «{expected.strip()}», в тексте "
+                                f"«{lines[number - 1].strip()}»")
+            if any(a <= last and first <= b for a, b in taken if how_many):
+                problems.append(f"строка {first}: фрагменты правки пересекаются")
+            taken.append((first, max(first, last)))
+        if problems:
+            return None, list(dict.fromkeys(problems))
+        new_items = list(lines)
         for e in sorted(self.edits, key=lambda e: -e["line"]):
-            новые[e["line"] - 1:e["line"] - 1 + e["lines"]] = (e.get("code") or "").split("\n") \
+            new_items[e["line"] - 1:e["line"] - 1 + e["lines"]] = (e.get("code") or "").split("\n") \
                 if e.get("code") else []
-        return "\n".join(новые), []
+        return "\n".join(new_items), []
 
     def __repr__(self):
         return "; ".join(f"строки {e['line']}–{e['line'] + max(e['lines'], 1) - 1}" for e in self.edits)
@@ -426,14 +426,14 @@ class ListEdit:
         добавляемого не дублируется."""
         if self.replace is not None:
             return list(self.replace), [], []
-        было = list(current)
-        уже = [x for x in self.add if x in было]
-        нет = [x for x in self.remove if x not in было]
-        новый = [x for x in было if x not in self.remove]
+        before = list(current)
+        already = [x for x in self.add if x in before]
+        missing = [x for x in self.remove if x not in before]
+        new = [x for x in before if x not in self.remove]
         for x in self.add:
-            if x not in новый:
-                новый.append(x)
-        return новый, уже, нет
+            if x not in new:
+                new.append(x)
+        return new, already, missing
 
     def added(self, current):
         """Что появится в перечне сверх записанного."""
@@ -441,11 +441,11 @@ class ListEdit:
                 if x not in current]
 
     def __repr__(self):
-        части = [f"{слово} {list(что)}" for слово, что in
-                 (("добавить", self.add), ("убрать", self.remove)) if что]
+        parts = [f"{word} {list(what)}" for word, what in
+                 (("добавить", self.add), ("убрать", self.remove)) if what]
         if self.replace is not None:
-            части = [f"заменить {list(self.replace)}"]
-        return "; ".join(части)
+            parts = [f"заменить {list(self.replace)}"]
+        return "; ".join(parts)
 
 
 class Spec:

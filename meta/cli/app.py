@@ -210,9 +210,9 @@ from ..report.verify import verify_json, verify_lines
 
 #: Как терминал говорит «сделай ещё что-то»: ключами запуска.
 ПОДСКАЗКИ = Подсказки(
-    поля="--поля {вид}",
+    fields="--поля {вид}",
     записать="повторите с --apply",
-    подробно="«--подробно»",
+    detailed="«--подробно»",
     подвал_обзора=(
         "\nПоля вида:  --поля <Вид>        Описание типа:  --поля Тип        "
         "Правка кода:  --поля Код",
@@ -221,14 +221,14 @@ from ..report.verify import verify_json, verify_lines
         "форма — «Документ.мой_Заявка.ФормаДокумента»",
         "Просмотр со всеми решёнными за вас значениями:  --подробно",
     ),
-    код="заданием на код этого же инструмента (ключ «modules»), сначала без --apply",
+    code="заданием на код этого же инструмента (ключ «modules»), сначала без --apply",
     ветвь="третьего аргумента --показать",
 )
 
 
-def печать(строки):
-    for строка in строки:
-        print(строка)
+def печать(lines):
+    for line in lines:
+        print(line)
 
 
 #: Ключи запуска — один список для проверки и для текста отказа: вписанный в
@@ -261,7 +261,7 @@ def _no_duplicates(pairs):
     return seen
 
 
-def _code_path(job, job_path, адрес):
+def _code_path(job, job_path, address):
     """Куда лечь фрагменту кода: сказанное в задании или рядом с ним.
 
     Файл, а не буфер: текст идёт в задание на код, а оно берёт вставку
@@ -271,11 +271,11 @@ def _code_path(job, job_path, адрес):
     if сказано:
         return сказано if os.path.isabs(сказано) else os.path.join(
             os.path.dirname(os.path.abspath(job_path)), сказано)
-    имя = адрес.replace(".", "_") + ".bsl"
-    return os.path.join(os.path.dirname(os.path.abspath(job_path)), имя)
+    name = address.replace(".", "_") + ".bsl"
+    return os.path.join(os.path.dirname(os.path.abspath(job_path)), name)
 
 
-def show(controller, repo, address, подробно=False, ветвь=None):
+def show(controller, repo, address, detailed=False, ветвь=None):
     """`--показать`: объект или форма из выгрузки; у формы — третьим
     аргументом имя элемента, чтобы показать только его ветку."""
     if not os.path.isdir(repo):
@@ -283,16 +283,16 @@ def show(controller, repo, address, подробно=False, ветвь=None):
         return 2
     try:
         ответ = controller.show(repo, address)
-    except Refuse as отказ:
-        print(f"ОТКАЗ: {отказ}")
+    except Refuse as refusal:
+        print(f"ОТКАЗ: {refusal}")
         return 1
     if ответ[0] == "форма":
         _, view, name, form_file, module_file, своя = ответ
-        печать(shown_form(view, name, form_file, module_file, подробно, ПОДСКАЗКИ, ветвь=ветвь,
+        печать(shown_form(view, name, form_file, module_file, detailed, ПОДСКАЗКИ, ветвь=ветвь,
                           своя=своя))
     else:
         _, spec, файл = ответ
-        печать(shown_object(spec, файл, ПОДСКАЗКИ, полностью=подробно))
+        печать(shown_object(spec, файл, ПОДСКАЗКИ, полностью=detailed))
         if ветвь:
             print("третий аргумент — ветка дерева формы; у объекта не применяется")
     return 0
@@ -327,22 +327,22 @@ def fields(controller, kind_name=None):
 def _разобрать(argv, команда, со_значением):
     """argv -> (позиционные, {ключ: значение}). Неизвестный ключ и ключ без
     значения — отказ: молча проглоченный ключ сменил бы предмет проверки."""
-    позиционные, значения, i = [], {}, 0
+    позиционные, values, i = [], {}, 0
     while i < len(argv):
-        слово = argv[i]
-        if слово == команда:
+        word = argv[i]
+        if word == команда:
             i += 1
-        elif слово in со_значением:
+        elif word in со_значением:
             if i + 1 >= len(argv) or argv[i + 1].startswith("--"):
-                raise Refuse(f"{слово}: после ключа нужно значение")
-            значения[слово] = argv[i + 1]
+                raise Refuse(f"{word}: после ключа нужно значение")
+            values[word] = argv[i + 1]
             i += 2
-        elif слово.startswith("-"):
-            raise Refuse(f"{команда}: не знаю ключа {слово}; известны: {', '.join(со_значением)}")
+        elif word.startswith("-"):
+            raise Refuse(f"{команда}: не знаю ключа {word}; известны: {', '.join(со_значением)}")
         else:
-            позиционные.append(слово)
+            позиционные.append(word)
             i += 1
-    return позиционные, значения
+    return позиционные, values
 
 
 def verify(controller, argv):
@@ -351,14 +351,14 @@ def verify(controller, argv):
         позиционные, ключи = _разобрать(argv, "--проверить", КЛЮЧИ_ПРОВЕРКИ)
         if len(позиционные) > 1:
             raise Refuse(f"выгрузка одна, получено: {', '.join(позиционные)}")
-        только = [код.strip() for код in (ключи.get("--только") or "").split(",") if код.strip()]
-        файлы = [путь.strip() for путь in (ключи.get("--файлы") or "").split(",") if путь.strip()]
+        только = [code.strip() for code in (ключи.get("--только") or "").split(",") if code.strip()]
+        файлы = [path.strip() for path in (ключи.get("--файлы") or "").split(",") if path.strip()]
         result = controller.verify(repo=позиционные[0] if позиционные else None,
                                    base=ключи.get("--база", "HEAD"), rev=ключи.get("--ревизия"),
                                    baseline=ключи.get("--эталон"), target=ключи.get("--копия"),
                                    task=ключи.get("--задача"), only=только, paths=файлы)
-    except Refuse as отказ:
-        print(f"ОТКАЗ: {отказ}")
+    except Refuse as refusal:
+        print(f"ОТКАЗ: {refusal}")
         return 2
     печать(verify_lines(result))
     if ключи.get("--json"):
@@ -379,8 +379,8 @@ def normalize(controller, argv):
         result = controller.normalize(repo=позиционные[0] if позиционные else None,
                                       base=ключи.get("--база", "HEAD"), baseline=ключи.get("--эталон"),
                                       target=ключи.get("--копия"), apply_now=apply_now)
-    except Refuse as отказ:
-        print(f"ОТКАЗ: {отказ}")
+    except Refuse as refusal:
+        print(f"ОТКАЗ: {refusal}")
         return 2
     печать(normalize_lines(result, apply_now, "повторите с --apply"))
     return 0 if apply_now or result.ok else 1
@@ -397,20 +397,20 @@ def _источник(позиционные, ключи):
 def plan_check(controller, argv):
     """`--сверить-план`: план JSON-файлом против факта задачи; код 2 — ошибка входа."""
     try:
-        только_заявленные = "--только-заявленные" in argv
-        argv = [слово for слово in argv if слово != "--только-заявленные"]
+        declared_only = "--только-заявленные" in argv
+        argv = [word for word in argv if word != "--только-заявленные"]
         позиционные, ключи = _разобрать(argv, "--сверить-план", КЛЮЧИ_ПЛАНА)
         if not ключи.get("--план"):
             raise Refuse("--план <файл.json>: план изменений — JSON с ключом «объекты»")
         try:
             with open(ключи["--план"], encoding="utf-8-sig") as файл:
-                план = файл.read()
-        except OSError as ошибка:
-            raise Refuse(f"план «{ключи['--план']}» не прочитан: {ошибка}") from ошибка
-        result = controller.plan_check(план, **_источник(позиционные, ключи),
-                                       only_declared=только_заявленные)
-    except Refuse as отказ:
-        print(f"ОТКАЗ: {отказ}")
+                plan = файл.read()
+        except OSError as error:
+            raise Refuse(f"план «{ключи['--план']}» не прочитан: {error}") from error
+        result = controller.plan_check(plan, **_источник(позиционные, ключи),
+                                       only_declared=declared_only)
+    except Refuse as refusal:
+        print(f"ОТКАЗ: {refusal}")
         return 2
     печать(plan_check_lines(result))
     if ключи.get("--json"):
@@ -424,14 +424,14 @@ def plan_emit(controller, argv):
     try:
         позиционные, ключи = _разобрать(argv, "--план-по-факту", КЛЮЧИ_ФАКТА)
         result = controller.plan_emit(**_источник(позиционные, ключи))
-    except Refuse as отказ:
-        print(f"ОТКАЗ: {отказ}")
+    except Refuse as refusal:
+        print(f"ОТКАЗ: {refusal}")
         return 2
-    текст = json.dumps(plan_emit_json(result), ensure_ascii=False, indent=1)
-    print(текст)
+    text = json.dumps(plan_emit_json(result), ensure_ascii=False, indent=1)
+    print(text)
     if ключи.get("--json"):
         with open(ключи["--json"], "w", encoding="utf-8", newline="\n") as файл:
-            файл.write(текст + "\n")
+            файл.write(text + "\n")
     return 0
 
 
@@ -509,18 +509,18 @@ def main(argv, controller):
     # заданием: оттуда его берёт задание на код.
     куда_код = {}
     if result.ok:
-        for адрес, текст in (getattr(result, "code", None) or {}).items():
-            путь = _code_path(job, job_path, адрес)
+        for address, text in (getattr(result, "code", None) or {}).items():
+            path = _code_path(job, job_path, address)
             if apply_now:
-                with open(путь, "w", encoding="utf-8-sig", newline="\r\n") as файл:
-                    файл.write(текст)
-                куда_код[адрес] = f"\nЗаписан фрагмент: {путь}"
+                with open(path, "w", encoding="utf-8-sig", newline="\r\n") as файл:
+                    файл.write(text)
+                куда_код[address] = f"\nЗаписан фрагмент: {path}"
             else:
-                куда_код[адрес] = f"\nПросмотр: с --apply фрагмент ляжет в {путь}"
+                куда_код[address] = f"\nПросмотр: с --apply фрагмент ляжет в {path}"
     # Подробный просмотр — и все поля, и тексты файлов: размер в плане не
     # говорит, что окажется в файле.
     печать(result_lines(result, принято=job.get("принято"),
-                        подробно="--подробно" in flags, apply_now=apply_now,
+                        detailed="--подробно" in flags, apply_now=apply_now,
                         подсказки=ПОДСКАЗКИ, куда_код=куда_код,
                         файлы="--подробно" in flags))
     return 0 if result.ok else 1

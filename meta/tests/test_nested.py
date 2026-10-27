@@ -175,7 +175,7 @@ def test_all_tabular_sections_bytewise():
                     level = "\n".join(line[2:] if line.startswith("\t\t") else line
                                       for line in body.split("\n"))
                     attributes.append(spec_from_xml(
-                        level, dm.вид_табличной_части(host)))
+                        level, dm.table_kind(host)))
                 if complex_value:
                     skipped += 1
                     continue

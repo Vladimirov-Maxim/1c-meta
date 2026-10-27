@@ -15,7 +15,7 @@ import re
 
 from ..domain import forms as fm
 from ..domain import model as dm
-from ..domain.model import Refuse, Spec, TypeRef, Собранные
+from ..domain.model import Collected, Refuse, Spec, TypeRef
 
 #: Ключи пункта каждой операции. Лишний ключ — отказ, а не тишина: иначе
 #: «атомарныеРоли» рядом с «вид» молча терялись бы, и роли не заводились — в
@@ -102,13 +102,13 @@ def child_spec_from_json(kind, data):
     вид объекта пришлось бы вписывать сюда руками — и забыть вписать.
     Глубина не ограничена: у справочника есть табличные части, у них реквизиты.
     """
-    собранные = Собранные("в задании непонятно")
+    собранные = Collected("в задании непонятно")
     spec = _spec(kind, data, "", собранные)
-    собранные.предъявить()
+    собранные.raise_collected()
     return spec
 
 
-def _spec(kind, data, адрес, собранные):
+def _spec(kind, data, address, собранные):
     """То же, но беды копятся с адресом, а не рвут разбор на первой.
 
     Домен собирает все свои находки разом — и разбор задания тоже: иначе
@@ -119,22 +119,22 @@ def _spec(kind, data, адрес, собранные):
     from ..domain.kinds import REGISTRY
 
     fields = dict(data)
-    for field, как in (getattr(REGISTRY.get(kind), "type_fields", {}) or {}).items():
+    for field, how in (getattr(REGISTRY.get(kind), "type_fields", {}) or {}).items():
         if field not in fields:
             continue
-        значение = fields[field]
+        value = fields[field]
         try:
-            if как == "объект":
+            if how == "объект":
                 # Поле-перечень: одно обозначение без списка — список из одного.
                 # Так источник подписки печатает показ, и скопированное оттуда
                 # значение иначе ушло бы в домен одним обозначением, а проверка
                 # подписки упала бы трассировкой.
-                значения = значение if isinstance(значение, list) else [значение]
-                fields[field] = [type_ref_from_json(x) for x in значения]
+                values = value if isinstance(value, list) else [value]
+                fields[field] = [type_ref_from_json(x) for x in values]
             else:
-                fields[field] = value_type_from_json(значение)
-        except Refuse as отказ:
-            собранные.добавить(f"{адрес}{field}: {отказ}")
+                fields[field] = value_type_from_json(value)
+        except Refuse as refusal:
+            собранные.add(f"{address}{field}: {refusal}")
             fields.pop(field)             # неразобранное не выдаём за разобранное
     # Списки обозначений («движения», «состав», «основание») принимаются
     # и строкой «Вид.Имя», и объектом {"вид", "имя"} — как типы. Объект
@@ -145,17 +145,17 @@ def _spec(kind, data, адрес, собранные):
             continue
         try:
             fields[field] = [designation_from_json(x) for x in (fields[field] or [])]
-        except Refuse as отказ:
-            собранные.добавить(f"{адрес}{field}: {отказ}")
+        except Refuse as refusal:
+            собранные.add(f"{address}{field}: {refusal}")
             fields.pop(field)
     for field, child_kind in getattr(REGISTRY.get(kind), "child_fields", ()) or ():
         if field not in fields:
             continue
         дети = []
-        for место, child in enumerate(fields[field] or [], 1):
-            имя = child.get("имя") if isinstance(child, dict) else None
+        for place, child in enumerate(fields[field] or [], 1):
+            name = child.get("имя") if isinstance(child, dict) else None
             дети.append(_spec(child_kind, child,
-                              f"{адрес}{field}[{имя or место}].", собранные))
+                              f"{address}{field}[{name or place}].", собранные))
         fields[field] = дети
     return Spec(kind, fields)
 
@@ -170,8 +170,8 @@ def designation_from_json(value):
     if isinstance(value, str):
         return value
     if isinstance(value, dict):
-        лишние = sorted(set(value) - {"вид", "имя"})
-        if лишние or not value.get("вид") or not value.get("имя"):
+        extra = sorted(set(value) - {"вид", "имя"})
+        if extra or not value.get("вид") or not value.get("имя"):
             raise Refuse(
                 "обозначение объекта — это «Вид.Имя» строкой или объект "
                 '{"вид": …, "имя": …}; получено ' + repr(value))
@@ -270,24 +270,24 @@ def value_type_from_json(data):
         # выданный `show`, вставляется в задание на метаданные как есть. Состав
         # даты в ней — само слово: «Дата» — только дата, «ДатаВремя», «Время».
         if (data in dm.DateType.PARTS or data in dm.TypeRef.NAMELESS
-                or any(знак in data for знак in "(.|")):
+                or any(sign in data for sign in "(.|")):
             return value_type_from_text(data)
         data = {"вид": data}
     kind = data.get("вид")
     if kind in TYPE_KEYS:
         _check_keys(data, TYPE_KEYS[kind], kind)
-        for (вид, поле), значения in QUALIFIER_VALUES.items():
-            if вид == kind and поле in data and data[поле] not in значения:
+        for (qualifier_kind, field), values in QUALIFIER_VALUES.items():
+            if qualifier_kind == kind and field in data and data[field] not in values:
                 близкое = difflib.get_close_matches(
-                    str(data[поле]), значения, n=1, cutoff=0.5)
+                    str(data[field]), values, n=1, cutoff=0.5)
                 raise Refuse(
-                    f"у типа «{kind}» не знаю {поле} «{data[поле]}»; "
-                    f"допустимо: {', '.join(значения)}"
+                    f"у типа «{kind}» не знаю {field} «{data[field]}»; "
+                    f"допустимо: {', '.join(values)}"
                     + (f" — возможно, {близкое[0]}" if близкое else ""))
-        ключ = QUALIFIER_KEY.get(kind)
-        if ключ and ключ not in data:
+        key = QUALIFIER_KEY.get(kind)
+        if key and key not in data:
             raise Refuse(
-                f"у типа «{kind}» не задан «{ключ}», а без него вышла бы "
+                f"у типа «{kind}» не задан «{key}», а без него вышла бы "
                 f"{QUALIFIED[kind]}. Напишите, например, {EXAMPLE[kind]}")
     elif kind in PLATFORM_KINDS:
         _check_keys(data, ("вид",), kind)
@@ -384,16 +384,16 @@ def change_job_from_json(data):
     """{"путь": "…", "поля": {…}} -> (путь, поля) для сценария изменения."""
     from ..domain.kinds import REGISTRY
     path = path_from_json(item_of(data, "changes").get("путь"))
-    поля = dict(data.get("поля") or {})
+    raw_fields = dict(data.get("поля") or {})
     kind = path[-1][0]
     перечни = {}
     for field in getattr(REGISTRY.get(kind), "object_lists", ()) or ():
-        if field in поля:
-            перечни[field] = list_edit_from_json(field, поля.pop(field))
+        if field in raw_fields:
+            перечни[field] = list_edit_from_json(field, raw_fields.pop(field))
     for field in getattr(REGISTRY.get(kind), "text_fields", ()) or ():
-        if isinstance(поля.get(field), (dict, list)):
-            перечни[field] = text_edit_from_json(field, поля.pop(field))
-    fields = dict(child_spec_from_json(kind, поля).fields) if поля else {}
+        if isinstance(raw_fields.get(field), (dict, list)):
+            перечни[field] = text_edit_from_json(field, raw_fields.pop(field))
+    fields = dict(child_spec_from_json(kind, raw_fields).fields) if raw_fields else {}
     fields.update(перечни)
     if not fields:
         raise Refuse("в правке не указано ни одного поля")
@@ -413,15 +413,15 @@ def text_edit_from_json(field, value):
         if not isinstance(пункт, dict):
             raise Refuse(f"«{field}»: фрагмент правки — объект {{\"line\", \"lines\", \"first_line\", "
                          "\"last_line\", \"code\"}")
-        лишние = sorted(set(пункт) - set(TEXT_EDIT_KEYS))
-        if лишние:
-            raise Refuse(f"«{field}»: ключи фрагмента — {', '.join(TEXT_EDIT_KEYS)}; лишние: {', '.join(лишние)}")
+        extra = sorted(set(пункт) - set(TEXT_EDIT_KEYS))
+        if extra:
+            raise Refuse(f"«{field}»: ключи фрагмента — {', '.join(TEXT_EDIT_KEYS)}; лишние: {', '.join(extra)}")
         line, lines = пункт.get("line"), пункт.get("lines")
         if not isinstance(line, int) or isinstance(line, bool) or line < 1:
             raise Refuse(f"«{field}»: «line» — номер строки от 1, получено {line!r}")
         if not isinstance(lines, int) or isinstance(lines, bool) or lines < 0:
             raise Refuse(f"«{field}»: «lines» — сколько строк заменяется, число от 0, получено {lines!r}")
-        правки.append({ключ: пункт.get(ключ) for ключ in TEXT_EDIT_KEYS})
+        правки.append({key: пункт.get(key) for key in TEXT_EDIT_KEYS})
     if not правки:
         raise Refuse(f"«{field}»: правка без фрагментов")
     return dm.TextEdit(правки)
@@ -439,17 +439,17 @@ def list_edit_from_json(field, value):
             f"{{\"убрать\": […]}} (можно вместе) или {{\"заменить\": […]}} — "
             "голый список заменил бы перечень целиком, и всё, что в нём было, "
             "пропало бы молча")
-    лишние = sorted(set(value) - set(LIST_MODES))
-    if лишние or not value:
+    extra = sorted(set(value) - set(LIST_MODES))
+    if extra or not value:
         raise Refuse(f"«{field}»: ключи правки перечня — {', '.join(LIST_MODES)}; "
-                      f"получено {', '.join(лишние) or 'пусто'}")
+                      f"получено {', '.join(extra) or 'пусто'}")
     if "заменить" in value and len(value) > 1:
         raise Refuse(f"«{field}»: «заменить» задаётся один, без «добавить» и «убрать»")
     разобрано = {}
-    for ключ, что in value.items():
-        if not isinstance(что, list):
-            raise Refuse(f"«{field}.{ключ}» — список обозначений «Вид.Имя»")
-        разобрано[ключ] = [designation_from_json(x) for x in что]
+    for key, what in value.items():
+        if not isinstance(what, list):
+            raise Refuse(f"«{field}.{key}» — список обозначений «Вид.Имя»")
+        разобрано[key] = [designation_from_json(x) for x in what]
     return dm.ListEdit(разобрано.get("добавить", ()), разобрано.get("убрать", ()),
                        разобрано.get("заменить"))
 
@@ -473,14 +473,14 @@ def atomic_roles_job_from_json(data):
     """
     if isinstance(data, str):
         data = {"объект": data}
-    объект = item_of(data, "atomic_roles").get("объект") or ""
-    вид, _, имя = объект.partition(".")
-    if not вид or not имя:
-        raise Refuse(f"атомарные роли заводятся к объекту «Вид.Имя», получено «{объект}»")
-    права = data.get("права")
-    if права is not None and not isinstance(права, list):
-        raise Refuse(f"«права» — список из Просмотр/Изменение, получено {права!r}")
-    return вид, имя, права, data.get("сокращение"), data.get("комментарий")
+    obj = item_of(data, "atomic_roles").get("объект") or ""
+    kind, _, name = obj.partition(".")
+    if not kind or not name:
+        raise Refuse(f"атомарные роли заводятся к объекту «Вид.Имя», получено «{obj}»")
+    rights = data.get("права")
+    if rights is not None and not isinstance(rights, list):
+        raise Refuse(f"«права» — список из Просмотр/Изменение, получено {rights!r}")
+    return kind, name, rights, data.get("сокращение"), data.get("комментарий")
 
 
 def rename_job_from_json(data):
@@ -626,16 +626,16 @@ def form_edits_from_json(data):
         events[event] = event if handler is True else str(handler)
     # «код»: true — фрагмент кода формы; объектом — ещё и куда ляжет его
     # процедура: {«модуль»: «ОбщийМодуль.мой_X», «процедура»: «Имя»}.
-    код = data.get("код")
-    модуль = процедура = None
-    if isinstance(код, dict):
-        _check_keys(код, CODE_TARGET_KEYS, "код")
-        модуль, процедура = код.get("модуль"), код.get("процедура")
+    code = data.get("код")
+    module = procedure = None
+    if isinstance(code, dict):
+        _check_keys(code, CODE_TARGET_KEYS, "код")
+        module, procedure = code.get("модуль"), code.get("процедура")
     return fm.FormEdits(owner, name, create, attributes, commands, elements, events,
                         _names(data.get("удалить"), "удалить"),
                         _names(data.get("удалитьРеквизиты"), "удалитьРеквизиты"),
                         _names(data.get("удалитьКоманды"), "удалитьКоманды"),
-                        bool(код), модуль, процедура)
+                        bool(code), module, procedure)
 
 
 def _form_parts(text):

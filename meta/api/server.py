@@ -15,7 +15,7 @@ from mcp.server.fastmcp.exceptions import ToolError
 from mcp.types import TextContent
 from pydantic import Field, ValidationError
 
-from ..domain.conventions import НЕЙТРАЛЬНЫЕ
+from ..domain.conventions import NEUTRAL
 from ..domain.model import Refuse
 from ..report import Подсказки
 from ..report.code import code_lines
@@ -70,30 +70,30 @@ plan_check (план против факта задачи) и plan_emit (фак�
 которое не выполнится, отвечает строкой «ОТКАЗ: …»."""
 
 
-def инструкция(соглашения):
+def инструкция(conventions):
     """Инструкция сервера с соглашениями команды: приставку, метку команды и
     язык кода формы агент узнаёт до первого задания, а не из отказа."""
-    код_форм = соглашения.код_форм
-    язык = код_форм.диалект.описание(код_форм.словарь)
-    части = []
-    if соглашения.приставка:
-        части.append(f"приставка доработок — «{соглашения.приставка}»: типовую форму (без "
+    form_code = conventions.form_code
+    language = form_code.dialect.description(form_code.vocabulary)
+    parts = []
+    if conventions.prefix:
+        parts.append(f"приставка доработок — «{conventions.prefix}»: типовую форму (без "
                      "приставки у объекта и формы) инструмент в XML не правит, с «код»: true "
-                     f"он выдаёт фрагмент кода доработки формы — {язык}")
+                     f"он выдаёт фрагмент кода доработки формы — {language}")
     else:
-        части.append("приставки доработок нет — правила о ней не применяются, любая форма "
+        parts.append("приставки доработок нет — правила о ней не применяются, любая форма "
                      "правится в XML")
-    if соглашения.тег_меток:
-        части.append(f"метка команды в метках вставок — «{соглашения.тег_меток}»")
-    return ИНСТРУКЦИЯ + "\n\nСоглашения команды (профиль): " + "; ".join(части) + "."
+    if conventions.marker_tag:
+        parts.append(f"метка команды в метках вставок — «{conventions.marker_tag}»")
+    return ИНСТРУКЦИЯ + "\n\nСоглашения команды (профиль): " + "; ".join(parts) + "."
 
 
 def _подсказки(записать):
     return Подсказки(
-        поля='fields(kind="{вид}")',
+        fields='fields(kind="{вид}")',
         записать=записать,
-        подробно="verbose=true",
-        код="code_check, затем code_apply",
+        detailed="verbose=true",
+        code="code_check, затем code_apply",
         подвал_обзора=(
             '\nПоля вида:  fields(kind="<Вид>")        Описание типа:  fields(kind="Тип")'
             '        Правка кода:  fields(kind="Код")',
@@ -166,22 +166,22 @@ def словами(работа):
     def обёртка(*args, **named):
         try:
             return работа(*args, **named)
-        except Refuse as отказ:
-            return f"ОТКАЗ: {отказ}"
+        except Refuse as refusal:
+            return f"ОТКАЗ: {refusal}"
     return обёртка
 
 
-def текст(строки):
-    return "\n".join(строки)
+def text(lines):
+    return "\n".join(lines)
 
 
-def с_выгрузкой(repo, строки):
+def с_выгрузкой(repo, lines):
     """Строка «Выгрузка: …» перед ответом — но не перед «ОТКАЗ: …»: ответ,
     который не выполнится, начинается этим словом, как и отказ задания, и
     агент узнаёт его по первой строке."""
-    if строки and строки[0].startswith("ОТКАЗ:"):
-        return [строки[0], f"Выгрузка: {repo}", *строки[1:]]
-    return [f"Выгрузка: {repo}", *строки]
+    if lines and lines[0].startswith("ОТКАЗ:"):
+        return [lines[0], f"Выгрузка: {repo}", *lines[1:]]
+    return [f"Выгрузка: {repo}", *lines]
 
 
 #: Куда идти с параметром, который принадлежит другому инструменту.
@@ -213,31 +213,31 @@ class Сервер(FastMCP):
     """
 
     async def call_tool(self, name, arguments):
-        известные = next((list(tool.inputSchema.get("properties", {}))
+        known = next((list(tool.inputSchema.get("properties", {}))
                           for tool in await self.list_tools() if tool.name == name), None)
-        лишние = [ключ for ключ in arguments or {} if известные is not None
-                  and ключ not in известные]
-        if лишние:
-            советы = [НЕ_ТОТ_ИНСТРУМЕНТ[ключ] for ключ in лишние if ключ in НЕ_ТОТ_ИНСТРУМЕНТ]
+        extra = [key for key in arguments or {} if known is not None
+                  and key not in known]
+        if extra:
+            советы = [НЕ_ТОТ_ИНСТРУМЕНТ[key] for key in extra if key in НЕ_ТОТ_ИНСТРУМЕНТ]
             return [TextContent(type="text", text=(
-                f"ОТКАЗ: у {name} нет {'параметра' if len(лишние) == 1 else 'параметров'} "
-                + ", ".join(f"«{ключ}»" for ключ in лишние)
-                + f"; бывают: {', '.join(известные)}"
-                + "".join(f"; {совет}" for совет in dict.fromkeys(советы))))]
+                f"ОТКАЗ: у {name} нет {'параметра' if len(extra) == 1 else 'параметров'} "
+                + ", ".join(f"«{key}»" for key in extra)
+                + f"; бывают: {', '.join(known)}"
+                + "".join(f"; {advice}" for advice in dict.fromkeys(советы))))]
         try:
             return await super().call_tool(name, arguments)
-        except ToolError as ошибка:
-            if not isinstance(ошибка.__cause__, ValidationError):
+        except ToolError as error:
+            if not isinstance(error.__cause__, ValidationError):
                 raise
             return [TextContent(type="text", text="ОТКАЗ: " + "; ".join(
-                f"«{'.'.join(str(часть) for часть in e['loc'])}» — "
+                f"«{'.'.join(str(part) for part in e['loc'])}» — "
                 + ОЖИДАЛОСЬ.get(e["type"], e["msg"])
-                for e in ошибка.__cause__.errors()))]
+                for e in error.__cause__.errors()))]
 
 
-def build(controller, соглашения=НЕЙТРАЛЬНЫЕ):
+def build(controller, conventions=NEUTRAL):
     """Сервер с инструментами поверх данного контроллера."""
-    server = Сервер("1c-meta", instructions=инструкция(соглашения))
+    server = Сервер("1c-meta", instructions=инструкция(conventions))
 
     @server.tool(structured_output=False)
     @словами
@@ -262,11 +262,11 @@ def build(controller, соглашения=НЕЙТРАЛЬНЫЕ):
         ответ = controller.show(repo, address)
         if ответ[0] == "форма":
             _, view, name, form_file, module_file, своя = ответ
-            return текст(shown_form(view, name, form_file, module_file, verbose, ФОРМЫ,
+            return text(shown_form(view, name, form_file, module_file, verbose, ФОРМЫ,
                                     ветвь=element, своя=своя))
         _, spec, файл = ответ
-        лишнее = ["«element» — ветка дерева формы; у объекта не применяется"] if element else []
-        return текст(shown_object(spec, файл, МЕТАДАННЫЕ, полностью=verbose) + лишнее)
+        surplus = ["«element» — ветка дерева формы; у объекта не применяется"] if element else []
+        return text(shown_object(spec, файл, МЕТАДАННЫЕ, полностью=verbose) + surplus)
 
     @server.tool(structured_output=False)
     @словами
@@ -276,24 +276,24 @@ def build(controller, соглашения=НЕЙТРАЛЬНЫЕ):
         вставками (метки, разбор, откат); вид элемента формы («ПолеВвода»,
         «ГруппаФормы»…) — его свойства для задания на формы."""
         if not kind:
-            return текст(overview(controller.kinds(), МЕТАДАННЫЕ))
+            return text(overview(controller.kinds(), МЕТАДАННЫЕ))
         if kind in ("Тип", "Типы"):
-            return текст(types())
+            return text(types())
         if kind in CODE_WORDS:
-            return текст(code_rules(КОД))
+            return text(code_rules(КОД))
         found = controller.kind(kind)
         if found is not None:
-            return текст(kind_fields(kind, *found))
+            return text(kind_fields(kind, *found))
         свойства = element_properties(kind)
         if свойства is not None:
-            return текст(свойства)
+            return text(свойства)
         if is_a_type_word(kind):
-            return текст(types())
+            return text(types())
         raise Refuse("вида «{}» нет; есть: {}".format(kind, ", ".join(controller.kind_names())))
 
     def _формы(repo, forms, accepted, apply_now, verbose=False):
         result = controller.forms(repo, forms, apply_now)
-        return текст(с_выгрузкой(repo, result_lines(
+        return text(с_выгрузкой(repo, result_lines(
             result, принято=accepted, apply_now=apply_now, подсказки=ФОРМЫ, файлы=verbose)))
 
     @server.tool(structured_output=False)
@@ -324,7 +324,7 @@ def build(controller, соглашения=НЕЙТРАЛЬНЫЕ):
     def _код(repo, task, date, author, modules, move_method, apply_now, verbose=False, base="HEAD"):
         result = controller.code(repo, task, date, author, modules, move_method, apply_now,
                                  base=None if base in ("", "HEAD") else base)
-        return текст([f"Выгрузка: {repo}"] + code_lines(result, apply_now, КОД, целиком=verbose))
+        return text([f"Выгрузка: {repo}"] + code_lines(result, apply_now, КОД, целиком=verbose))
 
     @server.tool(structured_output=False)
     @словами
@@ -379,9 +379,9 @@ def build(controller, соглашения=НЕЙТРАЛЬНЫЕ):
     def _метаданные(repo, операции, accepted, apply_now, verbose=False):
         result = controller.metadata(метаданные_в_язык_заданий(repo, операции, accepted),
                                      apply_now)
-        return текст(с_выгрузкой(repo, result_lines(
+        return text(с_выгрузкой(repo, result_lines(
             result, принято=accepted, apply_now=apply_now, подсказки=МЕТАДАННЫЕ,
-            подробно=verbose, файлы=verbose)))
+            detailed=verbose, файлы=verbose)))
 
     @server.tool(structured_output=False)
     @словами
@@ -455,7 +455,7 @@ def build(controller, соглашения=НЕЙТРАЛЬНЫЕ):
         """
         result = controller.verify(repo=repo, base=base, rev=rev, baseline=baseline,
                                    target=target, task=task, only=only, paths=paths)
-        return текст(verify_lines(result))
+        return text(verify_lines(result))
 
     @server.tool(structured_output=False)
     @словами
@@ -473,7 +473,7 @@ def build(controller, соглашения=НЕЙТРАЛЬНЫЕ):
         идемпотентна: после normalize_apply повтор находит ноль работы.
         """
         result = controller.normalize(repo=repo, base=base, baseline=baseline, target=target)
-        return текст(normalize_lines(result, False, "вызовите normalize_apply с теми же параметрами"))
+        return text(normalize_lines(result, False, "вызовите normalize_apply с теми же параметрами"))
 
     @server.tool(structured_output=False)
     @словами
@@ -482,7 +482,7 @@ def build(controller, соглашения=НЕЙТРАЛЬНЫЕ):
         """То же с записью: все файлы разом или ни один, только в разрешённых выгрузках."""
         result = controller.normalize(repo=repo, base=base, baseline=baseline, target=target,
                                       apply_now=True)
-        return текст(normalize_lines(result, True, ""))
+        return text(normalize_lines(result, True, ""))
 
     @server.tool(structured_output=False)
     @словами
@@ -503,7 +503,7 @@ def build(controller, соглашения=НЕЙТРАЛЬНЫЕ):
         """
         result = controller.plan_check(objects, repo=repo, base=base, rev=rev, baseline=baseline,
                                        target=target, only_declared=only_declared)
-        return текст(plan_check_lines(result))
+        return text(plan_check_lines(result))
 
     @server.tool(structured_output=False)
     @словами
@@ -529,46 +529,46 @@ def build(controller, соглашения=НЕЙТРАЛЬНЫЕ):
     # (объекты, формы, модули) запись повторяла бы целиком. У `*_apply` они
     # ссылаются на схему `*_check`, которую агент уже видел: перед записью он её
     # и вызывает. Проверяются аргументы записи по-прежнему полностью.
-    for имя, инструмент in инструменты.items():
-        просмотр = инструменты.get(имя.removesuffix("_apply") + "_check")
-        if имя.endswith("_apply") and просмотр is not None:
+    for name, инструмент in инструменты.items():
+        просмотр = инструменты.get(name.removesuffix("_apply") + "_check")
+        if name.endswith("_apply") and просмотр is not None:
             инструмент.parameters = shared_schema(инструмент.parameters, просмотр.name)
     return server
 
 
-def shared_schema(схема, просмотр):
+def shared_schema(schema, просмотр):
     """Схема записи со ссылкой на просмотр: поля со вложенными моделями
     (`$ref`) — одной строкой «как у <просмотр>», общие `$defs` — прочь."""
-    out = {ключ: значение for ключ, значение in схема.items() if ключ != "$defs"}
+    out = {key: value for key, value in schema.items() if key != "$defs"}
     out["properties"] = {
-        имя: ({"description": f"то же, что «{имя}» у {просмотр}"} if "$ref" in json.dumps(поле) else поле)
-        for имя, поле in (схема.get("properties") or {}).items()}
+        name: ({"description": f"то же, что «{name}» у {просмотр}"} if "$ref" in json.dumps(field) else field)
+        for name, field in (schema.get("properties") or {}).items()}
     return out
 
 
-def compact_schema(схема):
+def compact_schema(schema):
     """Схема JSON без служебного pydantic: без `title` у каждого поля (он
     повторяет имя), без обёртки `anyOf: [X, null]` у необязательных полей и
     без `default: null` — необязательность и так видна по `required`."""
-    if isinstance(схема, list):
-        return [compact_schema(x) for x in схема]
-    if not isinstance(схема, dict):
-        return схема
+    if isinstance(schema, list):
+        return [compact_schema(x) for x in schema]
+    if not isinstance(schema, dict):
+        return schema
     out = {}
-    for ключ, значение in схема.items():
-        if ключ == "title" and isinstance(значение, str):
+    for key, value in schema.items():
+        if key == "title" and isinstance(value, str):
             continue
-        if ключ in ("properties", "$defs") and isinstance(значение, dict):
-            out[ключ] = {имя: compact_schema(s) for имя, s in значение.items()}
+        if key in ("properties", "$defs") and isinstance(value, dict):
+            out[key] = {name: compact_schema(s) for name, s in value.items()}
         else:
-            out[ключ] = compact_schema(значение)
+            out[key] = compact_schema(value)
     варианты = out.get("anyOf")
     if isinstance(варианты, list) and {"type": "null"} in варианты:
         варианты = [x for x in варианты if x != {"type": "null"}]
         if len(варианты) == 1:
             out.pop("anyOf")
-            for ключ, значение in варианты[0].items():
-                out.setdefault(ключ, значение)
+            for key, value in варианты[0].items():
+                out.setdefault(key, value)
         else:
             out["anyOf"] = варианты
     if "default" in out and out["default"] is None:

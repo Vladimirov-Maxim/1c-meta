@@ -45,9 +45,9 @@ def form_file(module_path):
     `…/Ext/Form/Module.bsl` -> `…/Ext/Form.xml`, у EDT `…/Module.bsl` ->
     `…/Form.form`; не модуль формы — None. Разделитель — как у пути на входе."""
     sep = "/" if "/" in module_path and "\\" not in module_path else os.sep
-    части = module_path.split(sep)
-    if части[-1] != "Module.bsl":
+    parts = module_path.split(sep)
+    if parts[-1] != "Module.bsl":
         return None
-    if len(части) >= 3 and части[-3:-1] == ["Ext", "Form"]:
-        return sep.join(части[:-2] + ["Form.xml"])
-    return sep.join(части[:-1] + ["Form.form"])
+    if len(parts) >= 3 and parts[-3:-1] == ["Ext", "Form"]:
+        return sep.join(parts[:-2] + ["Form.xml"])
+    return sep.join(parts[:-1] + ["Form.form"])

@@ -31,24 +31,24 @@ ORACLE_SEED = 20261008
 
 def files(root):
     found = {}
-    for папка, _, имена in os.walk(root):
-        for имя in имена:
-            путь = os.path.join(папка, имя)
-            found[os.path.relpath(путь, root).replace(os.sep, "/")] = путь
+    for папка, _, names in os.walk(root):
+        for name in names:
+            path = os.path.join(папка, name)
+            found[os.path.relpath(path, root).replace(os.sep, "/")] = path
     return found
 
 
-def применить(repo, tmp_path, до=None):
+def apply(repo, tmp_path, before_=None):
     """Задания по порядку; `до` — имя задания, на котором остановиться."""
-    for имя in sorted(os.listdir(ЗАДАНИЯ)):
-        if not имя.endswith(".json"):
+    for name in sorted(os.listdir(ЗАДАНИЯ)):
+        if not name.endswith(".json"):
             continue
-        with open(os.path.join(ЗАДАНИЯ, имя), encoding="utf-8") as f:
+        with open(os.path.join(ЗАДАНИЯ, name), encoding="utf-8") as f:
             задание = json.loads(f.read().replace("{repo}", str(repo).replace("\\", "/")))
-        путь = tmp_path / "задание.json"
-        путь.write_text(json.dumps(задание, ensure_ascii=False), encoding="utf-8")
-        assert main([str(путь), "--apply", "--профиль", ПРОФИЛЬ]) == 0, имя
-        if имя == до:
+        path = tmp_path / "задание.json"
+        path.write_text(json.dumps(задание, ensure_ascii=False), encoding="utf-8")
+        assert main([str(path), "--apply", "--профиль", ПРОФИЛЬ]) == 0, name
+        if name == before_:
             return
 
 
@@ -65,11 +65,11 @@ def test_external_objects_are_written_as_the_configurator_dumps_them(катал�
     """Обработка с модулем, реквизитом, табличной частью и формой (создание,
     наполнение, правка), правка модуля вставкой, отчёт со схемой и формой
     отчёта — каждый файл байт в байт как выгрузка конфигуратора."""
-    применить(каталог, tmp_path)
+    apply(каталог, tmp_path)
     записано, эталон = files(каталог), files(ОЖИДАНИЕ)
     assert sorted(записано) == sorted(эталон)
-    разные = [п for п in эталон
-              if open(записано[п], "rb").read() != open(эталон[п], "rb").read()]
+    разные = [pt for pt in эталон
+              if open(записано[pt], "rb").read() != open(эталон[pt], "rb").read()]
     assert разные == []
 
 
@@ -84,22 +84,22 @@ def test_an_external_object_cannot_be_created_in_a_configuration_dump(tmp_path):
 
 def test_a_configuration_object_cannot_be_created_in_an_external_dump(каталог, tmp_path):
     """И наоборот: справочнику во внешней выгрузке места нет."""
-    путь = tmp_path / "задание.json"
-    путь.write_text(json.dumps({"repo": str(каталог), "objects": [
+    path = tmp_path / "задание.json"
+    path.write_text(json.dumps({"repo": str(каталог), "objects": [
         {"вид": "Справочник", "поля": {"имя": "мой_Спр", "синоним": "Спр"}}]},
         ensure_ascii=False), encoding="utf-8")
     with pytest.raises(Refuse, match="в выгрузке внешней обработки объектов вида «Справочник» нет"):
-        main([str(путь), "--apply", "--профиль", ПРОФИЛЬ])
+        main([str(path), "--apply", "--профиль", ПРОФИЛЬ])
     assert os.listdir(каталог) == []
 
 
 def test_an_external_dump_has_no_common_forms(каталог, tmp_path):
-    путь = tmp_path / "задание.json"
-    путь.write_text(json.dumps({"repo": str(каталог), "forms": [
+    path = tmp_path / "задание.json"
+    path.write_text(json.dumps({"repo": str(каталог), "forms": [
         {"форма": "ОбщаяФорма.мой_Вопрос", "создать": {"синоним": "Вопрос"}}]},
         ensure_ascii=False), encoding="utf-8")
     with pytest.raises(Refuse, match="общих форм не бывает"):
-        main([str(путь), "--apply", "--профиль", ПРОФИЛЬ])
+        main([str(path), "--apply", "--профиль", ПРОФИЛЬ])
     assert os.listdir(каталог) == []
 
 
@@ -111,15 +111,15 @@ def test_the_plan_of_an_external_dump_is_refused_not_reported_as_not_done(tmp_pa
 
     from meta.composition import mcp_server
 
-    эталон, копия = tmp_path / "эталон", tmp_path / "копия"
+    эталон, copy_ = tmp_path / "эталон", tmp_path / "копия"
     эталон.mkdir()
-    shutil.copytree(os.path.join(ВНЕШНИЕ, "ожидание"), копия)
+    shutil.copytree(os.path.join(ВНЕШНИЕ, "ожидание"), copy_)
     сервер = mcp_server(roots=[str(tmp_path)])
     for инструмент, аргументы in (("plan_emit", {}),
                                   ("plan_check", {"objects": [{"вид": "Обработка", "имя": "мой_Обработка",
                                                                "действие": "создать"}]})):
-        ответ = asyncio.run(сервер.call_tool(инструмент, {"baseline": str(эталон), "target": str(копия),
+        ответ = asyncio.run(сервер.call_tool(инструмент, {"baseline": str(эталон), "target": str(copy_),
                                                           **аргументы}))
-        текст = "\n".join(блок.text for блок in (ответ[0] if isinstance(ответ, tuple) else ответ))
-        assert "сверки плана" in текст and "ПЛАН-ОБЪЕКТ-НЕ-СДЕЛАН" not in текст, текст
+        text = "\n".join(блок.text for блок in (ответ[0] if isinstance(ответ, tuple) else ответ))
+        assert "сверки плана" in text and "ПЛАН-ОБЪЕКТ-НЕ-СДЕЛАН" not in text, text
 

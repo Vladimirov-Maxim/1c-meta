@@ -33,12 +33,12 @@ def git(root, *args):
                           ).stdout.decode("utf-8", "replace").strip()
 
 
-def написать(root, rel, строки, eol="\n", bom=False, final=True):
-    путь = os.path.join(str(root), *rel.split("/"))
-    os.makedirs(os.path.dirname(путь), exist_ok=True)
-    текст = eol.join(строки) + (eol if final else "")
-    with open(путь, "wb") as файл:
-        файл.write((b"\xef\xbb\xbf" if bom else b"") + текст.encode("utf-8"))
+def написать(root, rel, lines, eol="\n", bom=False, final=True):
+    path = os.path.join(str(root), *rel.split("/"))
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    text = eol.join(lines) + (eol if final else "")
+    with open(path, "wb") as файл:
+        файл.write((b"\xef\xbb\xbf" if bom else b"") + text.encode("utf-8"))
 
 
 def прочитать(root, rel):
@@ -46,25 +46,25 @@ def прочитать(root, rel):
         return файл.read()
 
 
-def карточка(вид, имя, *дети):
+def card(kind, name, *дети):
     """Карточка `.mdo`: корень вида, имя и дети — уже готовыми строками."""
     return ['<?xml version="1.0" encoding="UTF-8"?>',
-            f'<mdclass:{вид} xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" {MDCLASS} '
+            f'<mdclass:{kind} xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" {MDCLASS} '
             f'uuid="7d1e2824-b889-41a0-a83e-d45103c58d47">',
-            f"  <name>{имя}</name>", *дети, f"</mdclass:{вид}>"]
+            f"  <name>{name}</name>", *дети, f"</mdclass:{kind}>"]
 
 
-def член(тег, имя, *типы):
+def член(тег, name, *types):
     """Ребёнок карточки с типом: `типы` — строки внутри `<type>`."""
-    return [f'  <{тег} uuid="f3d110c5-c64c-426a-9525-b612dbab0753">', f"    <name>{имя}</name>",
-            "    <type>", *[f"      {т}" for т in типы], "    </type>", f"  </{тег}>"]
+    return [f'  <{тег} uuid="f3d110c5-c64c-426a-9525-b612dbab0753">', f"    <name>{name}</name>",
+            "    <type>", *[f"      {tk}" for tk in types], "    </type>", f"  </{тег}>"]
 
 
-def права(объект):
+def rights(obj):
     return ['<?xml version="1.0" encoding="UTF-8"?>',
             '<Rights xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://v8.1c.ru/8.2/roles" '
             'xsi:type="Rights">',
-            "\t<object>", f"\t\t<name>{объект}</name>", "\t\t<right>", "\t\t\t<name>Read</name>",
+            "\t<object>", f"\t\t<name>{obj}</name>", "\t\t<right>", "\t\t\t<name>Read</name>",
             "\t\t\t<value>true</value>", "\t\t</right>", "\t</object>", "</Rights>"]
 
 
@@ -79,17 +79,17 @@ def проект(tmp_path, autocrlf=False):
     src = repo / "project" / "src"
     src.mkdir(parents=True)
     git(repo, "init", "-q")
-    for ключ, значение in (("user.email", "t@example.local"), ("user.name", "Фикстуры"),
+    for key, value in (("user.email", "t@example.local"), ("user.name", "Фикстуры"),
                            ("core.autocrlf", "true" if autocrlf else "false"),
                            ("core.quotepath", "false")):
-        git(repo, "config", ключ, значение)
+        git(repo, "config", key, value)
     написать(repo, "project/DT-INF/PROJECT.PMF", ["Manifest-Version: 1.0"])
-    написать(src, "Configuration/Configuration.mdo", карточка("Configuration", "Конфигурация"))
-    написать(src, "Documents/Вендорский/Вендорский.mdo", карточка("Document", "Вендорский"))
+    написать(src, "Configuration/Configuration.mdo", card("Configuration", "Конфигурация"))
+    написать(src, "Documents/Вендорский/Вендорский.mdo", card("Document", "Вендорский"))
     написать(src, ВЕНДОРСКИЙ, ["Процедура ПередЗаписью(Отказ, РежимЗаписи, РежимПроведения)",
                                "\tЗначение = 1;", "КонецПроцедуры"])
     написать(src, "CommonModules/ВендорскийМодуль/ВендорскийМодуль.mdo",
-             карточка("CommonModule", "ВендорскийМодуль"))
+             card("CommonModule", "ВендорскийМодуль"))
     написать(src, "CommonModules/ВендорскийМодуль/Module.bsl", [
         "#Область ПрограммныйИнтерфейс", "Функция Публичный() Экспорт", "\tВозврат 1;", "КонецФункции",
         "#КонецОбласти"])
@@ -99,21 +99,21 @@ def проект(tmp_path, autocrlf=False):
 
 @pytest.fixture
 def профиль(tmp_path):
-    путь = tmp_path / "профиль.json"
-    путь.write_text(json.dumps(ПРОФИЛЬ, ensure_ascii=False), encoding="utf-8")
-    return str(путь)
+    path = tmp_path / "профиль.json"
+    path.write_text(json.dumps(ПРОФИЛЬ, ensure_ascii=False), encoding="utf-8")
+    return str(path)
 
 
-def проверить(capsys, профиль, *аргументы):
+def check(capsys, профиль, *аргументы):
     """(код возврата, текст, ответ JSON)."""
     ответ = os.path.join(os.path.dirname(профиль), "ответ.json")
     if os.path.exists(ответ):
         os.remove(ответ)
     capsys.readouterr()
-    код = main(["--проверить", *map(str, аргументы), "--профиль", профиль, "--json", ответ])
-    текст = capsys.readouterr().out
+    code = main(["--проверить", *map(str, аргументы), "--профиль", профиль, "--json", ответ])
+    text = capsys.readouterr().out
     данные = json.load(open(ответ, encoding="utf-8")) if os.path.exists(ответ) else None
-    return код, текст, данные
+    return code, text, данные
 
 
 def коды(данные):
@@ -128,29 +128,29 @@ def test_paths_are_from_the_sources_and_files_outside_them_are_not_in_scope(tmp_
     выше них в предмет проверок не входит; новый `.mdo` без приставки пойман."""
     repo, src = проект(tmp_path)
     написать(repo, "project/DT-INF/PROJECT.PMF", ["Manifest-Version: 2.0"])
-    написать(src, "Catalogs/Чужой/Чужой.mdo", карточка("Catalog", "Чужой"))
-    код, текст, данные = проверить(capsys, профиль, src, "--задача", "TASK-1")
-    assert код == 1 and коды(данные) == ["МД-ПРЕФИКС", "ПРАВА-НЕ-ВЫДАНЫ"], текст
-    [приставка] = [f for f in данные["находки"] if f["код"] == "МД-ПРЕФИКС"]
-    assert приставка["файл"] == "Catalogs/Чужой/Чужой.mdo"
-    assert "A  Catalogs/Чужой/Чужой.mdo" in текст and "PROJECT.PMF" not in текст
+    написать(src, "Catalogs/Чужой/Чужой.mdo", card("Catalog", "Чужой"))
+    code, text, данные = check(capsys, профиль, src, "--задача", "TASK-1")
+    assert code == 1 and коды(данные) == ["МД-ПРЕФИКС", "ПРАВА-НЕ-ВЫДАНЫ"], text
+    [prefix] = [f for f in данные["находки"] if f["код"] == "МД-ПРЕФИКС"]
+    assert prefix["файл"] == "Catalogs/Чужой/Чужой.mdo"
+    assert "A  Catalogs/Чужой/Чужой.mdo" in text and "PROJECT.PMF" not in text
     assert данные["источник"].startswith("проект EDT")
 
 
 def test_a_new_object_needs_a_right_in_rights_rights(tmp_path, capsys, профиль):
     """Права на новый объект ищутся в `Roles/<Роль>/Rights.rights`."""
     repo, src = проект(tmp_path)
-    написать(src, "Catalogs/мой_Новый/мой_Новый.mdo", карточка("Catalog", "мой_Новый"))
-    _, текст, данные = проверить(capsys, профиль, src, "--задача", "TASK-1")
-    assert коды(данные) == ["ПРАВА-НЕ-ВЫДАНЫ"], текст
-    написать(src, "Roles/мой_атом_Новый/мой_атом_Новый.mdo", карточка("Role", "мой_атом_Новый"))
-    написать(src, "Roles/мой_атом_Новый/Rights.rights", права("Catalog.мой_Новый"))
-    код, текст, данные = проверить(capsys, профиль, src, "--задача", "TASK-1")
-    assert код == 0 and коды(данные) == [], текст
+    написать(src, "Catalogs/мой_Новый/мой_Новый.mdo", card("Catalog", "мой_Новый"))
+    _, text, данные = check(capsys, профиль, src, "--задача", "TASK-1")
+    assert коды(данные) == ["ПРАВА-НЕ-ВЫДАНЫ"], text
+    написать(src, "Roles/мой_атом_Новый/мой_атом_Новый.mdo", card("Role", "мой_атом_Новый"))
+    написать(src, "Roles/мой_атом_Новый/Rights.rights", rights("Catalog.мой_Новый"))
+    code, text, данные = check(capsys, профиль, src, "--задача", "TASK-1")
+    assert code == 0 and коды(данные) == [], text
     # право только в чужой роли — своё нарушение
     os.remove(os.path.join(src, "Roles", "мой_атом_Новый", "Rights.rights"))
-    написать(src, "Roles/Чужая/Rights.rights", права("Catalog.мой_Новый"))
-    _, _, данные = проверить(capsys, профиль, src, "--задача", "TASK-1")
+    написать(src, "Roles/Чужая/Rights.rights", rights("Catalog.мой_Новый"))
+    _, _, данные = check(capsys, профиль, src, "--задача", "TASK-1")
     assert "ПРАВА-ТОЛЬКО-В-ЧУЖОЙ-РОЛИ" in коды(данные)
 
 
@@ -158,71 +158,71 @@ def test_an_unwrapped_edit_of_a_module_without_ext_is_found(tmp_path, capsys, п
     repo, src = проект(tmp_path)
     написать(src, ВЕНДОРСКИЙ, ["Процедура ПередЗаписью(Отказ, РежимЗаписи, РежимПроведения)",
                                "\tЗначение = 42;", "КонецПроцедуры"])
-    код, текст, данные = проверить(capsys, профиль, src, "--задача", "TASK-1")
-    assert код == 1 and коды(данные) == ["ПРАВКА-ВНЕ-ВСТАВКИ"], текст
+    code, text, данные = check(capsys, профиль, src, "--задача", "TASK-1")
+    assert code == 1 and коды(данные) == ["ПРАВКА-ВНЕ-ВСТАВКИ"], text
     assert данные["находки"][0]["файл"] == ВЕНДОРСКИЙ
 
 
 def test_revisions_are_read_from_the_subfolder(tmp_path, capsys, профиль):
     """Ревизия против базы: файлы читаются `show <ревизия>:./<путь>` из подкаталога."""
     repo, src = проект(tmp_path)
-    база = git(repo, "rev-parse", "HEAD")
+    base = git(repo, "rev-parse", "HEAD")
     написать(src, ВЕНДОРСКИЙ, ["Процедура ПередЗаписью(Отказ, РежимЗаписи, РежимПроведения)",
                                "\tЗначение = 42;", "КонецПроцедуры"])
-    написать(src, "CommonModules/мой_Новый/мой_Новый.mdo", карточка("CommonModule", "мой_Новый"))
+    написать(src, "CommonModules/мой_Новый/мой_Новый.mdo", card("CommonModule", "мой_Новый"))
     написать(src, "CommonModules/мой_Новый/Module.bsl", ["Функция Посчитать() Экспорт", "\tВозврат 1;",
                                                          "КонецФункции"])
     зафиксировать(repo, "задача")
-    код, текст, данные = проверить(capsys, профиль, src, "--база", база, "--ревизия", "HEAD",
+    code, text, данные = check(capsys, профиль, src, "--база", base, "--ревизия", "HEAD",
                                    "--задача", "TASK-1")
-    assert код == 1 and коды(данные) == ["ПРАВКА-ВНЕ-ВСТАВКИ"], текст
-    assert "A  CommonModules/мой_Новый/Module.bsl" in текст and f"M  {ВЕНДОРСКИЙ}" in текст
+    assert code == 1 and коды(данные) == ["ПРАВКА-ВНЕ-ВСТАВКИ"], text
+    assert "A  CommonModules/мой_Новый/Module.bsl" in text and f"M  {ВЕНДОРСКИЙ}" in text
 
 
 def test_bom_is_checked_against_the_repository(tmp_path, capsys, профиль):
     """В проекте EDT файлы без BOM: отсутствие — норма, BOM — нарушение."""
     repo, src = проект(tmp_path)
-    написать(src, "CommonModules/мой_БезBOM/мой_БезBOM.mdo", карточка("CommonModule", "мой_БезBOM"))
+    написать(src, "CommonModules/мой_БезBOM/мой_БезBOM.mdo", card("CommonModule", "мой_БезBOM"))
     написать(src, "CommonModules/мой_БезBOM/Module.bsl", ["Процедура А() Экспорт", "КонецПроцедуры"])
-    код, текст, данные = проверить(capsys, профиль, src, "--задача", "TASK-1")
-    assert код == 0 and коды(данные) == [], текст
+    code, text, данные = check(capsys, профиль, src, "--задача", "TASK-1")
+    assert code == 0 and коды(данные) == [], text
     написать(src, "CommonModules/мой_БезBOM/Module.bsl", ["Процедура А() Экспорт", "КонецПроцедуры"],
              bom=True)
-    код, текст, данные = проверить(capsys, профиль, src, "--задача", "TASK-1")
-    assert код == 1 and коды(данные) == ["ФАЙЛ-ЛИШНИЙ-BOM"], текст
-    assert "лишний BOM: CommonModules/мой_БезBOM/Module.bsl" in текст
+    code, text, данные = check(capsys, профиль, src, "--задача", "TASK-1")
+    assert code == 1 and коды(данные) == ["ФАЙЛ-ЛИШНИЙ-BOM"], text
+    assert "лишний BOM: CommonModules/мой_БезBOM/Module.bsl" in text
 
 
 def test_line_endings_are_those_of_the_repository(tmp_path, capsys, профиль):
     repo, src = проект(tmp_path)
-    написать(src, "CommonModules/мой_М/мой_М.mdo", карточка("CommonModule", "мой_М"))
+    написать(src, "CommonModules/мой_М/мой_М.mdo", card("CommonModule", "мой_М"))
     написать(src, "CommonModules/мой_М/Module.bsl", ["Процедура А() Экспорт", "КонецПроцедуры"], eol="\r\n")
-    _, текст, данные = проверить(capsys, профиль, src, "--задача", "TASK-1")
-    assert коды(данные) == ["ФАЙЛ-ПЕРЕВОДЫ-ЧУЖИЕ"], текст
+    _, text, данные = check(capsys, профиль, src, "--задача", "TASK-1")
+    assert коды(данные) == ["ФАЙЛ-ПЕРЕВОДЫ-ЧУЖИЕ"], text
 
 
 def test_the_service_file_rule_is_not_applicable_and_does_not_make_the_run_incomplete(
         tmp_path, capsys, профиль):
     repo, src = проект(tmp_path)
-    код, текст, данные = проверить(capsys, профиль, src, "--задача", "TASK-1")
-    assert код == 0 and "ЧИСТО" in текст and данные["пропущено"] == [], текст
+    code, text, данные = check(capsys, профиль, src, "--задача", "TASK-1")
+    assert code == 0 and "ЧИСТО" in text and данные["пропущено"] == [], text
     assert any("ВЫГРУЗКА-СЛУЖЕБНЫЙ-ФАЙЛ" in пояснение for пояснение in данные["пояснения"])
 
 
 def test_type_sets_of_new_members_are_read_from_mdo(tmp_path, capsys, профиль):
     """Составы типов новых членов читаются из карточки `.mdo`."""
     repo, src = проект(tmp_path)
-    написать(src, "Catalogs/мой_А/мой_А.mdo", карточка("Catalog", "мой_А"))
-    написать(src, "Roles/мой_Р/Rights.rights", права("Catalog.мой_А"))
+    написать(src, "Catalogs/мой_А/мой_А.mdo", card("Catalog", "мой_А"))
+    написать(src, "Roles/мой_Р/Rights.rights", rights("Catalog.мой_А"))
     зафиксировать(repo, "прошлая задача")
-    написать(src, "Catalogs/мой_А/мой_А.mdo", карточка(
+    написать(src, "Catalogs/мой_А/мой_А.mdo", card(
         "Catalog", "мой_А",
         *член("attributes", "Источник", "<types>CatalogRef.Контрагенты</types>",
               "<types>CatalogRef.Организации</types>", "<types>CatalogRef.ФизическиеЛица</types>"),
         *член("attributes", "Получатель", "<types>CatalogRef.Контрагенты</types>",
               "<types>CatalogRef.Организации</types>")))
-    _, текст, данные = проверить(capsys, профиль, src, "--задача", "TASK-1")
-    assert коды(данные) == ["СОСТАВ-ТИПОВ-УЖЕ"], текст
+    _, text, данные = check(capsys, профиль, src, "--задача", "TASK-1")
+    assert коды(данные) == ["СОСТАВ-ТИПОВ-УЖЕ"], text
 
 
 # --- нормализация ---------------------------------------------------------------------------
@@ -230,24 +230,24 @@ def test_type_sets_of_new_members_are_read_from_mdo(tmp_path, capsys, профи
 
 def нормализовать(capsys, *аргументы):
     capsys.readouterr()
-    код = main(["--нормализовать", *map(str, аргументы)])
-    return код, capsys.readouterr().out
+    code = main(["--нормализовать", *map(str, аргументы)])
+    return code, capsys.readouterr().out
 
 
 def test_normalization_keeps_the_edt_format(tmp_path, capsys):
     """Нормализация приводит к принятому в проекте EDT: без BOM, LF; файл в норме
     не трогает и BOM ему не добавляет."""
     repo, src = проект(tmp_path)
-    модуль = "CommonModules/мой_Н/Module.bsl"
-    написать(src, "CommonModules/мой_Н/мой_Н.mdo", карточка("CommonModule", "мой_Н"))
-    написать(src, модуль, ["Процедура А() Экспорт", "КонецПроцедуры"])
-    код, текст = нормализовать(capsys, src)
-    assert код == 0, текст
-    написать(src, модуль, ["Процедура А() Экспорт", "КонецПроцедуры"], bom=True, eol="\r\n")
-    код, текст = нормализовать(capsys, src)
-    assert код == 1 and "снять BOM" in текст and "CRLF -> LF" in текст, текст
+    module = "CommonModules/мой_Н/Module.bsl"
+    написать(src, "CommonModules/мой_Н/мой_Н.mdo", card("CommonModule", "мой_Н"))
+    написать(src, module, ["Процедура А() Экспорт", "КонецПроцедуры"])
+    code, text = нормализовать(capsys, src)
+    assert code == 0, text
+    написать(src, module, ["Процедура А() Экспорт", "КонецПроцедуры"], bom=True, eol="\r\n")
+    code, text = нормализовать(capsys, src)
+    assert code == 1 and "снять BOM" in text and "CRLF -> LF" in text, text
     assert нормализовать(capsys, src, "--apply")[0] == 0
-    assert прочитать(src, модуль) == "Процедура А() Экспорт\nКонецПроцедуры\n".encode()
+    assert прочитать(src, module) == "Процедура А() Экспорт\nКонецПроцедуры\n".encode()
     assert нормализовать(capsys, src)[0] == 0             # идемпотентна
 
 
@@ -257,7 +257,7 @@ def test_normalization_keeps_the_edt_format(tmp_path, capsys):
 def test_the_plan_is_checked_against_mdo(tmp_path, capsys):
     """План по факту читает состав `.mdo` с типами, и сверка его принимает."""
     repo, src = проект(tmp_path)
-    написать(src, "InformationRegisters/мой_Остатки/мой_Остатки.mdo", карточка(
+    написать(src, "InformationRegisters/мой_Остатки/мой_Остатки.mdo", card(
         "InformationRegister", "мой_Остатки",
         *член("resources", "Сумма", "<types>Number</types>", "<numberQualifiers>",
               "  <precision>15</precision>", "  <scale>2</scale>", "</numberQualifiers>"),
@@ -269,20 +269,20 @@ def test_the_plan_is_checked_against_mdo(tmp_path, capsys):
         "Процедура Зарегистрировать() Экспорт", "КонецПроцедуры"])
     capsys.readouterr()
     assert main(["--план-по-факту", str(src)]) == 0
-    план = json.loads(capsys.readouterr().out)
-    [объект] = [о for о in план["объекты"] if о["имя"] == "мой_Остатки"]
-    assert объект["действие"] == "создать"
-    assert объект["ресурсы"] == {"Сумма": ["Число(15,2)"]}
-    assert объект["измерения"] == {"Договор": ["Справочник.ДоговорыКонтрагентов"],
+    plan = json.loads(capsys.readouterr().out)
+    [obj] = [ob for ob in plan["объекты"] if ob["имя"] == "мой_Остатки"]
+    assert obj["действие"] == "создать"
+    assert obj["ресурсы"] == {"Сумма": ["Число(15,2)"]}
+    assert obj["измерения"] == {"Договор": ["Справочник.ДоговорыКонтрагентов"],
                                    "Вид": ["ОпределяемыйТип.ВидДоговора"]}
-    assert объект["реквизиты"] == {"Комментарий": ["Строка(200)"]}
-    assert объект["модули"] == {"МодульМенеджера": ["Зарегистрировать"]}
+    assert obj["реквизиты"] == {"Комментарий": ["Строка(200)"]}
+    assert obj["модули"] == {"МодульМенеджера": ["Зарегистрировать"]}
     файл = tmp_path / "план.json"
-    файл.write_text(json.dumps(план, ensure_ascii=False), encoding="utf-8")
+    файл.write_text(json.dumps(plan, ensure_ascii=False), encoding="utf-8")
     assert main(["--сверить-план", str(src), "--план", str(файл)]) == 0
-    план["объекты"] = [о for о in план["объекты"] if о["имя"] != "мой_Остатки"] + [
-        dict(объект, ресурсы={"Сумма": ["Строка(10)"]})]
-    файл.write_text(json.dumps(план, ensure_ascii=False), encoding="utf-8")
+    plan["объекты"] = [ob for ob in plan["объекты"] if ob["имя"] != "мой_Остатки"] + [
+        dict(obj, ресурсы={"Сумма": ["Строка(10)"]})]
+    файл.write_text(json.dumps(plan, ensure_ascii=False), encoding="utf-8")
     capsys.readouterr()
     assert main(["--сверить-план", str(src), "--план", str(файл)]) == 1
     assert "ПЛАН-ТИПЫ-РАСХОДЯТСЯ" in capsys.readouterr().out
@@ -302,14 +302,14 @@ def test_code_apply_writes_an_edt_module_in_its_format_and_verify_accepts_it(tmp
                    {"модуль": "ОбщийМодуль.ВендорскийМодуль", "edits": [
                        {"line": 5, "lines": 0, "first_line": "#КонецОбласти",
                         "code": "Функция Новая() Экспорт\n\tВозврат 2;\nКонецФункции"}]}]}
-    путь = tmp_path / "код.json"
-    путь.write_text(json.dumps(задание, ensure_ascii=False), encoding="utf-8")
-    assert main(["--apply", str(путь), "--профиль", профиль]) == 0
+    path = tmp_path / "код.json"
+    path.write_text(json.dumps(задание, ensure_ascii=False), encoding="utf-8")
+    assert main(["--apply", str(path), "--профиль", профиль]) == 0
     данные = прочитать(src, ВЕНДОРСКИЙ)
     assert not данные.startswith(b"\xef\xbb\xbf") and b"\r\n" not in данные
     assert "#TEAM Автор #TASK-1" in данные.decode("utf-8")
-    код, текст, ответ = проверить(capsys, профиль, src, "--задача", "TASK-1")
-    assert код == 0 and коды(ответ) == [], текст
+    code, text, ответ = check(capsys, профиль, src, "--задача", "TASK-1")
+    assert code == 0 and коды(ответ) == [], text
 
 
 def test_a_missing_edt_module_names_the_modules_the_object_has(tmp_path, capsys):
@@ -319,12 +319,12 @@ def test_a_missing_edt_module_names_the_modules_the_object_has(tmp_path, capsys)
     задание = {"repo": str(src), "task": "TASK-1", "date": "06.10.2026", "author": "Автор",
                "modules": [{"модуль": "Документ.Вендорский.МодульНабораЗаписей", "edits": [
                    {"line": 1, "lines": 0, "first_line": "x", "code": "\tА = 1;"}]}]}
-    путь = tmp_path / "код.json"
-    путь.write_text(json.dumps(задание, ensure_ascii=False), encoding="utf-8")
+    path = tmp_path / "код.json"
+    path.write_text(json.dumps(задание, ensure_ascii=False), encoding="utf-8")
     from meta.domain.model import Refuse
 
     with pytest.raises(Refuse, match="у объекта есть: Документ.Вендорский.МодульОбъекта"):
-        main([str(путь)])
+        main([str(path)])
 
 
 def test_a_missing_module_of_an_existing_object_is_created_without_markers(tmp_path, capsys, профиль):
@@ -335,16 +335,16 @@ def test_a_missing_module_of_an_existing_object_is_created_without_markers(tmp_p
     задание = {"repo": str(src), "task": "TASK-1", "date": "06.10.2026", "author": "Автор",
                "modules": [{"модуль": "Документ.Вендорский.МодульМенеджера", "edits": [
                    {"line": 1, "lines": 0, "code": "Функция Новая() Экспорт\n\tВозврат 1;\nКонецФункции"}]}]}
-    путь = tmp_path / "код.json"
-    путь.write_text(json.dumps(задание, ensure_ascii=False), encoding="utf-8")
+    path = tmp_path / "код.json"
+    path.write_text(json.dumps(задание, ensure_ascii=False), encoding="utf-8")
     capsys.readouterr()
-    assert main(["--apply", str(путь), "--профиль", профиль]) == 0
-    текст = capsys.readouterr().out
-    assert "новый: модуля не было, правка его создаёт" in текст, текст
+    assert main(["--apply", str(path), "--профиль", профиль]) == 0
+    text = capsys.readouterr().out
+    assert "новый: модуля не было, правка его создаёт" in text, text
     данные = прочитать(src, "Documents/Вендорский/ManagerModule.bsl")
     assert данные == "Функция Новая() Экспорт\n\tВозврат 1;\nКонецФункции\n".encode()
-    код, текст, ответ = проверить(capsys, профиль, src, "--задача", "TASK-1")
-    assert код == 0 and коды(ответ) == [], текст
+    code, text, ответ = check(capsys, профиль, src, "--задача", "TASK-1")
+    assert code == 0 and коды(ответ) == [], text
 
 
 def test_a_module_of_a_missing_object_is_not_created(tmp_path):
@@ -352,12 +352,12 @@ def test_a_module_of_a_missing_object_is_not_created(tmp_path):
     задание = {"repo": str(src), "task": "TASK-1", "date": "06.10.2026", "author": "Автор",
                "modules": [{"модуль": "Документ.Нет.МодульМенеджера", "edits": [
                    {"line": 1, "lines": 0, "code": "А = 1;"}]}]}
-    путь = tmp_path / "код.json"
-    путь.write_text(json.dumps(задание, ensure_ascii=False), encoding="utf-8")
+    path = tmp_path / "код.json"
+    path.write_text(json.dumps(задание, ensure_ascii=False), encoding="utf-8")
     from meta.domain.model import Refuse
 
     with pytest.raises(Refuse, match="в выгрузке нет"):
-        main([str(путь)])
+        main([str(path)])
 
 
 # --- раскладка ------------------------------------------------------------------------------
@@ -385,9 +385,9 @@ def test_both_layouts_address_modules_the_same_way():
         (ModuleAddress("Конфигурация", "", "МодульСеанса"), "Ext/SessionModule.bsl",
          "Configuration/SessionModule.bsl"),
     ]
-    for адрес, выгрузка, edt in случаи:
-        assert "/".join(DESIGNER.module_file(адрес)) == выгрузка
-        assert "/".join(EDT.module_file(адрес)) == edt
-        assert DESIGNER.address_of_file(выгрузка.split("/")) == адрес
-        assert EDT.address_of_file(edt.split("/")) == адрес
+    for address, выгрузка, edt in случаи:
+        assert "/".join(DESIGNER.module_file(address)) == выгрузка
+        assert "/".join(EDT.module_file(address)) == edt
+        assert DESIGNER.address_of_file(выгрузка.split("/")) == address
+        assert EDT.address_of_file(edt.split("/")) == address
         assert EDT.address_of_file(выгрузка.split("/")) is None
