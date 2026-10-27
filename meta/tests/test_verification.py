@@ -373,6 +373,31 @@ def test_a_line_replaced_by_itself_with_other_whitespace():
     assert "«Значение=1;»" in found[0].message
 
 
+def test_a_line_moved_into_a_new_construct_of_an_own_insertion_is_not_whitespace_only():
+    """Своя ИЗМЕНЕН: прежняя строка закомментирована, та же инструкция стоит
+    глубже в ветке `Иначе` новой конструкции — отступ следует из правки."""
+    old = ["Процедура А()", "\tИнициализировать(Макет);", "КонецПроцедуры"]
+    new = ["Процедура А()", СВОЯ, "\t//Инициализировать(Макет);", "\tЕсли Временные Тогда",
+           "\t\tИнициализировать(Макет, Менеджер);", "\tИначе", "\t\tИнициализировать(Макет);",
+           "\tКонецЕсли;", СВОЯ_КОНЕЦ, "КонецПроцедуры"]
+    assert v.cosmetic_findings("a.bsl", old, new, hunks_between(old, new)) == []
+
+
+def test_a_line_moved_into_a_subquery_is_not_whitespace_only():
+    """Схема СКД: строка `ИЗ` уехала внутрь нового подзапроса — без меток, но
+    участок меняет запрос по существу."""
+    old = ["\tВЫБРАТЬ", "\t\tТ.Сумма", "\tИЗ", "\t\tВтРасчет КАК Т"]
+    new = ["\tВЫБРАТЬ", "\t\tТ.Сумма", "\tИЗ", "\t\t(ВЫБРАТЬ", "\t\t\tВтРасчет.Сумма КАК Сумма", "\t\tИЗ",
+           "\t\t\tВтРасчет КАК Т", "\t\t) КАК Т"]
+    assert v.cosmetic_findings("Template.dcs", old, new, hunks_between(old, new)) == []
+
+
+def test_an_indent_changed_without_a_change_of_meaning_is_still_found():
+    old = ["Процедура А()", "\tЗначение = 1;", "\tДругое = 2;", "КонецПроцедуры"]
+    new = ["Процедура А()", "\t\tЗначение = 1;", "\tДругое = 2;", "КонецПроцедуры"]
+    assert коды(v.cosmetic_findings("a.bsl", old, new, hunks_between(old, new))) == ["ПРАВКА-ТОЛЬКО-ПРОБЕЛЫ"]
+
+
 def test_a_neighbouring_xml_block_is_not_whitespace_only():
     """Удалено поле верхнего уровня, в другом месте добавлено поле в группе:
     теги совпадают без пробелов, но это разные строки, а не смена отступа."""

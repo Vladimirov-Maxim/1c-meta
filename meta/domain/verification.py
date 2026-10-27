@@ -228,6 +228,10 @@ def _сходится_без_вставок(old, new, task):
     return суть(без_вставок) == суть(old)
 
 
+def _отступ(line):
+    return line[:len(line) - len(line.lstrip())]
+
+
 def _внутри(n, ranges):
     return any(r["start"] <= n <= r["end"] for r in ranges)
 
@@ -412,22 +416,33 @@ def cosmetic_findings(path, old, new, hunks):
     `<field>` «находил пару» в добавленном с другим отступом совсем в другом
     месте, и вставка соседнего блока XML давала россыпь ложных находок.
     Строка, точная копия которой есть среди добавленных участка, не
-    изменилась — она лишь сдвинулась."""
+    изменилась — она лишь сдвинулась.
+
+    Не находка и перенос внутрь новой конструкции: прежняя строка сохранена в
+    участке комментарием (своя ИЗМЕНЕН), или у строки сменился отступ, а
+    участок меняет код и по существу — строка вошла в новый `Если`/`Попытка`
+    или подзапрос, отступ — следствие. Смена одних хвостовых пробелов и
+    отступ, сменившийся без смысловой правки рядом, — находка."""
     found = []
     for hunk in hunks:
         было = [old[o - 1] for o in hunk.old_lines if o <= len(old)]
         стало = [(n, new[n - 1]) for n in hunk.new_lines if n <= len(new)]
         копии = Counter(text for _, text in стало)
+        сохранены = {_закомментировано(text) for _, text in стало} - {None}
         суть_было = [re.sub(r"\s+", "", text) for text in было]
         суть_стало = [re.sub(r"\s+", "", text) for _, text in стало]
         matcher = difflib.SequenceMatcher(None, суть_было, суть_стало, autojunk=False)
+        по_существу = any(tag in ("insert", "replace") and any(суть_стало[j] for j in range(j1, j2))
+                          for tag, _, _, j1, j2 in matcher.get_opcodes())
         for tag, i1, i2, j1, _ in matcher.get_opcodes():
             if tag != "equal":
                 continue
             for k in range(i2 - i1):
                 text, (n, a) = было[i1 + k], стало[j1 + k]
                 суть = суть_было[i1 + k]
-                if not суть or a == text or копии[text]:
+                if not суть or a == text or копии[text] or text.strip() in сохранены:
+                    continue
+                if по_существу and _отступ(a) != _отступ(text):
                     continue
                 показ = суть if len(суть) <= 60 else суть[:60] + "…"
                 found.append(FileFinding(ТОЛЬКО_ПРОБЕЛЫ, f"строка отличается от прежней только пробелами: «{показ}»",
