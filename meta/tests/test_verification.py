@@ -168,6 +168,32 @@ def test_an_insertion_starting_with_the_lines_that_follow_it_is_not_an_edit_outs
     assert "ПРАВКА-ВНЕ-ВСТАВКИ" in коды(v.marker_findings("М.bsl", old, правлено, hunks, "TASK-1"))
 
 
+def test_another_tasks_insertion_removed_whole_is_an_edit_outside():
+    """Чужая вставка удалена целиком вместе с метками, своей вставки УДАЛЕН нет:
+    след прошлой задачи пропадает — ошибка, а не молчание."""
+    old = ["Процедура А()", ЧУЖАЯ, "\tЧужое();", ЧУЖАЯ_КОНЕЦ, "\tШаг();", "КонецПроцедуры"]
+    new = ["Процедура А()", "\tШаг();", "КонецПроцедуры"]
+    found = метки(old, new, task="TASK-1")
+    assert коды(found) == ["ПРАВКА-ВНЕ-ВСТАВКИ"]
+    assert "удалена вставка другой задачи TASK-0 (стр. 2–4 прежней версии)" in found[0].message
+
+
+def test_lines_removed_inside_another_tasks_insertion_are_a_warning():
+    old = ["Процедура А()", ЧУЖАЯ, "\tЧужое();", "\tЕщё();", ЧУЖАЯ_КОНЕЦ, "КонецПроцедуры"]
+    new = ["Процедура А()", ЧУЖАЯ, "\tЕщё();", ЧУЖАЯ_КОНЕЦ, "КонецПроцедуры"]
+    found = метки(old, new, task="TASK-1")
+    assert коды(found) == ["ПРАВКА-В-ЧУЖОЙ-ВСТАВКЕ"]
+    assert "внутри вставки другой задачи (TASK-0): удалено строк 1 (стр. 3 прежней версии)" in found[0].message
+
+
+def test_another_tasks_insertion_removed_under_an_own_removed_marker_is_accepted():
+    """Удаление чужой вставки своей УДАЛЕН — по правилам: находок нет."""
+    удален = "// {[-](фрагмент УДАЛЕН), 31.08.2026, #TEAM Автор #TASK-1"
+    old = ["Процедура А()", ЧУЖАЯ, "\tЧужое();", ЧУЖАЯ_КОНЕЦ, "КонецПроцедуры"]
+    new = ["Процедура А()", ЧУЖАЯ, удален, "\t//Чужое();", СВОЯ_КОНЕЦ, ЧУЖАЯ_КОНЕЦ, "КонецПроцедуры"]
+    assert метки(old, new, task="TASK-1") == []
+
+
 def test_each_removed_line_needs_its_own_commented_copy():
     old = ["Процедура А()", "\tШаг();", "\tШаг();", "КонецПроцедуры"]
     new = ["Процедура А()", СВОЯ, "\t//Шаг();", "\tНовое();", СВОЯ_КОНЕЦ, "КонецПроцедуры"]
