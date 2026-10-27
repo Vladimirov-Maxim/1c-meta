@@ -68,3 +68,36 @@ def test_a_signature_change_wraps_only_the_declaration_under_its_description(р�
     assert строки[4:10] == ["//", ИЗМЕНЕН, "//Функция Выгрузить(Каталог) Экспорт",
                             "Функция Выгрузить(Каталог, Период = Неопределено) Экспорт", ЗАКРЫТА, "\t"]
     assert находки(root) == []
+
+
+def test_a_continued_expression_does_not_warn_about_a_lost_tab():
+    """Вызов с продолжением на следующих строках отступает глубже начала — это
+    не потерянный таб; блок, начатый и законченный на разных уровнях, — да."""
+    from meta.domain.edits import indent_warning
+    assert indent_warning(["\tЗначение = ?(Строка = Неопределено,", "\t\tСтр.Статья,",
+                           "\t\tСтрока.Статья);"], "\t") == ""
+    assert "разных отступах" in indent_warning(["\tА = 1;", "\t\tБ = 2;"], "\t")
+    assert indent_warning(["\tА = \"(\";  // (", "\t\tБ = 2;"], "\t")    # скобки в литерале не в счёт
+
+
+def test_a_placeholder_in_a_comment_is_not_refused():
+    from meta.domain.edits import placeholder
+    assert placeholder("// Заменяет <ИмяНастройки> именем настройки.") is None
+    assert placeholder("Вызвать(<Модуль>);") == "<Модуль>"
+
+
+def test_a_new_method_without_markers_is_separated_from_its_neighbours(репо):
+    """Модуль, созданный задачей: метки не ставятся, но новый метод перед
+    `#КонецОбласти`, стоящим вплотную к `КонецПроцедуры`, отделяется пустыми
+    строками с обеих сторон."""
+    import subprocess
+
+    root = репо(["#Область Служебные", "Процедура Старая()", "КонецПроцедуры", "#КонецОбласти"])
+    # модуль «создан задачей»: в базовой ревизии его нет
+    subprocess.run(["git", "-C", root, "rm", "-q", "--cached", ВЕНДОРСКИЙ], check=True)
+    subprocess.run(["git", "-C", root, "commit", "-q", "-m", "без модуля"], check=True)
+    код, текст = запустить(root, path=ВЕНДОРСКИЙ, edits=[правка(4, code="Процедура Новая()\nКонецПроцедуры")])
+    assert код == 0, текст
+    assert прочитать(root, ВЕНДОРСКИЙ)[0] == ["#Область Служебные", "Процедура Старая()", "КонецПроцедуры", "",
+                                               "Процедура Новая()", "КонецПроцедуры", "", "#КонецОбласти"]
+

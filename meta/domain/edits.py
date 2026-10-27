@@ -576,7 +576,9 @@ def indent_warning(new_block, ind):
         return ""
     head, tail = len(indent_of(body[0])), len(indent_of(body[-1]))
     notes = []
-    if head != tail:
+    # Последняя строка, продолжающая незакрытую скобку (`?(А,\n\t\tБ,\n\t\tВ)`),
+    # отступает глубже начала выражения штатно — это не потерянный таб.
+    if head != tail and not open_brackets(body[:-1]):
         notes.append(f"первая и последняя строки нового кода на разных отступах ({head} и {tail})")
     if head < len(ind):
         notes.append(f"первая строка нового кода мельче якоря ({head} против {len(ind)})")
@@ -895,16 +897,47 @@ PLACEHOLDER = re.compile(r"<[А-Яа-яЁё][\wА-Яа-яЁё]*>")
 
 
 def placeholder(code):
-    """Заглушка вида «<Модуль>» вне строкового литерала — или None.
+    """Заглушка вида «<Модуль>» вне строкового литерала и комментария — или None.
 
     Подсказка инструмента к коду доработки формы пишет вызов с заглушкой
     модуля, и такой код не должен проходить просмотр без замечаний. В строке
-    «…признак <Согласовать>…» это текст, а не код.
+    «…признак <Согласовать>…» и в описании метода «// Заменяет <ИмяНастройки>…»
+    это текст, а не код.
     """
     for line in (code or "").split("\n"):
+        комментарий = comment_start(line)
         for m in PLACEHOLDER.finditer(line):
+            if комментарий is not None and m.start() >= комментарий:
+                break
             if line[:m.start()].count('"') % 2 == 0:
                 return m.group()
+    return None
+
+
+def open_brackets(lines):
+    """Сколько круглых скобок осталось открытыми к концу строк — без строковых
+    литералов и комментариев."""
+    счёт = 0
+    for line in lines:
+        конец = comment_start(line)
+        в_литерале = False
+        for ch in line[:конец]:
+            if ch == '"':
+                в_литерале = not в_литерале
+            elif not в_литерале:
+                счёт += (ch == "(") - (ch == ")")
+    return счёт
+
+
+def comment_start(line):
+    """Позиция `//`, с которой в строке начинается комментарий, — вне строкового
+    литерала; комментария нет — None."""
+    в_литерале = False
+    for i, ch in enumerate(line):
+        if ch == '"':
+            в_литерале = not в_литерале
+        elif not в_литерале and line.startswith("//", i):
+            return i
     return None
 
 
@@ -1140,12 +1173,20 @@ def outer_wrapper(group, foreign, lines, ranges, meta):
             "replace": (f_first, f_last), "insert": False, "block": block}
 
 
-def plain(item, reason):
-    """Правка без меток: модуль создан задачей или правка внутри своей вставки."""
+def plain(item, reason, lines=None):
+    """Правка без меток: модуль создан задачей или правка внутри своей вставки.
+
+    Новый метод и без меток отделяется от соседних пустой строкой — как его
+    отделяет вставка: иначе он встал бы вплотную к `КонецПроцедуры` соседа
+    или к `#КонецОбласти`, а добавить одну пустую строку у директивы правкой
+    нельзя. Код внутри метода разделителей не получает."""
+    block = item["block"]
+    if lines is not None and any(вид == "метод" for вид, _ in split_parts(block)):
+        block = separate(block, lines, item["first"], item["last"], item["level"], item["count"])
     return {"line": item["first"], "first": item["first"], "last": item["last"], "marker": False,
             "reason": reason + shift_note(item["shift"]), "kind": None,
             "replace": (item["first"], item["last"]),
-            "insert": item["count"] == 0, "block": item["block"]}
+            "insert": item["count"] == 0, "block": block}
 
 
 def marked(item, lines, meta, nested_in=None):
@@ -1270,9 +1311,9 @@ def classify_all(items, lines, ranges, meta):
         if отказ:
             raise Refuse(отказ)
     if meta["new_module"]:
-        return [plain(i, "модуль создан текущей задачей — внутри разметки нет") for i in items]
+        return [plain(i, "модуль создан текущей задачей — внутри разметки нет", lines) for i in items]
     if not meta.get("markers", True):
-        return [plain(i, "метки вставок выключены профилем — правка на месте, без вставки")
+        return [plain(i, "метки вставок выключены профилем — правка на месте, без вставки", lines)
                 for i in items]
     slots, groups = [], {}            # решения в порядке правок задания
     for item in items:
@@ -1285,7 +1326,7 @@ def classify_all(items, lines, ranges, meta):
         where, r = place(item, ranges, meta["task"])
         if where == "own":
             slots.append(plain(item, "правка внутри своей вставки {} — новой обёртки нет, "
-                                     "дата прежняя".format(meta["task"])))
+                                     "дата прежняя".format(meta["task"]), lines))
         elif where == "foreign":
             if r["start"] not in groups:
                 groups[r["start"]] = (r, [])
