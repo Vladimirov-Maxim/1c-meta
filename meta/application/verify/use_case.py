@@ -67,7 +67,7 @@ class VerifyUseCase:
                 # модуль, созданный задачей, меток не несёт: проверяется только изменённый
                 findings += rules.marker_findings(c.path, до, после, hunks, task)
             добавлено, _ = changed_lines(hunks, до or [], после)
-            findings += rules.structure_findings(c.path, после, добавлено)
+            findings += rules.structure_findings(c.path, после, добавлено, task)
             привязки = src.form_bindings(c.path)
             if привязки is not None:
                 findings += rules.unbound_findings(c.path, до or [], после, привязки)
